@@ -16,6 +16,7 @@ class ProductStatus(StrEnum):
     PENDING = "pending"
     READY = "ready"
     BLOCKED = "blocked"
+    APPROVED = "approved"
     CREATED = "created"
     UNCERTAIN = "uncertain"
 
@@ -39,6 +40,7 @@ class Product:
     context: dict[str, str]
     recipient: str = ""
     cc: str = ""
+    batch_id: str = ""
     id: str = field(default_factory=lambda: str(uuid4()))
     status: ProductStatus = ProductStatus.PENDING
     rendered_subject: str = ""
