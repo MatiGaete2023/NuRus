@@ -3,7 +3,8 @@ from __future__ import annotations
 import platform
 from dataclasses import dataclass
 
-from nurus.domain.models import Product, ProductStatus
+from nurus.domain.models import Product, ProductStatus, ProductKind
+from nurus.services.policy import with_mandatory_cc
 
 
 class OutlookUnavailable(RuntimeError):
@@ -82,6 +83,8 @@ def save_draft(
     """
     if not confirmed:
         raise ValueError("Confirma explícitamente la creación del borrador Outlook.")
+    if product.kind is not ProductKind.EMAIL:
+        raise ValueError("Solo un producto de correo puede crear un borrador Outlook.")
     if product.status not in {ProductStatus.READY, ProductStatus.APPROVED}:
         raise ValueError("Solo se pueden crear borradores de productos completos y revisados.")
     if platform.system() != "Windows":
@@ -116,7 +119,7 @@ def save_draft(
         if account is not None:
             mail.SendUsingAccount = account
         mail.To = product.recipient
-        mail.CC = product.cc
+        mail.CC = with_mandatory_cc(product.cc)
         mail.Subject = product.rendered_subject
         mail.Body = product.rendered_body
 
@@ -128,6 +131,8 @@ def save_draft(
             store = getattr(folder, "Store", None)
             store_id = str(getattr(store, "StoreID", "") or "") if store is not None else ""
             folder_name = str(getattr(folder, "FolderPath", "") or getattr(folder, "Name", "") or "")
+            if not entry_id.strip() or not store_id.strip():
+                raise DraftSaveUncertain("Outlook no devolvió EntryID y StoreID completos; concilia antes de reintentar.")
         except Exception as exc:
             raise DraftSaveUncertain(
                 "El borrador fue guardado, pero no se pudo confirmar completamente su identidad."

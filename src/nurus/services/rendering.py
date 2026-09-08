@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from nurus.domain.models import Product, Template
+from nurus.services.policy import with_mandatory_cc
 
 TOKEN = re.compile(r"\{([A-Z_]+)\}")
 _PLACEHOLDER_VALUES = {"por completar", "sin registros cargados"}
@@ -37,6 +38,8 @@ def render(template: Template, context: dict[str, str]) -> tuple[str, str, list[
 
 
 def prepare(product: Product) -> Product:
+    if product.kind.value == "email":
+        product.cc = with_mandatory_cc(product.cc)
     subject, body, issues = render(product.template, product.context)
     product.rendered_subject, product.rendered_body = subject, body
     product.issues = issues

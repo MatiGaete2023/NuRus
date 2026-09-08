@@ -31,7 +31,8 @@ def test_create_draft_requires_explicit_confirmation():
         outlook_adapter.create_draft(product)
 
 
-def test_create_draft_allows_empty_recipient_and_never_sends(monkeypatch):
+@pytest.mark.parametrize("missing_id", [None, "entry", "store"])
+def test_create_draft_allows_empty_recipient_and_never_sends(monkeypatch, missing_id):
     product = _product_without_recipient()
     assert product.status is ProductStatus.READY
 
@@ -92,6 +93,17 @@ def test_create_draft_allows_empty_recipient_and_never_sends(monkeypatch):
     monkeypatch.setitem(sys.modules, "pythoncom", pythoncom_module)
     monkeypatch.setattr(outlook_adapter.platform, "system", lambda: "Windows")
 
+    # Defensa al guardar aunque alguien haya vaciado CC tras preparar el texto.
+    product.cc = ""
+    if missing_id:
+        if missing_id == "entry":
+            mail.EntryID = ""
+        else:
+            folder.Store.StoreID = ""
+        with pytest.raises(outlook_adapter.DraftSaveUncertain):
+            outlook_adapter.save_draft(product, confirmed=True)
+        assert mail.saved and not mail.send_called
+        return
     receipt = outlook_adapter.save_draft(product, confirmed=True)
 
     assert receipt.entry_id == "ENTRY-1"
@@ -99,7 +111,7 @@ def test_create_draft_allows_empty_recipient_and_never_sends(monkeypatch):
     assert mail.saved is True
     assert mail.send_called is False
     assert mail.To == ""
-    assert mail.CC == ""
+    assert mail.CC == "ucc_concepcion@pjud.cl"
 
 
 def test_account_selection_is_exact_and_sets_send_using_account_without_sending(monkeypatch):
@@ -157,3 +169,28 @@ def test_account_selection_is_exact_and_sets_send_using_account_without_sending(
         account_key="cuenta@example.test",
     )
     assert mail.SendUsingAccount is account
+
+
+@pytest.mark.parametrize("cc,expected", [
+    ("", "ucc_concepcion@pjud.cl"),
+    ("otro@example.test", "otro@example.test; ucc_concepcion@pjud.cl"),
+    ("UCC_CONCEPCION@PJUD.CL; ucc_concepcion@pjud.cl", "UCC_CONCEPCION@PJUD.CL"),
+    ("uno@example.test, dos@example.test", "uno@example.test; dos@example.test; ucc_concepcion@pjud.cl"),
+])
+def test_mandatory_copy_preserves_other_recipients(cc, expected):
+    from nurus.services.policy import with_mandatory_cc
+    assert with_mandatory_cc(cc) == expected
+    assert with_mandatory_cc(expected) == expected
+
+
+def test_preview_includes_mandatory_copy():
+    product = _product_without_recipient()
+    assert product.recipient == ""
+    assert product.cc == "ucc_concepcion@pjud.cl"
+
+
+def test_resolution_cannot_create_mail():
+    product = _product_without_recipient()
+    product.kind = ProductKind.RESOLUTION
+    with pytest.raises(ValueError, match="Solo un producto"):
+        outlook_adapter.save_draft(product, confirmed=True)
