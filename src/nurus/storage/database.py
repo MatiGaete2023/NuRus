@@ -1,21 +1,32 @@
 from __future__ import annotations
 
-import sqlite3
 import json
+import sqlite3
 from contextlib import contextmanager
+from datetime import date, datetime
+from hashlib import sha256
 from pathlib import Path
+from typing import Mapping
 from uuid import uuid4
 
 from nurus.domain.models import Product, ProductKind, Template, utc_now
+from nurus.rus.models import EvaluationBatch, SourceReference
 
 
 SCHEMA = """
-PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS templates (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
   subject TEXT NOT NULL, body TEXT NOT NULL, allowed_variables TEXT NOT NULL,
   status TEXT NOT NULL CHECK(status IN ('draft','published')),
   version INTEGER NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS template_versions (
+  template_id TEXT NOT NULL, version INTEGER NOT NULL, name TEXT NOT NULL,
+  kind TEXT NOT NULL, subject TEXT NOT NULL, body TEXT NOT NULL,
+  allowed_variables TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('draft','published')),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(template_id, version)
 );
 CREATE TABLE IF NOT EXISTS contacts (
   id TEXT PRIMARY KEY, entity_key TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL,
@@ -26,6 +37,25 @@ CREATE TABLE IF NOT EXISTS batches (
   id TEXT PRIMARY KEY, source_name TEXT NOT NULL, source_hash TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS review_records (
+  batch_id TEXT NOT NULL,
+  record_id TEXT NOT NULL,
+  source_sheet TEXT NOT NULL,
+  source_row INTEGER NOT NULL,
+  source_hash TEXT NOT NULL,
+  values_json TEXT NOT NULL,
+  original_observation TEXT NOT NULL,
+  edited_observation TEXT NOT NULL,
+  rule_ids_json TEXT NOT NULL,
+  issues_json TEXT NOT NULL,
+  related_sources_json TEXT NOT NULL,
+  evaluation_status TEXT NOT NULL,
+  decision TEXT NOT NULL CHECK(decision IN ('pending','approved','excluded','blocked')),
+  edit_reason TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(batch_id, record_id),
+  FOREIGN KEY(batch_id) REFERENCES batches(id) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY, batch_id TEXT NOT NULL, kind TEXT NOT NULL, template_id TEXT NOT NULL,
   template_version INTEGER NOT NULL, recipient TEXT NOT NULL, status TEXT NOT NULL,
@@ -35,18 +65,109 @@ CREATE TABLE IF NOT EXISTS products (
 """
 
 
+_BATCH_COLUMNS = {
+    "mode": "TEXT NOT NULL DEFAULT 'MANUAL'",
+    "source_path": "TEXT NOT NULL DEFAULT ''",
+    "primary_sheet": "TEXT NOT NULL DEFAULT ''",
+    "cross_sheet": "TEXT NOT NULL DEFAULT ''",
+    "header_row": "INTEGER NOT NULL DEFAULT 1",
+    "excel_epoch": "TEXT NOT NULL DEFAULT '1900'",
+    "as_of": "TEXT NOT NULL DEFAULT ''",
+    "engine_version": "TEXT NOT NULL DEFAULT ''",
+    "catalog_hash": "TEXT NOT NULL DEFAULT ''",
+    "column_mapping": "TEXT NOT NULL DEFAULT '{}'",
+    "warnings": "TEXT NOT NULL DEFAULT '[]'",
+    "evaluation_hash": "TEXT NOT NULL DEFAULT ''",
+    "snapshot_hash": "TEXT NOT NULL DEFAULT ''",
+    "status": "TEXT NOT NULL DEFAULT 'review'",
+    "approved_at": "TEXT NOT NULL DEFAULT ''",
+}
+
+_PRODUCT_COLUMNS = {
+    "cc": "TEXT NOT NULL DEFAULT ''",
+    "context": "TEXT NOT NULL DEFAULT '{}'",
+    "warnings": "TEXT NOT NULL DEFAULT '[]'",
+    "source_snapshot_hash": "TEXT NOT NULL DEFAULT ''",
+}
+
+
+def _json_safe(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list, set, frozenset)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def _json(value: object) -> str:
+    return json.dumps(_json_safe(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _source_dict(source: SourceReference) -> dict[str, object]:
+    return {
+        "workbook_name": source.workbook_name,
+        "workbook_sha256": source.workbook_sha256,
+        "sheet_name": source.sheet_name,
+        "row_number": source.row_number,
+    }
+
+
+def _evaluation_payload(batch: EvaluationBatch) -> dict[str, object]:
+    return {
+        "batch_id": batch.batch_id,
+        "mode": batch.mode.value,
+        "as_of": batch.as_of.isoformat(),
+        "workbook_name": batch.workbook_name,
+        "workbook_sha256": batch.workbook_sha256,
+        "primary_sheet": batch.primary_sheet,
+        "cross_sheet": batch.cross_sheet,
+        "header_row": batch.header_row,
+        "excel_epoch": batch.excel_epoch,
+        "engine_version": batch.engine_version,
+        "catalog_sha256": batch.catalog_sha256,
+        "column_mapping": dict(batch.column_mapping),
+        "warnings": list(batch.warnings),
+        "evaluations": [
+            {
+                "record_id": item.record_id,
+                "source": _source_dict(item.source),
+                "values": dict(item.values),
+                "observation": item.observation,
+                "rule_ids": list(item.rule_ids),
+                "issues": [
+                    {"code": issue.code, "message": issue.message, "source": _source_dict(issue.source)}
+                    for issue in item.issues
+                ],
+                "related_sources": [_source_dict(source) for source in item.related_sources],
+                "status": item.status.value,
+            }
+            for item in batch.evaluations
+        ],
+    }
+
+
+def _digest_payload(payload: object) -> str:
+    return sha256(_json(payload).encode("utf-8")).hexdigest()
+
+
 class Database:
     def __init__(self, path: Path) -> None:
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            self._migrate(conn)
         self.seed()
 
     @contextmanager
     def connect(self):
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
         try:
             yield conn
             conn.commit()
@@ -55,6 +176,30 @@ class Database:
             raise
         finally:
             conn.close()
+
+    @staticmethod
+    def _ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        for name, definition in columns.items():
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+
+    def _migrate(self, conn: sqlite3.Connection) -> None:
+        self._ensure_columns(conn, "batches", _BATCH_COLUMNS)
+        self._ensure_columns(conn, "products", _PRODUCT_COLUMNS)
+        # Las instalaciones 0.1 guardaban solo la última versión. Se conserva como
+        # versión histórica inicial sin reconstruir información inexistente.
+        conn.execute(
+            """INSERT OR IGNORE INTO template_versions(
+                   template_id,version,name,kind,subject,body,allowed_variables,status,created_at)
+               SELECT id,version,name,kind,subject,body,allowed_variables,status,updated_at
+               FROM templates"""
+        )
+        conn.execute("PRAGMA user_version = 2")
+
+    def foreign_keys_enabled(self) -> bool:
+        with self.connect() as conn:
+            return bool(conn.execute("PRAGMA foreign_keys").fetchone()[0])
 
     def seed(self) -> None:
         if self.list_templates():
@@ -74,16 +219,62 @@ class Database:
     def list_templates(self) -> list[Template]:
         with self.connect() as conn:
             rows = conn.execute("SELECT * FROM templates ORDER BY kind, name").fetchall()
-        return [Template(id=r["id"], name=r["name"], kind=ProductKind(r["kind"]), subject=r["subject"], body=r["body"], allowed_variables=tuple(filter(None, r["allowed_variables"].split(","))), status=r["status"], version=r["version"]) for r in rows]
+        return [
+            Template(
+                id=row["id"], name=row["name"], kind=ProductKind(row["kind"]),
+                subject=row["subject"], body=row["body"],
+                allowed_variables=tuple(filter(None, row["allowed_variables"].split(","))),
+                status=row["status"], version=row["version"],
+            )
+            for row in rows
+        ]
 
-    def save_template(self, template: Template) -> None:
-        variables = ",".join(template.allowed_variables)
+    def list_template_versions(self, template_id: str) -> list[Template]:
         with self.connect() as conn:
-            conn.execute("""INSERT INTO templates(id,name,kind,subject,body,allowed_variables,status,version,updated_at)
-              VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,kind=excluded.kind,
-              subject=excluded.subject,body=excluded.body,allowed_variables=excluded.allowed_variables,
-              status=excluded.status,version=templates.version+1,updated_at=excluded.updated_at""",
-              (template.id, template.name, template.kind.value, template.subject, template.body, variables, template.status, template.version, utc_now()))
+            rows = conn.execute(
+                "SELECT * FROM template_versions WHERE template_id=? ORDER BY version",
+                (template_id,),
+            ).fetchall()
+        return [
+            Template(
+                id=row["template_id"], name=row["name"], kind=ProductKind(row["kind"]),
+                subject=row["subject"], body=row["body"],
+                allowed_variables=tuple(filter(None, row["allowed_variables"].split(","))),
+                status=row["status"], version=row["version"],
+            )
+            for row in rows
+        ]
+
+    def save_template(self, template: Template) -> Template:
+        variables = ",".join(template.allowed_variables)
+        now = utc_now()
+        with self.connect() as conn:
+            current = conn.execute(
+                "SELECT COALESCE(MAX(version),0) FROM template_versions WHERE template_id=?",
+                (template.id,),
+            ).fetchone()[0]
+            version = int(current) + 1 if current else max(1, int(template.version))
+            conn.execute(
+                """INSERT INTO template_versions(
+                       template_id,version,name,kind,subject,body,allowed_variables,status,created_at)
+                   VALUES(?,?,?,?,?,?,?,?,?)""",
+                (template.id, version, template.name, template.kind.value, template.subject,
+                 template.body, variables, template.status, now),
+            )
+            conn.execute(
+                """INSERT INTO templates(id,name,kind,subject,body,allowed_variables,status,version,updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(id) DO UPDATE SET name=excluded.name,kind=excluded.kind,
+                   subject=excluded.subject,body=excluded.body,allowed_variables=excluded.allowed_variables,
+                   status=excluded.status,version=excluded.version,updated_at=excluded.updated_at""",
+                (template.id, template.name, template.kind.value, template.subject, template.body,
+                 variables, template.status, version, now),
+            )
+        return Template(
+            id=template.id, name=template.name, kind=template.kind, subject=template.subject,
+            body=template.body, allowed_variables=template.allowed_variables,
+            status=template.status, version=version,
+        )
 
     def list_contacts(self) -> list[sqlite3.Row]:
         with self.connect() as conn:
@@ -91,23 +282,199 @@ class Database:
 
     def save_contact(self, entity_key: str, display_name: str, email: str, cc: str = "") -> None:
         with self.connect() as conn:
-            conn.execute("""INSERT INTO contacts(id,entity_key,display_name,email,cc,active,updated_at)
-             VALUES(?,?,?,?,?,?,?) ON CONFLICT(entity_key) DO UPDATE SET display_name=excluded.display_name,
-             email=excluded.email,cc=excluded.cc,active=1,updated_at=excluded.updated_at""",
-             (entity_key, entity_key, display_name, email, cc, 1, utc_now()))
+            conn.execute(
+                """INSERT INTO contacts(id,entity_key,display_name,email,cc,active,updated_at)
+                   VALUES(?,?,?,?,?,?,?) ON CONFLICT(entity_key) DO UPDATE SET
+                   display_name=excluded.display_name,email=excluded.email,cc=excluded.cc,
+                   active=1,updated_at=excluded.updated_at""",
+                (entity_key, entity_key, display_name, email, cc, 1, utc_now()),
+            )
 
-    def record_product(self, product: Product, source_name: str = "Comunicación particular") -> None:
-        """Registra la copia revisada; no recalcula ni crea elementos en Outlook."""
-        batch_id = str(uuid4())
+    def save_evaluation_batch(self, batch: EvaluationBatch) -> str:
+        """Persiste exactamente la evaluación recibida; no recalcula reglas."""
+        payload = _evaluation_payload(batch)
+        evaluation_hash = _digest_payload(payload)
         now = utc_now()
         with self.connect() as conn:
-            conn.execute("INSERT INTO batches(id,source_name,source_hash,created_at) VALUES(?,?,?,?)", (batch_id, source_name, "manual", now))
-            conn.execute("""INSERT INTO products(id,batch_id,kind,template_id,template_version,recipient,status,subject,body,issues,created_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (product.id, batch_id, product.kind.value, product.template.id,
-                product.template.version, product.recipient, product.status.value, product.rendered_subject,
-                product.rendered_body, json.dumps(product.issues, ensure_ascii=False), now))
+            conn.execute(
+                """INSERT INTO batches(
+                       id,source_name,source_hash,created_at,mode,source_path,primary_sheet,
+                       cross_sheet,header_row,excel_epoch,as_of,engine_version,catalog_hash,
+                       column_mapping,warnings,evaluation_hash,snapshot_hash,status,approved_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (batch.batch_id, batch.workbook_name or "Sin nombre", batch.workbook_sha256,
+                 now, batch.mode.value, batch.source_path, batch.primary_sheet, batch.cross_sheet,
+                 batch.header_row, batch.excel_epoch, batch.as_of.isoformat(), batch.engine_version,
+                 batch.catalog_sha256, _json(dict(batch.column_mapping)), _json(batch.warnings),
+                 evaluation_hash, "", "review", ""),
+            )
+            for item in batch.evaluations:
+                if item.status.value == "excluded":
+                    decision = "excluded"
+                elif item.status.value == "blocked":
+                    decision = "blocked"
+                else:
+                    decision = "pending"
+                conn.execute(
+                    """INSERT INTO review_records(
+                           batch_id,record_id,source_sheet,source_row,source_hash,values_json,
+                           original_observation,edited_observation,rule_ids_json,issues_json,
+                           related_sources_json,evaluation_status,decision,edit_reason,updated_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (batch.batch_id, item.record_id, item.source.sheet_name, item.source.row_number,
+                     item.source.workbook_sha256, _json(dict(item.values)), item.observation,
+                     item.observation, _json(item.rule_ids),
+                     _json([{"code": issue.code, "message": issue.message,
+                             "source": _source_dict(issue.source)} for issue in item.issues]),
+                     _json([_source_dict(source) for source in item.related_sources]),
+                     item.status.value, decision, "", now),
+                )
+        return evaluation_hash
+
+    def get_batch(self, batch_id: str) -> sqlite3.Row | None:
+        with self.connect() as conn:
+            return conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
+
+    def list_review_records(self, batch_id: str) -> list[sqlite3.Row]:
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM review_records WHERE batch_id=? ORDER BY source_sheet,source_row",
+                (batch_id,),
+            ).fetchall()
+
+    def set_record_decision(
+        self,
+        batch_id: str,
+        record_id: str,
+        decision: str,
+        *,
+        observation: str | None = None,
+        reason: str = "",
+    ) -> None:
+        if decision not in {"pending", "approved", "excluded"}:
+            raise ValueError("Decisión de revisión no válida.")
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM review_records WHERE batch_id=? AND record_id=?",
+                (batch_id, record_id),
+            ).fetchone()
+            if row is None:
+                raise KeyError("Registro de revisión no encontrado.")
+            if row["evaluation_status"] == "blocked" and decision == "approved":
+                raise ValueError("Una fila bloqueada no puede aprobarse sin corregir la causa.")
+            new_observation = row["edited_observation"] if observation is None else observation.strip()
+            changed = new_observation != row["original_observation"]
+            if (changed or decision == "excluded") and not reason.strip():
+                raise ValueError("La edición o exclusión requiere un motivo de revisión.")
+            conn.execute(
+                """UPDATE review_records SET decision=?,edited_observation=?,edit_reason=?,updated_at=?
+                   WHERE batch_id=? AND record_id=?""",
+                (decision, new_observation, reason.strip(), utc_now(), batch_id, record_id),
+            )
+            conn.execute(
+                "UPDATE batches SET status='review',snapshot_hash='',approved_at='' WHERE id=?",
+                (batch_id,),
+            )
+
+    def restore_record(self, batch_id: str, record_id: str) -> None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT evaluation_status,original_observation FROM review_records WHERE batch_id=? AND record_id=?",
+                (batch_id, record_id),
+            ).fetchone()
+            if row is None:
+                raise KeyError("Registro de revisión no encontrado.")
+            decision = "excluded" if row["evaluation_status"] == "excluded" else (
+                "blocked" if row["evaluation_status"] == "blocked" else "pending"
+            )
+            conn.execute(
+                """UPDATE review_records SET decision=?,edited_observation=original_observation,
+                   edit_reason='',updated_at=? WHERE batch_id=? AND record_id=?""",
+                (decision, utc_now(), batch_id, record_id),
+            )
+            conn.execute(
+                "UPDATE batches SET status='review',snapshot_hash='',approved_at='' WHERE id=?",
+                (batch_id,),
+            )
+
+    def approve_batch(self, batch_id: str) -> str:
+        """Congela la revisión humana. No crea archivos ni borradores Outlook."""
+        with self.connect() as conn:
+            batch = conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
+            if batch is None:
+                raise KeyError("Lote no encontrado.")
+            rows = conn.execute(
+                "SELECT * FROM review_records WHERE batch_id=? ORDER BY source_sheet,source_row",
+                (batch_id,),
+            ).fetchall()
+            if not rows:
+                raise ValueError("El lote no contiene registros revisables.")
+            unresolved = [row for row in rows if row["decision"] in {"pending", "blocked"}]
+            if unresolved:
+                raise ValueError(
+                    f"Quedan {len(unresolved)} filas pendientes o bloqueadas; no se puede aprobar el lote."
+                )
+            snapshot = {
+                "batch": {
+                    "id": batch["id"], "source_hash": batch["source_hash"], "mode": batch["mode"],
+                    "as_of": batch["as_of"], "engine_version": batch["engine_version"],
+                    "catalog_hash": batch["catalog_hash"], "evaluation_hash": batch["evaluation_hash"],
+                },
+                "records": [
+                    {
+                        "record_id": row["record_id"], "source_sheet": row["source_sheet"],
+                        "source_row": row["source_row"], "source_hash": row["source_hash"],
+                        "values_json": row["values_json"], "observation": row["edited_observation"],
+                        "rule_ids_json": row["rule_ids_json"], "issues_json": row["issues_json"],
+                        "related_sources_json": row["related_sources_json"], "decision": row["decision"],
+                        "edit_reason": row["edit_reason"],
+                    }
+                    for row in rows
+                ],
+            }
+            snapshot_hash = _digest_payload(snapshot)
+            approved_at = utc_now()
+            conn.execute(
+                "UPDATE batches SET status='approved',snapshot_hash=?,approved_at=? WHERE id=?",
+                (snapshot_hash, approved_at, batch_id),
+            )
+        return snapshot_hash
+
+    def record_product(self, product: Product, source_name: str = "Comunicación particular") -> None:
+        """Registra una copia preparada; nunca crea ni envía elementos Outlook."""
+        now = utc_now()
+        batch_id = product.batch_id
+        snapshot_hash = ""
+        with self.connect() as conn:
+            if batch_id:
+                batch = conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
+                if batch is None:
+                    raise ValueError("El producto referencia un lote inexistente.")
+                if batch["status"] != "approved":
+                    raise ValueError("El lote debe estar aprobado antes de preparar productos.")
+                snapshot_hash = batch["snapshot_hash"]
+            else:
+                batch_id = str(uuid4())
+                conn.execute(
+                    """INSERT INTO batches(id,source_name,source_hash,created_at,mode,status,approved_at)
+                       VALUES(?,?,?,?,?,?,?)""",
+                    (batch_id, source_name, "manual", now, "MANUAL", "approved", now),
+                )
+            conn.execute(
+                """INSERT INTO products(
+                       id,batch_id,kind,template_id,template_version,recipient,status,subject,body,
+                       issues,created_at,cc,context,warnings,source_snapshot_hash)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (product.id, batch_id, product.kind.value, product.template.id,
+                 product.template.version, product.recipient, product.status.value,
+                 product.rendered_subject, product.rendered_body, _json(product.issues), now,
+                 product.cc, _json(product.context), _json(getattr(product, "warnings", [])),
+                 snapshot_hash),
+            )
 
     def list_products(self) -> list[sqlite3.Row]:
         with self.connect() as conn:
-            return conn.execute("""SELECT p.*, b.source_name FROM products p JOIN batches b ON b.id=p.batch_id
-              ORDER BY p.created_at DESC LIMIT 100""").fetchall()
+            return conn.execute(
+                """SELECT p.*, b.source_name FROM products p JOIN batches b ON b.id=p.batch_id
+                   ORDER BY p.created_at DESC LIMIT 100"""
+            ).fetchall()
