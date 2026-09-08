@@ -1,5 +1,6 @@
 from nurus.domain.models import Product, ProductKind, ProductStatus, Template
 from nurus.services.rendering import prepare, render
+from nurus.storage.database import Database
 
 
 def email_template() -> Template:
@@ -23,3 +24,12 @@ def test_product_with_recipient_and_data_is_ready():
     product = prepare(Product(ProductKind.EMAIL, email_template(), {"TRIBUNAL": "Jgdo. L. y G. de Laja", "PROGRAMA": "PRM Alfa"}, recipient="prm@example.invalid"))
     assert product.status is ProductStatus.READY
     assert "Jgdo. L. y G. de Laja" in product.rendered_subject
+
+
+def test_history_keeps_the_reviewed_snapshot(tmp_path):
+    db = Database(tmp_path / "nurus.sqlite3")
+    product = prepare(Product(ProductKind.EMAIL, email_template(), {"TRIBUNAL": "Laja", "PROGRAMA": "PRM"}, recipient="prm@example.invalid"))
+    db.record_product(product)
+    saved = db.list_products()
+    assert len(saved) == 1
+    assert saved[0]["subject"] == "Ingreso Laja"
