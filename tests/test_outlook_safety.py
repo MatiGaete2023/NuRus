@@ -41,6 +41,7 @@ def test_create_draft_allows_empty_recipient_and_never_sends(monkeypatch):
             self.CC = None
             self.Subject = None
             self.Body = None
+            self.EntryID = "ENTRY-1"
             self.saved = False
             self.send_called = False
 
@@ -53,23 +54,106 @@ def test_create_draft_allows_empty_recipient_and_never_sends(monkeypatch):
 
     mail = FakeMail()
 
-    class FakeOutlook:
-        def CreateItem(self, kind):
-            assert kind == 0
+    class FakeItems:
+        def Add(self, message_class):
+            assert message_class == "IPM.Note"
             return mail
+
+    class FakeStore:
+        StoreID = "STORE-1"
+
+    class FakeFolder:
+        Items = FakeItems()
+        Store = FakeStore()
+        FolderPath = r"\\Cuenta\Borradores"
+        Folders = ()
+
+    folder = FakeFolder()
+
+    class FakeSession:
+        Accounts = ()
+
+        def GetDefaultFolder(self, folder_id):
+            assert folder_id == 16
+            return folder
+
+    class FakeOutlook:
+        Session = FakeSession()
 
     client_module = types.ModuleType("win32com.client")
     client_module.Dispatch = lambda name: FakeOutlook()
     win32com_module = types.ModuleType("win32com")
     win32com_module.client = client_module
+    pythoncom_module = types.ModuleType("pythoncom")
+    pythoncom_module.CoInitialize = lambda: None
+    pythoncom_module.CoUninitialize = lambda: None
     monkeypatch.setitem(sys.modules, "win32com", win32com_module)
     monkeypatch.setitem(sys.modules, "win32com.client", client_module)
+    monkeypatch.setitem(sys.modules, "pythoncom", pythoncom_module)
     monkeypatch.setattr(outlook_adapter.platform, "system", lambda: "Windows")
 
-    result = outlook_adapter.create_draft(product, confirmed=True)
+    receipt = outlook_adapter.save_draft(product, confirmed=True)
 
-    assert result.status is ProductStatus.CREATED
+    assert receipt.entry_id == "ENTRY-1"
+    assert receipt.store_id == "STORE-1"
     assert mail.saved is True
     assert mail.send_called is False
     assert mail.To == ""
     assert mail.CC == ""
+
+
+def test_account_selection_is_exact_and_sets_send_using_account_without_sending(monkeypatch):
+    product = _product_without_recipient()
+
+    class FakeMail:
+        EntryID = "ENTRY-2"
+        SendUsingAccount = None
+
+        def Save(self):
+            self.saved = True
+
+    mail = FakeMail()
+
+    class FakeItems:
+        def Add(self, _message_class):
+            return mail
+
+    class FakeFolder:
+        Items = FakeItems()
+        Store = types.SimpleNamespace(StoreID="STORE-2")
+        FolderPath = r"\\Cuenta\Borradores"
+        Folders = ()
+
+    folder = FakeFolder()
+
+    class FakeDeliveryStore:
+        def GetDefaultFolder(self, folder_id):
+            assert folder_id == 16
+            return folder
+
+    account = types.SimpleNamespace(
+        SmtpAddress="cuenta@example.test",
+        DisplayName="Cuenta institucional",
+        DeliveryStore=FakeDeliveryStore(),
+    )
+    session = types.SimpleNamespace(Accounts=[account])
+    outlook = types.SimpleNamespace(Session=session)
+
+    client_module = types.ModuleType("win32com.client")
+    client_module.Dispatch = lambda _name: outlook
+    win32com_module = types.ModuleType("win32com")
+    win32com_module.client = client_module
+    pythoncom_module = types.ModuleType("pythoncom")
+    pythoncom_module.CoInitialize = lambda: None
+    pythoncom_module.CoUninitialize = lambda: None
+    monkeypatch.setitem(sys.modules, "win32com", win32com_module)
+    monkeypatch.setitem(sys.modules, "win32com.client", client_module)
+    monkeypatch.setitem(sys.modules, "pythoncom", pythoncom_module)
+    monkeypatch.setattr(outlook_adapter.platform, "system", lambda: "Windows")
+
+    outlook_adapter.save_draft(
+        product,
+        confirmed=True,
+        account_key="cuenta@example.test",
+    )
+    assert mail.SendUsingAccount is account
