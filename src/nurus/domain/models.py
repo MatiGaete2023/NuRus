@@ -46,8 +46,15 @@ class Product:
     rendered_subject: str = ""
     rendered_body: str = ""
     issues: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def mark_ready(self) -> None:
+        """Solo los errores de contenido bloquean el producto.
+
+        Un correo sin destinatario puede seguir listo para guardarse como borrador,
+        porque NuRus nunca envía correos y el destinatario puede completarse durante
+        la revisión humana en Outlook.
+        """
         self.status = ProductStatus.READY if not self.issues else ProductStatus.BLOCKED
 
 
