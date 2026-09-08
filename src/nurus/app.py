@@ -86,9 +86,11 @@ class NuRusApp(ttk.Frame):
         template = published[index]
         ctx = {"TRIBUNAL": self.court_var.get(), "PROGRAMA": self.program_var.get(), "FECHA_CORTE": "por completar", "OBSERVACION": "por completar", "TABLA_REGISTROS": "Sin registros cargados"}
         self.current = prepare(Product(kind=template.kind, template=template, context=ctx, recipient=self.recipient_var.get()))
+        self.db.record_product(self.current, self.file_var.get())
         text = f"Estado: {self.current.status.value}\n\nAsunto\n{self.current.rendered_subject}\n\nContenido\n{self.current.rendered_body}\n\n"
         text += "Observaciones\n" + ("\n".join(f"• {x}" for x in self.current.issues) or "Sin observaciones")
         self.preview.configure(state="normal"); self.preview.delete("1.0", "end"); self.preview.insert("1.0", text); self.preview.configure(state="disabled")
+        self.refresh_history()
 
     def _templates_tab(self) -> None:
         ttk.Label(self.templates, text="Plantillas", style="Title.TLabel").pack(anchor="w")
@@ -133,7 +135,20 @@ class NuRusApp(ttk.Frame):
 
     def _history_tab(self) -> None:
         ttk.Label(self.history, text="Historial", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(self.history, text="El historial de lotes y resultados se habilita al integrar la lectura Excel y el adaptador Outlook en F6.").pack(anchor="w", pady=8)
+        ttk.Label(self.history, text="Productos preparados localmente. Crear un borrador Outlook exige una acción posterior y explícita.").pack(anchor="w", pady=8)
+        self.history_tree = ttk.Treeview(self.history, columns=("fecha", "tipo", "estado", "destino", "asunto"), show="headings")
+        for key, title, width in [("fecha", "Fecha", 150), ("tipo", "Tipo", 100), ("estado", "Estado", 100), ("destino", "Destinatario", 200), ("asunto", "Asunto", 300)]:
+            self.history_tree.heading(key, text=title); self.history_tree.column(key, width=width, stretch=key == "asunto")
+        self.history_tree.pack(fill="both", expand=True)
+        ttk.Button(self.history, text="Actualizar historial", command=self.refresh_history).pack(anchor="e", pady=8)
+        self.refresh_history()
+
+    def refresh_history(self) -> None:
+        if not hasattr(self, "history_tree"):
+            return
+        for row in self.history_tree.get_children(): self.history_tree.delete(row)
+        for item in self.db.list_products():
+            self.history_tree.insert("", "end", values=(item["created_at"], item["kind"], item["status"], item["recipient"] or "Pendiente", item["subject"]))
 
 
 def main() -> None:
