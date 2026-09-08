@@ -15,13 +15,18 @@ def _approved_batch(db, path):
     book = Workbook()
     sheet = book.active
     sheet.title = "Espera"
-    sheet.append(["DERIVACION", "TRIBUNAL", "NOMBRE", "RIT", "T ESPERA", "NOTA"])
-    sheet.append(["PRM Norte", "Juzgado de Laja", "Ana", "C-1", 45, "=2+2"])
+    sheet.append(["DERIVACION", "TRIBUNAL", "NOMBRE", "RIT", "T ESPERA"])
+    sheet.append(["PRM Norte", "Juzgado de Laja", "Ana", "C-1", 45])
     book.save(path)
     controller = WorkController(db)
     batch = controller.analyze(path, Mode.ESPERA, as_of=date(2026, 9, 8))
     row = controller.rows_from_batch(batch)[0]
-    controller.approve_record(batch.batch_id, row.record_id)
+    controller.approve_record(
+        batch.batch_id,
+        row.record_id,
+        observation="=2+2",
+        reason="Prueba de texto potencialmente interpretable como fórmula",
+    )
     controller.approve_batch(batch.batch_id)
     return batch
 
@@ -39,8 +44,8 @@ def test_xlsx_export_uses_approved_snapshot_and_neutralizes_formula_text(tmp_pat
     book = load_workbook(target, data_only=False)
     sheet = book["Revision"]
     headers = [cell.value for cell in sheet[1]]
-    note_col = headers.index("NOTA") + 1
-    assert sheet.cell(2, note_col).value == "'=2+2"
+    observation_col = headers.index("NURUS_OBSERVACION") + 1
+    assert sheet.cell(2, observation_col).value == "'=2+2"
     trace = book["Trazabilidad"]
     trace_values = {trace.cell(row, 1).value: trace.cell(row, 2).value for row in range(2, trace.max_row + 1)}
     assert trace_values["snapshot_hash"] == db.get_batch(batch.batch_id)["snapshot_hash"]
