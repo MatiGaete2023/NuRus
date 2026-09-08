@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from nurus.domain.models import Product, Template
 from nurus.rus import Mode
+from nurus.services.products import approve_product, persist_approved_product, prepare_from_snapshot
 from nurus.services.rendering import prepare
 from nurus.services.workflow import ReviewRow, WorkController
 from nurus.storage.database import Database
@@ -72,7 +73,7 @@ class NuRusApp(ttk.Frame):
 
     # ---------- Trabajo ----------
     def _work_tab(self) -> None:
-        ttk.Label(self.work, text="1 Cargar  ·  2 Revisar  ·  3 Aprobar", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(self.work, text="1 Cargar  ·  2 Revisar  ·  3 Aprobar  ·  4 Preparar", style="Title.TLabel").pack(anchor="w")
         self.work_tabs = ttk.Notebook(self.work)
         self.work_tabs.pack(fill="both", expand=True, pady=(6, 0))
         self.rus_tab = ttk.Frame(self.work_tabs, padding=8)
@@ -151,6 +152,7 @@ class NuRusApp(ttk.Frame):
         ttk.Button(actions, text="Excluir", command=self.exclude_selected_row).pack(side="left", padx=4)
         ttk.Button(actions, text="Restaurar propuesta", command=self.restore_selected_row).pack(side="left")
         ttk.Button(actions, text="Aprobar lote", style="Primary.TButton", command=self.approve_current_batch).pack(side="right")
+        ttk.Button(actions, text="Preparar producto…", command=self.open_product_dialog).pack(side="right", padx=(0, 6))
 
     def choose_file(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("Excel", "*.xlsx *.xlsm *.xls"), ("Todos", "*.*")])
@@ -191,7 +193,7 @@ class NuRusApp(ttk.Frame):
             try:
                 result = self.controller.analyze(path, mode)
                 self.analysis_queue.put((generation, result, None))
-            except Exception as exc:  # el error se muestra en el hilo Tk
+            except Exception as exc:
                 self.analysis_queue.put((generation, None, exc))
 
         threading.Thread(target=worker, name="NuRusExcelAnalysis", daemon=True).start()
@@ -333,8 +335,123 @@ class NuRusApp(ttk.Frame):
         self.analysis_status.set(f"Lote aprobado y congelado · snapshot {snapshot_hash[:12]}…")
         messagebox.showinfo(
             "Lote aprobado",
-            "La revisión quedó congelada. Preparar productos desde este snapshot corresponde a la fase siguiente.",
+            "La revisión quedó congelada. Ya puedes preparar un producto desde ese snapshot.",
         )
+
+    def open_product_dialog(self) -> None:
+        if not self.current_batch_id:
+            messagebox.showwarning("Falta lote", "Analiza y aprueba un lote antes de preparar productos.")
+            return
+        batch = self.db.get_batch(self.current_batch_id)
+        if batch is None or batch["status"] != "approved":
+            messagebox.showwarning("Lote no aprobado", "Primero aprueba y congela la revisión del lote.")
+            return
+
+        published = [item for item in self.db.list_templates() if item.status == "published"]
+        if not published:
+            messagebox.showwarning("Falta plantilla", "No hay plantillas publicadas.")
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Preparar producto desde snapshot")
+        dialog.geometry("780x620")
+        dialog.minsize(680, 520)
+        dialog.transient(self.root)
+
+        frame = ttk.Frame(dialog, padding=12)
+        frame.pack(fill="both", expand=True)
+        template_var = tk.StringVar()
+        template_names = [f"{item.kind.value}: {item.name} (v{item.version})" for item in published]
+        recipient_var = tk.StringVar()
+        cc_var = tk.StringVar()
+        scope_var = tk.StringVar(value="all")
+        status_var = tk.StringVar(value="El producto aún no ha sido preparado.")
+
+        ttk.Label(frame, text="Plantilla").grid(row=0, column=0, sticky="w")
+        combo = ttk.Combobox(frame, textvariable=template_var, state="readonly", values=template_names)
+        combo.grid(row=0, column=1, columnspan=3, sticky="ew", padx=6)
+        combo.current(0)
+        ttk.Label(frame, text="Destinatario").grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Entry(frame, textvariable=recipient_var).grid(row=1, column=1, sticky="ew", padx=6)
+        ttk.Label(frame, text="CC").grid(row=1, column=2, sticky="w")
+        ttk.Entry(frame, textvariable=cc_var).grid(row=1, column=3, sticky="ew", padx=6)
+
+        ttk.Radiobutton(frame, text="Todos los registros aprobados", variable=scope_var, value="all").grid(row=2, column=1, sticky="w")
+        ttk.Radiobutton(frame, text="Solo la fila seleccionada", variable=scope_var, value="selected").grid(row=2, column=2, columnspan=2, sticky="w")
+
+        ttk.Label(frame, text="Asunto").grid(row=3, column=0, sticky="nw", pady=(8, 2))
+        subject_var = tk.StringVar()
+        ttk.Entry(frame, textvariable=subject_var).grid(row=3, column=1, columnspan=3, sticky="ew", padx=6, pady=(8, 2))
+        ttk.Label(frame, text="Contenido").grid(row=4, column=0, sticky="nw")
+        body_text = tk.Text(frame, height=18, wrap="word")
+        body_text.grid(row=4, column=1, columnspan=3, sticky="nsew", padx=6)
+        ttk.Label(frame, textvariable=status_var, style="Subtitle.TLabel", wraplength=700).grid(row=5, column=0, columnspan=4, sticky="w", pady=6)
+
+        product_holder: dict[str, Product] = {}
+
+        def prepare_preview() -> None:
+            index = combo.current()
+            if index < 0:
+                return
+            record_ids = None
+            if scope_var.get() == "selected":
+                selection = self.review_tree.selection()
+                if not selection:
+                    messagebox.showwarning("Falta fila", "Selecciona una fila en la revisión.", parent=dialog)
+                    return
+                record_ids = (selection[0],)
+            try:
+                product = prepare_from_snapshot(
+                    self.db,
+                    self.current_batch_id,
+                    published[index].id,
+                    record_ids=record_ids,
+                    recipient=recipient_var.get(),
+                    cc=cc_var.get(),
+                )
+            except Exception as exc:
+                messagebox.showerror("No se pudo preparar", str(exc), parent=dialog)
+                return
+            product_holder["product"] = product
+            subject_var.set(product.rendered_subject)
+            body_text.delete("1.0", "end")
+            body_text.insert("1.0", product.rendered_body)
+            messages = [*product.issues, *product.warnings]
+            status_var.set(
+                f"Estado: {product.status.value}" + (" · " + " · ".join(messages) if messages else "")
+            )
+
+        def approve_and_save() -> None:
+            product = product_holder.get("product")
+            if product is None:
+                messagebox.showwarning("Falta vista previa", "Prepara primero la vista previa.", parent=dialog)
+                return
+            try:
+                approve_product(
+                    product,
+                    subject=subject_var.get(),
+                    body=body_text.get("1.0", "end-1c"),
+                )
+                persist_approved_product(self.db, product)
+            except Exception as exc:
+                messagebox.showerror("No se pudo aprobar", str(exc), parent=dialog)
+                return
+            self.refresh_history()
+            messagebox.showinfo(
+                "Producto aprobado",
+                "El texto final quedó guardado con referencia al snapshot. No se creó ni envió ningún correo.",
+                parent=dialog,
+            )
+            dialog.destroy()
+
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=6, column=0, columnspan=4, sticky="e", pady=(4, 0))
+        ttk.Button(buttons, text="Preparar vista previa", command=prepare_preview).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Aprobar y guardar", style="Primary.TButton", command=approve_and_save).pack(side="left")
+
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
+        frame.rowconfigure(4, weight=1)
 
     # ---------- Comunicación particular ----------
     def _particular_work_tab(self) -> None:
