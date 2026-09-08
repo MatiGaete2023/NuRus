@@ -50,14 +50,15 @@ def test_controller_persists_two_traceable_rows_and_freezes_approval(tmp_path):
     assert persisted["source_hash"] != "manual"
     assert persisted["status"] == "review"
 
-    for row in rows:
-        controller.approve_record(batch.batch_id, row.record_id)
+    # Una sola aprobación de lote acepta todas las propuestas sin incidencias.
     snapshot_hash = controller.approve_batch(batch.batch_id)
 
     assert len(snapshot_hash) == 64
     approved = db.get_batch(batch.batch_id)
     assert approved["status"] == "approved"
     assert approved["snapshot_hash"] == snapshot_hash
+    stored_rows = controller.load_rows(batch.batch_id)
+    assert all(row.decision == "approved" for row in stored_rows)
 
 
 def test_blocked_row_cannot_be_approved_but_can_be_explicitly_excluded(tmp_path):
@@ -79,12 +80,53 @@ def test_blocked_row_cannot_be_approved_but_can_be_explicitly_excluded(tmp_path)
 
     with pytest.raises(ValueError):
         controller.approve_record(batch.batch_id, row.record_id)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="filas bloqueadas"):
         controller.approve_batch(batch.batch_id)
 
     controller.exclude_record(batch.batch_id, row.record_id, reason="Revisión manual: tribunal no reconocido")
     snapshot_hash = controller.approve_batch(batch.batch_id)
     assert len(snapshot_hash) == 64
+
+
+def test_blocked_exception_does_not_force_clicking_clean_rows_one_by_one(tmp_path):
+    path = tmp_path / "cumplimiento-mixto.xlsx"
+    _book(
+        path,
+        "Cumplimiento",
+        ["DERIVACION", "TRIBUNAL", "RIT", "DIAS DE CUMPLIMIENTO", "DIAS PARA EGRESAR"],
+        [
+            ["PRM Centro", "Juzgado de Laja", "C-10", 100, 100],
+            ["PRM Centro", "Tribunal desconocido", "C-11", 100, 100],
+            ["PRM Centro", "Juzgado de Laja", "C-12", 100, 100],
+        ],
+    )
+    db = Database(tmp_path / "nurus.sqlite3")
+    controller = WorkController(db)
+    batch = controller.analyze(path, Mode.CUMPLIMIENTO, as_of=date(2026, 9, 8))
+    rows = controller.rows_from_batch(batch)
+
+    blocked = next(row for row in rows if row.decision == "blocked")
+    clean = [row for row in rows if row.decision == "pending"]
+    assert len(clean) == 2
+
+    with pytest.raises(ValueError, match="2 filas sin incidencias se aprobarán juntas"):
+        controller.approve_batch(batch.batch_id)
+
+    # El fallo por la excepción no altera todavía las filas normales.
+    assert [row.decision for row in controller.load_rows(batch.batch_id)].count("pending") == 2
+
+    controller.exclude_record(
+        batch.batch_id,
+        blocked.record_id,
+        reason="Revisión manual: tribunal no reconocido",
+    )
+    snapshot_hash = controller.approve_batch(batch.batch_id)
+    assert len(snapshot_hash) == 64
+
+    final_rows = controller.load_rows(batch.batch_id)
+    assert [row.decision for row in final_rows].count("approved") == 2
+    assert [row.decision for row in final_rows].count("excluded") == 1
+    assert all(row.decision != "pending" for row in final_rows)
 
 
 def test_foreign_keys_are_enabled_on_every_database_connection(tmp_path):
