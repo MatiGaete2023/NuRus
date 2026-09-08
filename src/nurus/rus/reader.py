@@ -183,12 +183,16 @@ def read_workbook(
                 raise WorkbookReadError("El libro no contiene hojas.")
             if sheet_name:
                 primary_name = _sheet_by_name(names, sheet_name)
-            elif selected_mode is Mode.CUMPLIMIENTO and any(
-                name.strip().casefold() == "cumplimiento" for name in names
-            ):
-                primary_name = _sheet_by_name(names, "cumplimiento")
-            else:
+            elif any(name.strip().casefold() == selected_mode.value.casefold() for name in names):
+                primary_name = _sheet_by_name(names, selected_mode.value)
+            elif len(names) == 1:
                 primary_name = names[0]
+            else:
+                raise WorkbookReadError(
+                    "No se identifica la hoja de la modalidad; selecciona una hoja explícitamente."
+                )
+            if normalize(primary_name) in {"ob", "medidas vencidas"}:
+                raise WorkbookReadError("OB y Medidas vencidas no se procesan como Espera, Cumplimiento o Informes.")
 
             primary_headers = _headers(pd, workbook, primary_name, header_row)
             try:
