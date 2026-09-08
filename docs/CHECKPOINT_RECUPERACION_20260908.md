@@ -15,9 +15,9 @@ Terminar la integración autorizada de Espera, Cumplimiento, Informes, generaci�
 - No publicar planillas con datos personales, bases SQLite ni productos de causas en GitHub.
 
 ## [G-ESTADO]
-**Estado actual:** implementación local anterior sin publicación de código confirmada; entorno de ejecución actualmente no disponible.
+**Estado actual:** recuperación operativa mediante GitHub y GitHub Actions. Se publicaron cambios reconstruidos sobre las fuentes remotas actuales: correo (052ca78), contactos (848e84b) y selección de hojas (dc3d08e). La implementación local anterior sigue sin recuperarse; no se presenta como publicada.
 
-**Confirmado remotamente al retomar:** la rama seguía en ad5c7c4ff43872ab21ddafe903b0db899f34df7d, “test(review): verify one-click batch approval”. Este checkpoint añade documentación; no publica aquella implementación local.
+**Base remota de la recuperación inicial:** ad5c7c4 y checkpoint abfa54a. Los avances remotos posteriores se documentan en RECUPERACION_EJECUTADA.md. Las pruebas de GitHub Actions corresponden a esos commits; no al código local inaccesible.
 
 **Comprobado en la ejecución anterior:** 52 pruebas aprobadas en 13,50 segundos. Evidencia: salida de pytest de la sesión 19350, conservada en la conversación. Esa ejecución precede a las últimas modificaciones del contador, respaldo e importación de contactos. No equivale a validar el estado final ni el código remoto.
 
@@ -52,7 +52,10 @@ No era un checkout Git inicializado. El directorio /workspace/scratch/4cec07edc9
 6. La documentación general del repositorio todavía debe actualizarse: puede describir pendientes ya implementados localmente.
 
 ## [L-SIGUIENTE]
-Recuperar el acceso al directorio nurus-implementation y obtener el resultado de la sesión 14420; si la sesión no existe, ejecutar nuevamente la suite sobre esos archivos exactos.
+Continuar con la persistencia del snapshot aprobado sobre el código remoto vigente: revisar Database.approve_batch y WorkController.approve_batch, añadir una prueba de rollback y publicar un cambio acotado. Si se recupera el directorio local, compararlo antes de incorporar sus cambios.
+
+## Recuperación del material local cuando vuelva a estar disponible
+Esta secuencia es complementaria: no impide continuar cambios independientes y verificables mediante GitHub Actions.
 
 ## Secuencia mínima de continuación
 1. Comprobar existencia y contenido actual del directorio anterior. No borrar ni sustituirlo.
