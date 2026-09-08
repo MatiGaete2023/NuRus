@@ -87,3 +87,55 @@ def test_invalid_email_is_conflict_and_cannot_be_applied(tmp_path):
     assert "sintaxis inválida" in change.issue
     with pytest.raises(ContactImportError):
         apply_contact_preview(db, preview, {change.entity_key})
+
+
+def test_duplicates_block_every_occurrence(tmp_path):
+    path = tmp_path / "duplicates.xlsx"
+    _write(path, ["PROGRAMA", "CORREO"],
+           [["PRM Norte", "one@example.test"], ["PRM Norte", "two@example.test"]])
+    db = Database(tmp_path / "test.sqlite3")
+    preview = preview_contact_import(db, path)
+    assert len(preview.conflicts) == 2
+    with pytest.raises(ContactImportError):
+        apply_contact_preview(db, preview, {"prm norte"})
+    assert not db.list_contacts()
+
+
+def test_alias_update_preserves_legacy_contact_identifier(tmp_path):
+    path = tmp_path / "update.xlsx"
+    db = Database(tmp_path / "test.sqlite3")
+    db.save_contact("prm norte", "PRM Norte", "old@example.test")
+    with db.connect() as conn:
+        conn.execute("UPDATE contacts SET id='legacy-uuid' WHERE entity_key='prm norte'")
+    _write(path, ["PROGRAMA", "CORREO", "ALIAS"],
+           [["PRM Norte", "new@example.test", "Norte PRM"]])
+    preview = preview_contact_import(db, path)
+    assert apply_contact_preview(db, preview, {"prm norte"}) == 1
+    alias = resolve_contact_exact(db, "Norte PRM")
+    assert alias["id"] == "legacy-uuid"
+    assert alias["email"] == "new@example.test"
+
+
+def test_stale_preview_rejects_intervening_email_change(tmp_path):
+    path = tmp_path / "update.xlsx"
+    db = Database(tmp_path / "test.sqlite3")
+    db.save_contact("prm norte", "PRM Norte", "old@example.test")
+    _write(path, ["PROGRAMA", "CORREO"], [["PRM Norte", "new@example.test"]])
+    preview = preview_contact_import(db, path)
+    db.save_contact("prm norte", "PRM Norte", "intervening@example.test")
+    with pytest.raises(ContactImportError, match="cambió"):
+        apply_contact_preview(db, preview, {"prm norte"})
+    assert resolve_contact_exact(db, "PRM Norte")["email"] == "intervening@example.test"
+
+
+def test_alias_identity_collision_rolls_back_entire_import(tmp_path):
+    path = tmp_path / "collision.xlsx"
+    db = Database(tmp_path / "test.sqlite3")
+    db.save_contact("prm sur", "PRM Sur", "sur@example.test")
+    _write(path, ["PROGRAMA", "CORREO", "ALIAS"],
+           [["AAA", "a@example.test", ""], ["PRM Norte", "n@example.test", "PRM Sur"]])
+    preview = preview_contact_import(db, path)
+    with pytest.raises(ContactImportError, match="identidad"):
+        apply_contact_preview(db, preview, {"aaa", "prm norte"})
+    assert len(db.list_contacts()) == 1
+    assert resolve_contact_exact(db, "PRM Sur")["email"] == "sur@example.test"

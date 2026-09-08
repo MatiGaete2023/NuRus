@@ -4,7 +4,8 @@ import hashlib
 import os
 import re
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from collections import Counter
 from pathlib import Path
 
 from nurus.rus.columns import normalize
@@ -153,7 +154,7 @@ def preview_contact_import(
         display_name = str(row.get(entity_col, "") or "").strip()
         email = "; ".join(_addresses(row.get(email_col, "")))
         cc = "; ".join(_addresses(row.get(cc_col, ""))) if cc_col else ""
-        aliases = _addresses(row.get(alias_col, "")) if False else tuple(
+        aliases = tuple(
             item.strip() for item in re.split(r"[;,]", str(row.get(alias_col, "") or "")) if item.strip()
         )
         aliases = tuple(dict.fromkeys(aliases))
@@ -192,6 +193,12 @@ def preview_contact_import(
                 issue=issue,
             )
         )
+    counts = Counter(item.entity_key for item in changes)
+    changes = [
+        replace(item, action="conflict", issue="Entidad duplicada dentro del catastro.")
+        if counts[item.entity_key] > 1 else item
+        for item in changes
+    ]
     return ContactImportPreview(source.name, digest, selected, tuple(changes))
 
 
@@ -210,6 +217,8 @@ def apply_contact_preview(
         for item in preview.changes
         if item.action in {"add", "update"}
     }
+    for conflict in preview.conflicts:
+        eligible.pop(conflict.entity_key, None)
     unknown = accepted - set(eligible)
     if unknown:
         raise ContactImportError("La selección contiene contactos no aplicables o en conflicto.")
@@ -217,6 +226,7 @@ def apply_contact_preview(
         return 0
 
     with db.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         conn.execute(
             """CREATE TABLE IF NOT EXISTS contact_aliases(
                    alias_key TEXT PRIMARY KEY,
@@ -238,6 +248,15 @@ def apply_contact_preview(
         count = 0
         for key in sorted(accepted):
             item = eligible[key]
+            current = conn.execute("SELECT * FROM contacts WHERE entity_key=?", (key,)).fetchone()
+            if ((item.action == "add" and current is not None)
+                or (item.action == "update" and (current is None
+                    or current["email"] != item.existing_email or current["cc"] != item.existing_cc))):
+                raise ContactImportError("El contacto cambió desde la vista previa; importa nuevamente.")
+            # Una identidad nueva tampoco puede ocultar el alias de otra entidad.
+            owner = conn.execute("SELECT contact_id FROM contact_aliases WHERE alias_key=?", (key,)).fetchone()
+            if owner and (current is None or owner[0] != current["id"]):
+                raise ContactImportError("La identidad coincide con un alias de otro contacto.")
             conn.execute(
                 """INSERT INTO contacts(id,entity_key,display_name,email,cc,active,updated_at)
                    VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP)
@@ -246,15 +265,18 @@ def apply_contact_preview(
                    active=1,updated_at=CURRENT_TIMESTAMP""",
                 (item.entity_key, item.entity_key, item.display_name, item.email, item.cc, 1),
             )
-            conn.execute("DELETE FROM contact_aliases WHERE contact_id=?", (item.entity_key,))
+            contact_id = conn.execute("SELECT id FROM contacts WHERE entity_key=?", (key,)).fetchone()[0]
+            conn.execute("DELETE FROM contact_aliases WHERE contact_id=?", (contact_id,))
             for alias in item.aliases:
                 alias_key = normalize(alias)
                 if not alias_key or alias_key == item.entity_key:
                     continue
+                if conn.execute("SELECT 1 FROM contacts WHERE entity_key=? AND id<>?", (alias_key, contact_id)).fetchone():
+                    raise ContactImportError("El alias coincide con la identidad de otro contacto.")
                 try:
                     conn.execute(
                         "INSERT INTO contact_aliases(alias_key,contact_id,display_alias) VALUES(?,?,?)",
-                        (alias_key, item.entity_key, alias),
+                        (alias_key, contact_id, alias),
                     )
                 except Exception as exc:
                     raise ContactImportError(
