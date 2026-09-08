@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 from contextlib import contextmanager
 from pathlib import Path
+from uuid import uuid4
 
-from nurus.domain.models import ProductKind, Template, utc_now
+from nurus.domain.models import Product, ProductKind, Template, utc_now
 
 
 SCHEMA = """
@@ -93,3 +95,19 @@ class Database:
              VALUES(?,?,?,?,?,?,?) ON CONFLICT(entity_key) DO UPDATE SET display_name=excluded.display_name,
              email=excluded.email,cc=excluded.cc,active=1,updated_at=excluded.updated_at""",
              (entity_key, entity_key, display_name, email, cc, 1, utc_now()))
+
+    def record_product(self, product: Product, source_name: str = "Comunicación particular") -> None:
+        """Registra la copia revisada; no recalcula ni crea elementos en Outlook."""
+        batch_id = str(uuid4())
+        now = utc_now()
+        with self.connect() as conn:
+            conn.execute("INSERT INTO batches(id,source_name,source_hash,created_at) VALUES(?,?,?,?)", (batch_id, source_name, "manual", now))
+            conn.execute("""INSERT INTO products(id,batch_id,kind,template_id,template_version,recipient,status,subject,body,issues,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (product.id, batch_id, product.kind.value, product.template.id,
+                product.template.version, product.recipient, product.status.value, product.rendered_subject,
+                product.rendered_body, json.dumps(product.issues, ensure_ascii=False), now))
+
+    def list_products(self) -> list[sqlite3.Row]:
+        with self.connect() as conn:
+            return conn.execute("""SELECT p.*, b.source_name FROM products p JOIN batches b ON b.id=p.batch_id
+              ORDER BY p.created_at DESC LIMIT 100""").fetchall()
