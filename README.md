@@ -9,6 +9,7 @@ Aplicación de escritorio local para preparar, revisar y generar productos del s
 - Productos revisables: correo, resolución y exportación CSV.
 - Versionado de plantillas: borrador/publicada; las ejecuciones conservan la versión usada.
 - Historial local de lotes y productos; no se envía ningún correo.
+- Motor único RUS para Espera, Cumplimiento e Informes, con hoja, fila y hash SHA-256 de origen en cada resultado.
 - Adaptador Outlook aislado. Solo crea borradores cuando se ejecuta expresamente en Windows con Outlook clásico y `pywin32` instalado.
 
 ## Requisitos
@@ -20,6 +21,8 @@ py -3.12 -m pip install -e .[dev]
 py -3.12 -m pytest -q
 py -3.12 -m nurus.app
 ```
+
+Para procesar libros históricos `.xls`, instala `.[excel-legacy]`. La guía de integración de los lectores y reglas está en `docs/MIGRACION_RUS.md`.
 
 Los datos se crean en `%LOCALAPPDATA%\\NuRus` en Windows o `~/.local/share/NuRus` en otros sistemas. No instales la base en una carpeta compartida de red.
 
