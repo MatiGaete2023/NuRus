@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from nurus.domain.models import utc_now
 from nurus.rus import Mode, evaluate_batch, read_workbook
 from nurus.rus.models import EvaluationBatch, EvaluationStatus
 from nurus.storage.database import Database
@@ -153,41 +152,5 @@ class WorkController:
         self.db.restore_record(batch_id, record_id)
 
     def approve_batch(self, batch_id: str) -> str:
-        """Aprueba el lote en una sola acción humana.
-
-        Las filas ``pending`` representan propuestas del motor sin incidencias y
-        se aceptan conjuntamente al aprobar el lote. Las filas ``blocked`` son
-        excepciones reales y deben resolverse o excluirse individualmente antes
-        de congelar el snapshot. Las exclusiones explícitas se conservan.
-        """
-        rows = self.db.list_review_records(batch_id)
-        if not rows:
-            raise ValueError("El lote no contiene registros revisables.")
-
-        blocked = [row for row in rows if row["decision"] == "blocked"]
-        if blocked:
-            pending_count = sum(1 for row in rows if row["decision"] == "pending")
-            message = f"Quedan {len(blocked)} filas bloqueadas que requieren revisión individual."
-            if pending_count:
-                message += (
-                    f" Las {pending_count} filas sin incidencias se aprobarán juntas "
-                    "cuando se apruebe el lote."
-                )
-            raise ValueError(message)
-
-        # El clic «Aprobar lote» es la confirmación humana de todas las propuestas
-        # normales. Se hace en una sola transacción para evitar cientos de clics
-        # y cientos de escrituras SQLite independientes.
-        with self.db.connect() as conn:
-            conn.execute(
-                """UPDATE review_records
-                   SET decision='approved',updated_at=?
-                   WHERE batch_id=? AND decision='pending' AND evaluation_status<>'blocked'""",
-                (utc_now(), batch_id),
-            )
-            conn.execute(
-                "UPDATE batches SET status='review',snapshot_hash='',approved_at='' WHERE id=?",
-                (batch_id,),
-            )
-
+        """Una acción humana, una transacción de aprobación y snapshot."""
         return self.db.approve_batch(batch_id)

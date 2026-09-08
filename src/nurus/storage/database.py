@@ -14,6 +14,14 @@ from nurus.rus.models import EvaluationBatch, SourceReference
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS approved_snapshots (
+  hash TEXT PRIMARY KEY, batch_id TEXT NOT NULL REFERENCES batches(id),
+  payload TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS snapshot_no_update BEFORE UPDATE ON approved_snapshots
+BEGIN SELECT RAISE(ABORT, 'Snapshot inmutable'); END;
+CREATE TRIGGER IF NOT EXISTS snapshot_no_delete BEFORE DELETE ON approved_snapshots
+BEGIN SELECT RAISE(ABORT, 'Snapshot inmutable'); END;
 CREATE TABLE IF NOT EXISTS templates (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL,
   subject TEXT NOT NULL, body TEXT NOT NULL, allowed_variables TEXT NOT NULL,
@@ -158,6 +166,17 @@ class Database:
     def __init__(self, path: Path) -> None:
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
+        self.migration_backup = None
+        if path.exists() and path.stat().st_size:
+            with sqlite3.connect(path) as source:
+                version = source.execute("PRAGMA user_version").fetchone()[0]
+                if version > 3:
+                    raise ValueError("Base de una versión posterior: no se permite degradarla.")
+                if version < 3:
+                    backup = path.with_name(path.name + f".pre-v3-{uuid4().hex}.bak")
+                    with sqlite3.connect(backup) as destination:
+                        source.backup(destination)
+                    self.migration_backup = backup
         with self.connect() as conn:
             conn.executescript(SCHEMA)
             self._migrate(conn)
@@ -195,7 +214,7 @@ class Database:
                SELECT id,version,name,kind,subject,body,allowed_variables,status,updated_at
                FROM templates"""
         )
-        conn.execute("PRAGMA user_version = 2")
+        conn.execute("PRAGMA user_version = 3")
 
     def foreign_keys_enabled(self) -> bool:
         with self.connect() as conn:
@@ -398,8 +417,9 @@ class Database:
             )
 
     def approve_batch(self, batch_id: str) -> str:
-        """Congela la revisión humana. No crea archivos ni borradores Outlook."""
+        """Aprueba filas y persiste el snapshot en una única transacción."""
         with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             batch = conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
             if batch is None:
                 raise KeyError("Lote no encontrado.")
@@ -409,36 +429,61 @@ class Database:
             ).fetchall()
             if not rows:
                 raise ValueError("El lote no contiene registros revisables.")
-            unresolved = [row for row in rows if row["decision"] in {"pending", "blocked"}]
-            if unresolved:
-                raise ValueError(
-                    f"Quedan {len(unresolved)} filas pendientes o bloqueadas; no se puede aprobar el lote."
-                )
+            blocked = [r for r in rows if r["decision"] == "blocked"
+                       or (r["evaluation_status"] == "blocked" and r["decision"] != "excluded")]
+            if blocked:
+                pending = sum(r["decision"] == "pending" for r in rows)
+                message = f"Quedan {len(blocked)} filas bloqueadas que requieren revisión individual."
+                if pending:
+                    message += f" Las {pending} filas sin incidencias se aprobarán juntas cuando se apruebe el lote."
+                raise ValueError(message)
+            now = utc_now()
+            conn.execute(
+                "UPDATE review_records SET decision='approved',updated_at=? WHERE batch_id=? AND decision='pending'",
+                (now, batch_id),
+            )
+            rows = conn.execute(
+                "SELECT * FROM review_records WHERE batch_id=? ORDER BY source_sheet,source_row",
+                (batch_id,),
+            ).fetchall()
             snapshot = {
-                "batch": {
-                    "id": batch["id"], "source_hash": batch["source_hash"], "mode": batch["mode"],
-                    "as_of": batch["as_of"], "engine_version": batch["engine_version"],
-                    "catalog_hash": batch["catalog_hash"], "evaluation_hash": batch["evaluation_hash"],
-                },
-                "records": [
-                    {
-                        "record_id": row["record_id"], "source_sheet": row["source_sheet"],
-                        "source_row": row["source_row"], "source_hash": row["source_hash"],
-                        "values_json": row["values_json"], "observation": row["edited_observation"],
-                        "rule_ids_json": row["rule_ids_json"], "issues_json": row["issues_json"],
-                        "related_sources_json": row["related_sources_json"], "decision": row["decision"],
-                        "edit_reason": row["edit_reason"],
-                    }
-                    for row in rows
-                ],
+                "schema_version": 1,
+                "batch": {k: batch[k] for k in batch.keys()
+                          if k not in {"status", "snapshot_hash", "approved_at"}},
+                "records": [{k: r[k] for k in r.keys() if k != "updated_at"} for r in rows],
             }
-            snapshot_hash = _digest_payload(snapshot)
-            approved_at = utc_now()
+            digest = _digest_payload(snapshot)
+            conn.execute(
+                "INSERT OR IGNORE INTO approved_snapshots(hash,batch_id,payload,created_at) VALUES(?,?,?,?)",
+                (digest, batch_id, _json(snapshot), now),
+            )
+            # La fecha corresponde al snapshot, incluso al aprobarlo nuevamente.
+            frozen = conn.execute("SELECT created_at FROM approved_snapshots WHERE hash=?", (digest,)).fetchone()
             conn.execute(
                 "UPDATE batches SET status='approved',snapshot_hash=?,approved_at=? WHERE id=?",
-                (snapshot_hash, approved_at, batch_id),
+                (digest, frozen["created_at"], batch_id),
             )
-        return snapshot_hash
+        return digest
+
+    def get_snapshot(self, batch_id: str, snapshot_hash: str = "") -> dict:
+        """Lee evidencia histórica; nunca reconstruye un snapshot ausente."""
+        with self.connect() as conn:
+            if not snapshot_hash:
+                batch = conn.execute("SELECT status,snapshot_hash FROM batches WHERE id=?", (batch_id,)).fetchone()
+                if batch is None or batch["status"] != "approved" or not batch["snapshot_hash"]:
+                    raise ValueError("Se requiere un lote aprobado y congelado.")
+                snapshot_hash = batch["snapshot_hash"]
+            row = conn.execute(
+                "SELECT payload,created_at FROM approved_snapshots WHERE hash=? AND batch_id=?",
+                (snapshot_hash, batch_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError("No existe snapshot histórico guardado; revisa y aprueba nuevamente el lote.")
+            payload = json.loads(row["payload"])
+            if _digest_payload(payload) != snapshot_hash:
+                raise ValueError("El contenido del snapshot no coincide con su hash.")
+            payload["batch"].update(snapshot_hash=snapshot_hash, status="approved", approved_at=row["created_at"])
+            return payload
 
     def record_product(self, product: Product, source_name: str = "Comunicación particular") -> None:
         """Registra una copia preparada; nunca crea ni envía elementos Outlook."""
@@ -446,13 +491,18 @@ class Database:
         batch_id = product.batch_id
         snapshot_hash = ""
         with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             if batch_id:
                 batch = conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
                 if batch is None:
                     raise ValueError("El producto referencia un lote inexistente.")
                 if batch["status"] != "approved":
                     raise ValueError("El lote debe estar aprobado antes de preparar productos.")
-                snapshot_hash = batch["snapshot_hash"]
+                snapshot_hash = product.source_snapshot_hash
+                if not snapshot_hash or snapshot_hash != batch["snapshot_hash"]:
+                    raise ValueError("La vista previa no corresponde al snapshot vigente; prepara nuevamente el producto.")
+                if not conn.execute("SELECT 1 FROM approved_snapshots WHERE hash=? AND batch_id=?", (snapshot_hash, batch_id)).fetchone():
+                    raise ValueError("El producto requiere un snapshot histórico guardado.")
             else:
                 batch_id = str(uuid4())
                 conn.execute(

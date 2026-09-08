@@ -47,6 +47,7 @@ class Product:
     rendered_body: str = ""
     issues: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    source_snapshot_hash: str = ""
 
     def mark_ready(self) -> None:
         """Solo los errores de contenido bloquean el producto.

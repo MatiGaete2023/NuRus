@@ -31,13 +31,13 @@ def _safe_cell(value: object) -> object:
 
 
 def _snapshot_rows(db: Database, batch_id: str) -> tuple[object, list[dict[str, object]]]:
-    batch = db.get_batch(batch_id)
-    if batch is None:
-        raise ExportError("Lote no encontrado.")
-    if batch["status"] != "approved" or not batch["snapshot_hash"]:
-        raise ExportError("Solo se puede exportar un lote aprobado y congelado.")
+    try:
+        snapshot = db.get_snapshot(batch_id)
+    except ValueError as exc:
+        raise ExportError(str(exc)) from exc
+    batch = snapshot["batch"]
     rows: list[dict[str, object]] = []
-    for item in db.list_review_records(batch_id):
+    for item in snapshot["records"]:
         if item["decision"] != "approved":
             continue
         values = json.loads(item["values_json"])

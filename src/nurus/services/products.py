@@ -43,14 +43,14 @@ def prepare_from_snapshot(
     cc: str = "",
 ) -> Product:
     """Prepara un producto exclusivamente desde la revisión congelada en SQLite."""
-    batch = db.get_batch(batch_id)
-    if batch is None:
-        raise ProductBuildError("Lote no encontrado.")
-    if batch["status"] != "approved" or not batch["snapshot_hash"]:
-        raise ProductBuildError("El lote debe estar aprobado y congelado antes de preparar productos.")
+    try:
+        snapshot = db.get_snapshot(batch_id)
+    except ValueError as exc:
+        raise ProductBuildError(str(exc)) from exc
+    batch = snapshot["batch"]
 
     template = _published_template(db, template_id)
-    rows = db.list_review_records(batch_id)
+    rows = snapshot["records"]
     selected_ids = set(record_ids or ())
     if selected_ids:
         known = {row["record_id"] for row in rows}
@@ -107,6 +107,7 @@ def prepare_from_snapshot(
             recipient=recipient.strip(),
             cc=cc.strip(),
             batch_id=batch_id,
+            source_snapshot_hash=batch["snapshot_hash"],
         )
     )
 
