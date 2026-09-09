@@ -1,5 +1,5 @@
 # Checkpoint de recuperación de NuRus
-Fecha: 8 de septiembre de 2026.
+Fecha: 9 de septiembre de 2026.
 
 ## [G-OBJETIVO]
 Terminar la integración autorizada de Espera, Cumplimiento, Informes, generación de correos/proyectos y contador en NuRus; verificarla y publicar el código en la rama de trabajo.
@@ -15,7 +15,9 @@ Terminar la integración autorizada de Espera, Cumplimiento, Informes, generaci�
 - No publicar planillas con datos personales, bases SQLite ni productos de causas en GitHub.
 
 ## [G-ESTADO]
-**Estado actual:** recuperación operativa mediante GitHub y GitHub Actions. Se publicaron cambios reconstruidos sobre las fuentes remotas actuales: correo (052ca78), contactos (848e84b) y selección de hojas (dc3d08e). La implementación local anterior sigue sin recuperarse; no se presenta como publicada.
+**Estado actual:** recuperación operativa mediante GitHub y GitHub Actions. A los cambios remotos de correo, contactos y selección de hojas se añaden aprobación transaccional, snapshots históricos, rechazo de vistas previas antiguas y respaldo de migración (bef83f7), además de protección del archivo original frente a exportación sobre la misma ruta o identidad (1b93196). La implementación local anterior sigue sin recuperarse; no se presenta como publicada.
+
+**Verificación remota vigente:** 62 pruebas aprobadas en Linux y 62 en Windows sobre 1b93196; [Actions 34357265914](https://github.com/MatiGaete2023/NuRus/actions/runs/34357265914). La fase anterior de snapshots pasó 58 pruebas por sistema en Actions 34287905754. Detalles, pasos de actualización y límites en REVISION_SNAPSHOTS_20260909.md.
 
 **Base remota de la recuperación inicial:** ad5c7c4 y checkpoint abfa54a. Los avances remotos posteriores se documentan en RECUPERACION_EJECUTADA.md. Las pruebas de GitHub Actions corresponden a esos commits; no al código local inaccesible.
 
@@ -52,7 +54,7 @@ No era un checkout Git inicializado. El directorio /workspace/scratch/4cec07edc9
 6. La documentación general del repositorio todavía debe actualizarse: puede describir pendientes ya implementados localmente.
 
 ## [L-SIGUIENTE]
-Continuar con la persistencia del snapshot aprobado sobre el código remoto vigente: revisar Database.approve_batch y WorkController.approve_batch, añadir una prueba de rollback y publicar un cambio acotado. Si se recupera el directorio local, compararlo antes de incorporar sus cambios.
+Inspeccionar la captura del archivo en WorkController.analyze y el modelo del lote para implementar conservación de bytes originales vinculados al hash. La aprobación transaccional y los snapshots históricos de registros ya están comprobados; no repetir esa fase salvo nueva evidencia.
 
 ## Recuperación del material local cuando vuelva a estar disponible
 Esta secuencia es complementaria: no impide continuar cambios independientes y verificables mediante GitHub Actions.
