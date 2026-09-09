@@ -528,14 +528,6 @@ class Database:
                 str(item).startswith(("CROSS_SHEET_AMBIGUOUS", "CROSS_MAPPING_AMBIGUOUS"))
                 for item in warnings
             )
-            if missing_cross and ambiguous_cross:
-                raise ValueError(
-                    "La hoja de cruce es ambigua; no puede aprobarse mediante excepción."
-                )
-            if missing_cross and exception is None:
-                raise ValueError(
-                    "Cumplimiento requiere una excepción documentada por ausencia de hoja de cruce."
-                )
             rows = conn.execute(
                 "SELECT * FROM review_records WHERE batch_id=? ORDER BY source_sheet,source_row",
                 (batch_id,),
@@ -550,6 +542,14 @@ class Database:
                 if pending:
                     message += f" Las {pending} filas sin incidencias se aprobarán juntas cuando se apruebe el lote."
                 raise ValueError(message)
+            if missing_cross and ambiguous_cross:
+                raise ValueError(
+                    "La hoja de cruce es ambigua; no puede aprobarse mediante excepción."
+                )
+            if missing_cross and exception is None:
+                raise ValueError(
+                    "Cumplimiento requiere una excepción documentada por ausencia de hoja de cruce."
+                )
             now = utc_now()
             conn.execute(
                 "UPDATE review_records SET decision='approved',updated_at=? WHERE batch_id=? AND decision='pending'",
