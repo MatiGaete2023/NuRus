@@ -4,9 +4,13 @@ import csv
 import hashlib
 import json
 import os
+import shutil
 import tempfile
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
+from typing import Literal
+from zipfile import ZipFile
 
 from nurus.storage.database import Database
 
@@ -68,19 +72,10 @@ def _hash(path: Path) -> str:
     return digest.hexdigest()
 
 
-def export_review_snapshot(
-    db: Database,
-    batch_id: str,
-    destination: str | Path,
-    *,
-    overwrite: bool = False,
-) -> ExportResult:
-    """Exporta una copia revisada; jamás modifica el Excel fuente."""
-    target = Path(destination).expanduser().resolve()
-    if target.suffix.lower() not in {".xlsx", ".csv"}:
-        raise ExportError("La exportación debe ser .xlsx o .csv.")
-    batch, rows = _snapshot_rows(db, batch_id)
-    source_path = batch.get("source_path", "")
+def _validate_destination(
+    batch: dict[str, object], target: Path, *, allow_overwrite: bool = False
+) -> None:
+    source_path = str(batch.get("source_path", "") or "")
     if not source_path:
         raise ExportError("El lote no identifica la ruta de origen; vuelve a importarlo antes de exportar.")
     source = Path(source_path).expanduser().resolve()
@@ -92,8 +87,23 @@ def export_review_snapshot(
         raise ExportError(f"No se pudo comprobar la identidad del destino: {exc}") from exc
     if is_source:
         raise ExportError("El destino corresponde al archivo de origen; elige otro archivo.")
-    if target.exists() and not overwrite:
+    if target.exists() and not allow_overwrite:
         raise ExportError("El archivo de destino ya existe; confirma un nombre distinto o sobrescritura.")
+
+
+def export_review_snapshot(
+    db: Database,
+    batch_id: str,
+    destination: str | Path,
+    *,
+    overwrite: bool = False,
+) -> ExportResult:
+    """Exporta una tabla de revisión; no conserva la estructura del libro original."""
+    target = Path(destination).expanduser().resolve()
+    if target.suffix.lower() not in {".xlsx", ".csv"}:
+        raise ExportError("La exportación debe ser .xlsx o .csv.")
+    batch, rows = _snapshot_rows(db, batch_id)
+    _validate_destination(batch, target, allow_overwrite=overwrite)
     target.parent.mkdir(parents=True, exist_ok=True)
 
     headers = _headers(rows)
@@ -129,6 +139,7 @@ def export_review_snapshot(
                 trace.append([key, value])
             trace.sheet_state = "hidden"
             workbook.save(temp_path)
+            workbook.close()
         else:
             handle = tempfile.NamedTemporaryFile(
                 mode="w", encoding="utf-8-sig", newline="", prefix=target.stem + ".",
@@ -146,9 +157,300 @@ def export_review_snapshot(
         raise ExportError(f"No se pudo escribir la exportación: {exc}") from exc
     finally:
         if temp_path is not None:
-            try:
-                temp_path.unlink(missing_ok=True)
-            except OSError:
-                pass
+            temp_path.unlink(missing_ok=True)
 
     return ExportResult(target, _hash(target), len(rows))
+
+
+def _normalized_header(value: object) -> str:
+    return " ".join(str(value or "").strip().upper().replace("_", " ").split())
+
+
+def _review_records(snapshot: dict) -> list[dict]:
+    records = list(snapshot["records"])
+    if not records:
+        raise ExportError("El snapshot no contiene filas de revisión.")
+    primary = snapshot["batch"]["primary_sheet"]
+    for record in records:
+        if record["source_sheet"] != primary:
+            raise ExportError("La procedencia del snapshot no corresponde a la hoja principal.")
+        if int(record["source_row"]) < 1:
+            raise ExportError("El snapshot contiene una fila de origen inválida.")
+    return records
+
+
+def _trace_rows(snapshot: dict) -> list[tuple[object, ...]]:
+    batch = snapshot["batch"]
+    rows: list[tuple[object, ...]] = [
+        ("CAMPO", "VALOR"),
+        ("SNAPSHOT", batch["snapshot_hash"]),
+        ("FUENTE_SHA256", batch["source_hash"]),
+        ("MODO", batch["mode"]),
+        ("HOJA_PROCESADA", batch["primary_sheet"]),
+        (),
+        ("HOJA", "FILA", "ESTADO", "MOTIVO", "OBSERVACION", "REGLAS", "HASH_ORIGEN"),
+    ]
+    for record in snapshot["records"]:
+        rows.append((
+            record["source_sheet"], record["source_row"], record["decision"],
+            record["edit_reason"], record["edited_observation"],
+            record["rule_ids_json"], record["source_hash"],
+        ))
+    return rows
+
+
+def _trace_name(existing: set[str]) -> str:
+    base = "NURUS_TRAZABILIDAD"
+    result = base
+    index = 2
+    while result in existing:
+        result = f"{base}_{index}"
+        index += 1
+    return result
+
+
+def _annotation_plan(headers: list[object]) -> tuple[int, int]:
+    positions: dict[str, list[int]] = {}
+    for position, value in enumerate(headers, start=1):
+        key = _normalized_header(value)
+        if key:
+            positions.setdefault(key, []).append(position)
+    required = ("NURUS OBSERVACION", "NURUS ESTADO REVISION")
+    for name in required:
+        if len(positions.get(name, [])) > 1:
+            raise ExportError(f"Hay más de una columna {name!r}; no se puede anotar sin ambigüedad.")
+    last = len(headers)
+    observation = positions.get("NURUS OBSERVACION", [last + 1])[0]
+    if observation > last:
+        last = observation
+    state = positions.get("NURUS ESTADO REVISION", [last + 1])[0]
+    return observation, state
+
+
+def _annotation_values(record: dict) -> tuple[str, str]:
+    state = "EXCLUIDO" if record["decision"] == "excluded" else "APROBADO"
+    return str(_safe_cell(record["edited_observation"])), state
+
+
+def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
+    from copy import copy
+
+    from openpyxl import load_workbook
+    from openpyxl.formatting.rule import FormulaRule
+    from openpyxl.styles import PatternFill
+    from openpyxl.utils import get_column_letter
+
+    suffix = target.suffix.lower()
+    book = load_workbook(
+        BytesIO(content), data_only=False, keep_links=True, keep_vba=suffix == ".xlsm"
+    )
+    try:
+        batch = snapshot["batch"]
+        if batch["primary_sheet"] not in book.sheetnames:
+            raise ExportError("La hoja procesada no existe en los bytes conservados.")
+        sheet = book[batch["primary_sheet"]]
+        header_row = int(batch["header_row"])
+        if header_row < 1 or header_row > sheet.max_row:
+            raise ExportError("La fila de encabezado del snapshot no es válida en el libro conservado.")
+        headers = [sheet.cell(header_row, col).value for col in range(1, sheet.max_column + 1)]
+        observation_column, state_column = _annotation_plan(headers)
+        for column, title in (
+            (observation_column, "NURUS_OBSERVACION"),
+            (state_column, "NURUS_ESTADO_REVISION"),
+        ):
+            cell = sheet.cell(header_row, column)
+            if cell.value is None:
+                source = sheet.cell(header_row, max(1, column - 1))
+                cell._style = copy(source._style)
+                cell.number_format = source.number_format
+                cell.alignment = copy(source.alignment)
+                cell.protection = copy(source.protection)
+                cell.value = title
+
+        records = _review_records(snapshot)
+        for record in records:
+            row = int(record["source_row"])
+            if row <= header_row or row > sheet.max_row:
+                raise ExportError(f"La fila {row} no existe en la hoja procesada.")
+            observation, state = _annotation_values(record)
+            sheet.cell(row, observation_column).value = observation
+            sheet.cell(row, state_column).value = state
+
+        first_data_row = header_row + 1
+        last_column = max(sheet.max_column, state_column)
+        status_letter = get_column_letter(state_column)
+        highlight = FormulaRule(
+            formula=["$" + status_letter + str(first_data_row) + '="EXCLUIDO"'],
+            fill=PatternFill(fill_type="solid", fgColor="FFF2CC"),
+        )
+        sheet.conditional_formatting.add(
+            f"A{first_data_row}:{get_column_letter(last_column)}{sheet.max_row}", highlight
+        )
+
+        trace = book.create_sheet(_trace_name(set(book.sheetnames)))
+        for values in _trace_rows(snapshot):
+            trace.append(list(values))
+        trace.sheet_state = "hidden"
+        book.save(target)
+    finally:
+        book.close()
+
+
+def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
+    import platform
+
+    if platform.system() != "Windows":
+        raise ExportError(
+            "La exportación fiel requiere Windows, Excel de escritorio y pywin32. "
+            "Para una salida portable de fidelidad reducida, confírmala expresamente."
+        )
+    if target.suffix.lower() in {".xlsx", ".xlsm"}:
+        with ZipFile(BytesIO(content)) as package:
+            names = {name.lower() for name in package.namelist()}
+            if "xl/connections.xml" in names or any("macrosheets/" in name for name in names):
+                raise ExportError(
+                    "El libro contiene conexiones externas o macros XLM y requiere revisión especializada."
+                )
+    try:
+        import pythoncom
+        import win32com.client
+    except ImportError as exc:
+        raise ExportError(
+            "Falta pywin32 para usar Excel de escritorio. Instala la dependencia excel-native."
+        ) from exc
+
+    target.write_bytes(content)
+    pythoncom.CoInitialize()
+    app = book = placeholder = None
+    try:
+        app = win32com.client.DispatchEx("Excel.Application")
+        app.Visible = False
+        app.DisplayAlerts = False
+        app.EnableEvents = False
+        app.AskToUpdateLinks = False
+        app.AutomationSecurity = 3
+        placeholder = app.Workbooks.Add()
+        app.Calculation = -4135
+        app.CalculateBeforeSave = False
+        book = app.Workbooks.Open(str(target), UpdateLinks=0, ReadOnly=False)
+        placeholder.Close(SaveChanges=False)
+        placeholder = None
+
+        batch = snapshot["batch"]
+        sheet = book.Worksheets(batch["primary_sheet"])
+        header_row = int(batch["header_row"])
+        used_last = sheet.UsedRange.Column + sheet.UsedRange.Columns.Count - 1
+        headers = [sheet.Cells(header_row, column).Value2 for column in range(1, used_last + 1)]
+        observation_column, state_column = _annotation_plan(headers)
+        for column, title in (
+            (observation_column, "NURUS_OBSERVACION"),
+            (state_column, "NURUS_ESTADO_REVISION"),
+        ):
+            if sheet.Cells(header_row, column).Value2 in (None, ""):
+                sheet.Cells(header_row, column).Value2 = title
+
+        records = _review_records(snapshot)
+        last_row = sheet.UsedRange.Row + sheet.UsedRange.Rows.Count - 1
+        for record in records:
+            row = int(record["source_row"])
+            if row <= header_row or row > last_row:
+                raise ExportError(f"La fila {row} no existe en la hoja procesada.")
+            observation, state = _annotation_values(record)
+            sheet.Cells(row, observation_column).NumberFormat = "@"
+            sheet.Cells(row, observation_column).Value2 = observation
+            sheet.Cells(row, state_column).NumberFormat = "@"
+            sheet.Cells(row, state_column).Value2 = state
+
+        last_column = max(used_last, state_column)
+        status_column_letter = _excel_column_name(state_column)
+        for record in records:
+            if record["decision"] != "excluded":
+                continue
+            row = int(record["source_row"])
+            region = sheet.Range(sheet.Cells(row, 1), sheet.Cells(row, last_column))
+            rule = region.FormatConditions.Add(
+                Type=2, Formula1="=$" + status_column_letter + str(row) + '="EXCLUIDO"'
+            )
+            rule.Interior.Color = 204 + 242 * 256 + 255 * 65536
+            rule.SetFirstPriority()
+            rule.StopIfTrue = False
+
+        trace = book.Worksheets.Add(After=book.Worksheets(book.Worksheets.Count))
+        trace.Name = _trace_name({book.Worksheets(index).Name for index in range(1, book.Worksheets.Count + 1)})
+        trace.Visible = 0
+        for row_number, values in enumerate(_trace_rows(snapshot), start=1):
+            for column, value in enumerate(values, start=1):
+                trace.Cells(row_number, column).NumberFormat = "@"
+                trace.Cells(row_number, column).Value2 = str(value or "")
+        book.Save()
+    finally:
+        try:
+            if book is not None:
+                book.Close(SaveChanges=False)
+        finally:
+            try:
+                if placeholder is not None:
+                    placeholder.Close(SaveChanges=False)
+                if app is not None:
+                    app.Quit()
+            finally:
+                pythoncom.CoUninitialize()
+
+
+def _excel_column_name(column: int) -> str:
+    result = ""
+    while column:
+        column, remainder = divmod(column - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
+def export_preserved_workbook(
+    db: Database,
+    batch_id: str,
+    destination: str | Path,
+    *,
+    backend: Literal["native", "portable"] = "native",
+    allow_reduced_fidelity: bool = False,
+) -> ExportResult:
+    """Crea una salida nueva desde los bytes congelados y el snapshot vigente."""
+    try:
+        snapshot = db.get_snapshot(batch_id)
+        content = db.get_original_workbook(batch_id, snapshot_hash=snapshot["batch"]["snapshot_hash"])
+    except ValueError as exc:
+        raise ExportError(str(exc)) from exc
+
+    batch = snapshot["batch"]
+    suffix = Path(str(batch["source_name"])).suffix.lower()
+    target = Path(destination).expanduser().resolve()
+    if suffix not in {".xls", ".xlsx", ".xlsm"}:
+        raise ExportError("El origen no es un formato Excel admitido para exportación.")
+    if target.suffix.lower() != suffix:
+        raise ExportError(f"La salida debe conservar la extensión original {suffix}.")
+    if backend not in {"native", "portable"}:
+        raise ExportError("Backend de exportación no válido.")
+    if backend == "portable" and (suffix == ".xls" or not allow_reduced_fidelity):
+        raise ExportError(
+            "La salida portable requiere confirmación de fidelidad reducida y no admite .xls."
+        )
+    _validate_destination(batch, target, allow_overwrite=False)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    handle = tempfile.NamedTemporaryFile(
+        prefix=target.stem + ".", suffix=target.suffix, dir=target.parent, delete=False
+    )
+    handle.close()
+    temporary = Path(handle.name)
+    try:
+        if backend == "native":
+            _native_preserved(content, temporary, snapshot)
+        else:
+            _portable_preserved(content, temporary, snapshot)
+        with target.open("xb") as output, temporary.open("rb") as source:
+            shutil.copyfileobj(source, output)
+    except OSError as exc:
+        raise ExportError(f"No se pudo escribir la exportación: {exc}") from exc
+    finally:
+        temporary.unlink(missing_ok=True)
+
+    return ExportResult(target, _hash(target), len(snapshot["records"]))

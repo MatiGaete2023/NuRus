@@ -12,6 +12,7 @@ dependencies = ["pandas>=2.2,<3", "openpyxl>=3.1,<4"]
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 excel-legacy = ["xlrd>=2.0.1"]
+excel-native = ["pywin32>=306; platform_system == 'Windows'"]
 outlook = ["pywin32>=306; platform_system == 'Windows'"]
 
 [project.scripts]

@@ -9,6 +9,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from nurus.domain.models import Product, Template
+from nurus.services.exports import ExportError, export_preserved_workbook
 from nurus.rus import Mode
 from nurus.services.products import approve_product, persist_approved_product, prepare_from_snapshot
 from nurus.services.rendering import prepare
@@ -152,6 +153,7 @@ class NuRusApp(ttk.Frame):
         ttk.Button(actions, text="Excluir", command=self.exclude_selected_row).pack(side="left", padx=4)
         ttk.Button(actions, text="Restaurar propuesta", command=self.restore_selected_row).pack(side="left")
         ttk.Button(actions, text="Aprobar lote", style="Primary.TButton", command=self.approve_current_batch).pack(side="right")
+        ttk.Button(actions, text="Exportar Excel revisado", command=self.export_current_workbook).pack(side="right", padx=(0, 6))
         ttk.Button(actions, text="Preparar producto…", command=self.open_product_dialog).pack(side="right", padx=(0, 6))
 
     def choose_file(self) -> None:
@@ -336,6 +338,39 @@ class NuRusApp(ttk.Frame):
         messagebox.showinfo(
             "Lote aprobado",
             "La revisión quedó congelada. Ya puedes preparar un producto desde ese snapshot.",
+        )
+
+    def export_current_workbook(self) -> None:
+        if not self.current_batch_id:
+            messagebox.showwarning("Falta lote", "Analiza y aprueba un lote antes de exportar.")
+            return
+        batch = self.db.get_batch(self.current_batch_id)
+        if batch is None or batch["status"] != "approved":
+            messagebox.showwarning("Lote no aprobado", "Primero aprueba y congela la revisión del lote.")
+            return
+        suffix = Path(batch["source_name"]).suffix.lower()
+        if suffix not in {".xls", ".xlsx", ".xlsm"}:
+            messagebox.showerror("Formato no admitido", "El lote no proviene de un archivo Excel exportable.")
+            return
+        target = filedialog.asksaveasfilename(
+            title="Guardar Excel revisado",
+            defaultextension=suffix,
+            initialfile=Path(batch["source_name"]).stem + " - revisado" + suffix,
+            filetypes=[("Excel", "*" + suffix)],
+        )
+        if not target:
+            return
+        try:
+            result = export_preserved_workbook(self.db, self.current_batch_id, target)
+        except ExportError as exc:
+            messagebox.showerror("No se pudo exportar", str(exc))
+            return
+        except Exception as exc:
+            messagebox.showerror("Error de exportación", str(exc))
+            return
+        messagebox.showinfo(
+            "Excel revisado",
+            f"Se creó una copia revisada de {result.row_count} fila(s).\n{result.path.name}",
         )
 
     def open_product_dialog(self) -> None:

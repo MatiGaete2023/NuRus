@@ -1,0 +1,133 @@
+from __future__ import annotations
+
+from datetime import date
+from io import BytesIO
+import platform
+
+import pytest
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font, PatternFill
+from openpyxl.worksheet.datavalidation import DataValidation
+
+from nurus.rus import Mode
+from nurus.services.exports import ExportError, export_preserved_workbook
+from nurus.services.workflow import WorkController
+from nurus.storage.database import Database
+
+
+def _source(path):
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Espera"
+    sheet.append(["DERIVACION", "TRIBUNAL", "NOMBRE", "RIT", "T ESPERA"])
+    sheet.append(["PRM Norte", "Juzgado de Laja", "Ana", "C-1", 45])
+    sheet.append(["PRM Norte", "Juzgado de Laja", "Beto", "C-2", 45])
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = "A1:E3"
+    sheet.column_dimensions["B"].width = 31
+    sheet["A1"].font = Font(bold=True)
+    sheet["C2"].fill = PatternFill(fill_type="solid", fgColor="92D050")
+    validation = DataValidation(type="list", formula1='"uno,dos"', allow_blank=True)
+    sheet.add_data_validation(validation)
+    validation.add("E2:E3")
+    ob = book.create_sheet("OB")
+    ob["A1"] = "=1+2"
+    ob.column_dimensions["A"].width = 27
+    ob.sheet_state = "hidden"
+    expired = book.create_sheet("Medidas vencidas")
+    expired["A1"] = "No procesar"
+    other = book.create_sheet("Otra")
+    other["A1"] = "Conservar"
+    book.save(path)
+    return path.read_bytes()
+
+
+def _approved_excluded(db, path):
+    original = _source(path)
+    controller = WorkController(db)
+    batch = controller.analyze(path, Mode.ESPERA, as_of=date(2026, 9, 8))
+    first, second = controller.rows_from_batch(batch)
+    controller.approve_record(
+        batch.batch_id, first.record_id, observation="=texto de prueba", reason="Validación"
+    )
+    controller.exclude_record(batch.batch_id, second.record_id, reason="Duplicado confirmado")
+    controller.approve_batch(batch.batch_id)
+    return batch, original
+
+
+def test_preserved_export_uses_archived_bytes_and_marks_excluded(tmp_path):
+    db = Database(tmp_path / "nurus.sqlite3")
+    source = tmp_path / "entrada.xlsx"
+    batch, original = _approved_excluded(db, source)
+    source.write_bytes(b"cambio externo")
+    source.unlink()
+
+    target = tmp_path / "salida.xlsx"
+    result = export_preserved_workbook(
+        db, batch.batch_id, target, backend="portable", allow_reduced_fidelity=True
+    )
+
+    assert result.path == target.resolve()
+    assert result.row_count == 2
+    expected = load_workbook(BytesIO(original), data_only=False)
+    generated = load_workbook(target, data_only=False)
+    try:
+        assert generated.sheetnames[:4] == expected.sheetnames
+        assert generated["OB"]["A1"].value == "=1+2"
+        assert generated["OB"].sheet_state == "hidden"
+        assert generated["OB"].column_dimensions["A"].width == 27
+        assert generated["Medidas vencidas"]["A1"].value == "No procesar"
+        sheet = generated["Espera"]
+        assert sheet.freeze_panes == "A2"
+        assert sheet.auto_filter.ref == "A1:E3"
+        assert sheet.column_dimensions["B"].width == 31
+        assert sheet["A1"].font.bold is True
+        assert sheet["C2"].fill.fgColor.rgb == "0092D050"
+        assert len(sheet.data_validations.dataValidation) == 1
+        headers = [cell.value for cell in sheet[1]]
+        observation = headers.index("NURUS_OBSERVACION") + 1
+        state = headers.index("NURUS_ESTADO_REVISION") + 1
+        assert sheet.cell(2, observation).value == "'=texto de prueba"
+        assert sheet.cell(2, state).value == "APROBADO"
+        assert sheet.cell(3, state).value == "EXCLUIDO"
+        rules = list(sheet.conditional_formatting)
+        assert rules
+        assert "EXCLUIDO" in str(sheet.conditional_formatting[rules[0]][0].formula)
+        trace = generated["NURUS_TRAZABILIDAD"]
+        assert trace.sheet_state == "hidden"
+        assert trace["B2"].value == db.get_batch(batch.batch_id)["snapshot_hash"]
+    finally:
+        expected.close()
+        generated.close()
+
+
+def test_preserved_export_requires_explicit_portable_confirmation(tmp_path):
+    db = Database(tmp_path / "nurus.sqlite3")
+    batch, _ = _approved_excluded(db, tmp_path / "entrada.xlsx")
+    with pytest.raises(ExportError, match="fidelidad reducida"):
+        export_preserved_workbook(db, batch.batch_id, tmp_path / "salida.xlsx", backend="portable")
+
+
+def test_preserved_export_rejects_source_and_existing_destination(tmp_path):
+    db = Database(tmp_path / "nurus.sqlite3")
+    source = tmp_path / "entrada.xlsx"
+    batch, _ = _approved_excluded(db, source)
+    with pytest.raises(ExportError, match="archivo de origen"):
+        export_preserved_workbook(
+            db, batch.batch_id, source, backend="portable", allow_reduced_fidelity=True
+        )
+    existing = tmp_path / "existente.xlsx"
+    existing.write_bytes(b"keep")
+    with pytest.raises(ExportError, match="ya existe"):
+        export_preserved_workbook(
+            db, batch.batch_id, existing, backend="portable", allow_reduced_fidelity=True
+        )
+    assert existing.read_bytes() == b"keep"
+
+
+@pytest.mark.skipif(platform.system() == "Windows", reason="requiere Excel de escritorio real")
+def test_native_backend_requires_windows_excel_environment(tmp_path):
+    db = Database(tmp_path / "nurus.sqlite3")
+    batch, _ = _approved_excluded(db, tmp_path / "entrada.xlsx")
+    with pytest.raises(ExportError, match="Windows"):
+        export_preserved_workbook(db, batch.batch_id, tmp_path / "salida.xlsx")
