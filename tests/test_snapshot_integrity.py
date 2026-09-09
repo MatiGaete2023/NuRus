@@ -148,3 +148,41 @@ def test_migration_backs_up_existing_database_and_rejects_downgrade(tmp_path):
         conn.execute("PRAGMA user_version=99")
     with pytest.raises(ValueError, match="degradarla"):
         Database(path)
+
+
+@pytest.mark.parametrize("alias", ["direct", "relative", "hardlink"])
+def test_export_never_overwrites_source_even_with_confirmation(tmp_path, monkeypatch, alias):
+    db, controller, batch, source = fixture(tmp_path)
+    controller.approve_batch(batch)
+    original = source.read_bytes()
+    destination = source
+    if alias == "relative":
+        monkeypatch.chdir(tmp_path)
+        destination = "input.xlsx"
+    elif alias == "hardlink":
+        import os
+        destination = tmp_path / "alias.xlsx"
+        os.link(source, destination)
+    with pytest.raises(ExportError, match="archivo de origen"):
+        export_review_snapshot(db, batch, destination, overwrite=True)
+    assert source.read_bytes() == original
+    assert not list(tmp_path.glob("*.tmp.xlsx"))
+
+
+def test_export_to_another_file_preserves_source(tmp_path):
+    db, controller, batch, source = fixture(tmp_path)
+    controller.approve_batch(batch)
+    original = source.read_bytes()
+    destination = tmp_path / "review.xlsx"
+    destination.write_bytes(b"previous export")
+    result = export_review_snapshot(db, batch, destination, overwrite=True)
+    assert result.path == destination
+    assert result.row_count == 1
+    assert source.read_bytes() == original
+    from openpyxl import load_workbook
+    book = load_workbook(destination)
+    try:
+        assert book["Revision"].max_row == 2
+        assert "Trazabilidad" in book.sheetnames
+    finally:
+        book.close()

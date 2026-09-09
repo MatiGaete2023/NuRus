@@ -79,11 +79,23 @@ def export_review_snapshot(
     target = Path(destination).expanduser().resolve()
     if target.suffix.lower() not in {".xlsx", ".csv"}:
         raise ExportError("La exportación debe ser .xlsx o .csv.")
+    batch, rows = _snapshot_rows(db, batch_id)
+    source_path = batch.get("source_path", "")
+    if not source_path:
+        raise ExportError("El lote no identifica la ruta de origen; vuelve a importarlo antes de exportar.")
+    source = Path(source_path).expanduser().resolve()
+    try:
+        is_source = target == source or (
+            target.exists() and source.exists() and target.samefile(source)
+        )
+    except OSError as exc:
+        raise ExportError(f"No se pudo comprobar la identidad del destino: {exc}") from exc
+    if is_source:
+        raise ExportError("El destino corresponde al archivo de origen; elige otro archivo.")
     if target.exists() and not overwrite:
         raise ExportError("El archivo de destino ya existe; confirma un nombre distinto o sobrescritura.")
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    batch, rows = _snapshot_rows(db, batch_id)
     headers = _headers(rows)
     suffix = target.suffix.lower()
     temp_path: Path | None = None
