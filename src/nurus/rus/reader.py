@@ -10,6 +10,13 @@ from .columns import ColumnMappingError, has_full_cross_mapping, map_columns, ma
 from .models import Mode, ReadBatch, SourceRecord, SourceReference
 
 _ALLOWED_SUFFIXES = {".xls", ".xlsx", ".xlsm"}
+_AUTO_DETECT_HEADER_SCAN_ROWS = 30
+_REQUIRED_MAPPING_KEYS: dict[Mode, tuple[str, ...]] = {
+    Mode.ESPERA: ("programa", "tribunal", "espera"),
+    Mode.CUMPLIMIENTO: ("programa", "tribunal", "dias_cumpl", "dias_egresar"),
+    Mode.INFORMES: ("programa", "tribunal", "vencimiento"),
+}
+_HEADER_IDENTITY_KEYS = ("rit", "rut", "nombre")
 
 
 class WorkbookReadError(ValueError):
@@ -117,6 +124,66 @@ def _headers(pd, workbook, sheet_name: str, header_row: int) -> list[str]:
     return values
 
 
+def _has_required_mapping(mapping: dict[str, str], mode: Mode) -> bool:
+    required = set(_REQUIRED_MAPPING_KEYS[mode])
+    return required.issubset(mapping) and any(key in mapping for key in _HEADER_IDENTITY_KEYS)
+
+
+def _resolve_header_row(pd, workbook, sheet_name: str, mode: Mode, header_row: int) -> tuple[int, list[str], dict[str, str]]:
+    """Usa la fila indicada o detecta una cabecera desplazada solo si es inequívoca."""
+    initial_error: Exception | None = None
+    try:
+        headers = _headers(pd, workbook, sheet_name, header_row)
+        mapping = map_columns(headers, mode)
+        if _has_required_mapping(mapping, mode) or header_row != 1:
+            return header_row, headers, mapping
+    except (WorkbookReadError, ColumnMappingError) as exc:
+        initial_error = exc
+
+    # Algunas exportaciones RUS incluyen una portada o filas vacías antes de la tabla.
+    # La detección se limita a las primeras filas y exige todos los campos obligatorios
+    # más un identificador de persona o causa para no aceptar una tabla incidental.
+    try:
+        raw = pd.read_excel(
+            workbook,
+            sheet_name=sheet_name,
+            header=None,
+            nrows=_AUTO_DETECT_HEADER_SCAN_ROWS,
+            dtype=object,
+            keep_default_na=False,
+        )
+    except Exception as exc:
+        raise WorkbookReadError(f"No se pudieron revisar las filas iniciales de {sheet_name!r}: {exc}") from exc
+
+    candidates: list[tuple[int, list[str], dict[str, str]]] = []
+    for index in range(len(raw.index)):
+        candidate_row = index + 1
+        if candidate_row == header_row:
+            continue
+        try:
+            candidate_headers = _headers(pd, workbook, sheet_name, candidate_row)
+            candidate_mapping = map_columns(candidate_headers, mode)
+        except (WorkbookReadError, ColumnMappingError):
+            continue
+        if _has_required_mapping(candidate_mapping, mode):
+            candidates.append((candidate_row, candidate_headers, candidate_mapping))
+
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        rows = ", ".join(str(item[0]) for item in candidates)
+        raise WorkbookReadError(
+            f"Se encontraron varias filas que parecen encabezados en {sheet_name!r}: {rows}. "
+            "Corrige o simplifica la planilla antes de analizarla."
+        )
+    if initial_error is not None:
+        raise initial_error
+
+    # Conserva el comportamiento previo: la evaluación explicará las columnas faltantes.
+    headers = _headers(pd, workbook, sheet_name, header_row)
+    return header_row, headers, map_columns(headers, mode)
+
+
 def _read_sheet(pd, workbook, sheet_name: str, header_row: int):
     try:
         return pd.read_excel(
@@ -202,20 +269,25 @@ def read_workbook(
             if normalize(primary_name) in {"ob", "medidas vencidas"}:
                 raise WorkbookReadError("OB y Medidas vencidas no se procesan como Espera, Cumplimiento o Informes.")
 
-            primary_headers = _headers(pd, workbook, primary_name, header_row)
             try:
-                primary_mapping = map_columns(primary_headers, selected_mode)
+                actual_header_row, primary_headers, primary_mapping = _resolve_header_row(
+                    pd, workbook, primary_name, selected_mode, header_row
+                )
             except ColumnMappingError as exc:
                 raise WorkbookReadError(str(exc)) from exc
             primary = _records(
-                _read_sheet(pd, workbook, primary_name, header_row),
+                _read_sheet(pd, workbook, primary_name, actual_header_row),
                 source.name,
                 digest,
                 primary_name,
-                header_row,
+                actual_header_row,
             )
 
             warnings: list[str] = []
+            if actual_header_row != header_row:
+                warnings.append(
+                    f"HEADER_ROW_AUTODETECTED: se usó la fila {actual_header_row} como encabezado de {primary_name!r}."
+                )
             cross: tuple[SourceRecord, ...] = ()
             cross_mapping: dict[str, str] = {}
             chosen = ""
@@ -276,7 +348,7 @@ def read_workbook(
                 workbook_sha256=digest,
                 primary_sheet=primary_name,
                 cross_sheet=chosen,
-                header_row=header_row,
+                header_row=actual_header_row,
                 excel_epoch=_excel_epoch(workbook),
                 column_mapping=primary_mapping,
                 cross_mapping=cross_mapping,

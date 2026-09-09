@@ -54,3 +54,30 @@ def test_single_unnamed_sheet_remains_supported(tmp_path):
     path = tmp_path / "single.xlsx"
     make_book(path, ["Hoja1"])
     assert read_workbook(path, Mode.ESPERA).primary_sheet == "Hoja1"
+
+
+def test_autodetects_displaced_header_and_preserves_physical_rows(tmp_path):
+    path = tmp_path / "displaced.xlsx"
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "informe_1"
+    for _ in range(13):
+        sheet.append(["REPORTE DE CUMPLIMIENTO"])
+    sheet.append([
+        "RIT", "TRIBUNAL", "RUT", "NOMBRE", "DERIVACIÓN",
+        "DÍAS DE CUMPLIMIENTO", "DÍAS PARA EGRESAR",
+    ])
+    sheet.append([
+        "X-1-2026", "Jgdo. L. y G. de Laja", "11.111.111-1", "NNA Prueba",
+        "PRM Prueba", 120, 60,
+    ])
+    book.save(path)
+
+    result = read_workbook(path, Mode.CUMPLIMIENTO)
+
+    assert result.header_row == 14
+    assert result.records[0].source.sheet_name == "informe_1"
+    assert result.records[0].source.row_number == 15
+    assert result.column_mapping["programa"] == "DERIVACIÓN"
+    assert result.column_mapping["dias_cumpl"] == "DÍAS DE CUMPLIMIENTO"
+    assert any(item.startswith("HEADER_ROW_AUTODETECTED") for item in result.warnings)
