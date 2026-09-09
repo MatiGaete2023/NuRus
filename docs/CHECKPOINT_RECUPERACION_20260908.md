@@ -15,9 +15,9 @@ Terminar la integración autorizada de Espera, Cumplimiento, Informes, generaci�
 - No publicar planillas con datos personales, bases SQLite ni productos de causas en GitHub.
 
 ## [G-ESTADO]
-**Estado actual:** recuperación operativa mediante GitHub y GitHub Actions. A los cambios remotos de correo, contactos y selección de hojas se añaden aprobación transaccional, snapshots históricos, rechazo de vistas previas antiguas y respaldo de migración (bef83f7), además de protección del archivo original frente a exportación sobre la misma ruta o identidad (1b93196). Se incorpora conservación atómica de los bytes originales por SHA-256, lectura desde la captura y migración con respaldo a v4 (67a23b7). La exportación revisada desde esa copia quedó publicada en e1f7452: modo nativo de Excel para Windows, anotaciones de revisión, trazabilidad oculta y filas excluidas coloreadas. La implementación local anterior sigue sin recuperarse; no se presenta como publicada.
+**Estado actual:** recuperación operativa mediante GitHub y GitHub Actions. A los cambios remotos de correo, contactos y selección de hojas se añaden aprobación transaccional, snapshots históricos, rechazo de vistas previas antiguas y respaldo de migración (bef83f7), además de protección del archivo original frente a exportación sobre la misma ruta o identidad (1b93196). Se incorpora conservación atómica de los bytes originales por SHA-256, lectura desde la captura y migración con respaldo a v4 (67a23b7). La exportación revisada desde esa copia quedó publicada en e1f7452: modo nativo de Excel para Windows, anotaciones de revisión, trazabilidad oculta y filas excluidas coloreadas. Cumplimiento ahora exige excepción documentada de hoja de cruce, persistida en el snapshot; el instalador detecta Python 3.12 sin depender solo de py (81769e). La implementación local anterior sigue sin recuperarse; no se presenta como publicada.
 
-**Verificación remota vigente:** 77 pruebas aprobadas en Linux y 76 aprobadas más 1 omitida en Windows, sobre e1f7452. Evidencia: [Actions 34366711295](https://github.com/MatiGaete2023/NuRus/actions/runs/34366711295). La omisión exige Excel de escritorio real. Ver EXPORTACION_LIBRO_REVISADO_20260909.md para uso, dependencia y límites. La aceptación con Excel 2010 continúa pendiente.
+**Verificación remota vigente:** 80 pruebas aprobadas en Linux y 79 aprobadas más 1 omitida en Windows, sobre 81769e. Evidencia: [Actions 34369824759](https://github.com/MatiGaete2023/NuRus/actions/runs/34369824759). La omisión exige Excel de escritorio real. Ver INSTALACION_Y_EXCEPCION_CUMPLIMIENTO_20260909.md para recuperación de instalación, excepción y aceptación. La aceptación con Excel 2010 y Outlook clásico continúa pendiente.
 
 **Base remota de la recuperación inicial:** ad5c7c4 y checkpoint abfa54a. Los avances remotos posteriores se documentan en RECUPERACION_EJECUTADA.md. Las pruebas de GitHub Actions corresponden a esos commits; no al código local inaccesible.
 
@@ -54,7 +54,7 @@ No era un checkout Git inicializado. El directorio /workspace/scratch/4cec07edc9
 6. La documentación general del repositorio todavía debe actualizarse: puede describir pendientes ya implementados localmente.
 
 ## [L-SIGUIENTE]
-Implementar la excepción documentada de la hoja cruzada de Cumplimiento, con responsable, motivo y persistencia dentro del snapshot. La exportación desde bytes conservados ya está implementada; no repetirla salvo nueva evidencia.
+Ejecutar la aceptación institucional en Windows 10 con Excel 2010 y Outlook clásico sobre copias, documentando resultados y cualquier diferencia. La excepción de Cumplimiento y la exportación desde bytes conservados ya están implementadas; no repetirlas salvo nueva evidencia.
 
 ## Recuperación del material local cuando vuelva a estar disponible
 Esta secuencia es complementaria: no impide continuar cambios independientes y verificables mediante GitHub Actions.
