@@ -15,9 +15,9 @@ Terminar la integración autorizada de Espera, Cumplimiento, Informes, generaci�
 - No publicar planillas con datos personales, bases SQLite ni productos de causas en GitHub.
 
 ## [G-ESTADO]
-**Estado actual:** recuperación operativa mediante GitHub y GitHub Actions. A los cambios remotos de correo, contactos y selección de hojas se añaden aprobación transaccional, snapshots históricos, rechazo de vistas previas antiguas y respaldo de migración (bef83f7), además de protección del archivo original frente a exportación sobre la misma ruta o identidad (1b93196). La implementación local anterior sigue sin recuperarse; no se presenta como publicada.
+**Estado actual:** recuperación operativa mediante GitHub y GitHub Actions. A los cambios remotos de correo, contactos y selección de hojas se añaden aprobación transaccional, snapshots históricos, rechazo de vistas previas antiguas y respaldo de migración (bef83f7), además de protección del archivo original frente a exportación sobre la misma ruta o identidad (1b93196). Se incorpora conservación atómica de los bytes originales por SHA-256, lectura desde la captura y migración con respaldo a v4 (67a23b7). La implementación local anterior sigue sin recuperarse; no se presenta como publicada.
 
-**Verificación remota vigente:** 62 pruebas aprobadas en Linux y 62 en Windows sobre 1b93196; [Actions 34357265914](https://github.com/MatiGaete2023/NuRus/actions/runs/34357265914). La fase anterior de snapshots pasó 58 pruebas por sistema en Actions 34287905754. Detalles, pasos de actualización y límites en REVISION_SNAPSHOTS_20260909.md.
+**Verificación remota vigente:** 73 pruebas aprobadas en Linux (3,16 s) y 73 en Windows (60,37 s), sobre 67a23b7. Evidencia: [Actions 34360067190](https://github.com/MatiGaete2023/NuRus/actions/runs/34360067190). Los archivos publicados se compararon con el contenido preparado. Ver ORIGINALES_CONSERVADOS_20260909.md para funcionamiento, migración y límites. La exportación fiel continúa pendiente.
 
 **Base remota de la recuperación inicial:** ad5c7c4 y checkpoint abfa54a. Los avances remotos posteriores se documentan en RECUPERACION_EJECUTADA.md. Las pruebas de GitHub Actions corresponden a esos commits; no al código local inaccesible.
 
@@ -54,7 +54,7 @@ No era un checkout Git inicializado. El directorio /workspace/scratch/4cec07edc9
 6. La documentación general del repositorio todavía debe actualizarse: puede describir pendientes ya implementados localmente.
 
 ## [L-SIGUIENTE]
-Inspeccionar la captura del archivo en WorkController.analyze y el modelo del lote para implementar conservación de bytes originales vinculados al hash. La aprobación transaccional y los snapshots históricos de registros ya están comprobados; no repetir esa fase salvo nueva evidencia.
+Implementar el exportador sobre una copia de los bytes conservados, con observaciones y colores por fila física y pruebas de preservación. Los bytes originales y los snapshots de registros ya están conservados; no repetir estas fases salvo nueva evidencia.
 
 ## Recuperación del material local cuando vuelva a estar disponible
 Esta secuencia es complementaria: no impide continuar cambios independientes y verificables mediante GitHub Actions.
