@@ -22,6 +22,11 @@ CREATE TRIGGER IF NOT EXISTS source_no_update BEFORE UPDATE ON workbook_sources
 BEGIN SELECT RAISE(ABORT, 'Origen inmutable'); END;
 CREATE TRIGGER IF NOT EXISTS source_no_delete BEFORE DELETE ON workbook_sources
 BEGIN SELECT RAISE(ABORT, 'Origen inmutable'); END;
+CREATE TABLE IF NOT EXISTS batch_exceptions (
+  batch_id TEXT PRIMARY KEY REFERENCES batches(id) ON DELETE CASCADE,
+  code TEXT NOT NULL, responsible TEXT NOT NULL, reason TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS approved_snapshots (
   hash TEXT PRIMARY KEY, batch_id TEXT NOT NULL REFERENCES batches(id),
@@ -179,10 +184,10 @@ class Database:
         if path.exists() and path.stat().st_size:
             with sqlite3.connect(path) as source:
                 version = source.execute("PRAGMA user_version").fetchone()[0]
-                if version > 4:
+                if version > 5:
                     raise ValueError("Base de una versión posterior: no se permite degradarla.")
-                if version < 4:
-                    backup = path.with_name(path.name + f".pre-v4-{uuid4().hex}.bak")
+                if version < 5:
+                    backup = path.with_name(path.name + f".pre-v5-{uuid4().hex}.bak")
                     with sqlite3.connect(backup) as destination:
                         source.backup(destination)
                     self.migration_backup = backup
@@ -223,7 +228,7 @@ class Database:
                SELECT id,version,name,kind,subject,body,allowed_variables,status,updated_at
                FROM templates"""
         )
-        conn.execute("PRAGMA user_version = 4")
+        conn.execute("PRAGMA user_version = 5")
 
     def foreign_keys_enabled(self) -> bool:
         with self.connect() as conn:
@@ -374,6 +379,51 @@ class Database:
                 )
         return evaluation_hash
 
+    def document_missing_cross_sheet_exception(
+        self, batch_id: str, *, responsible: str, reason: str
+    ) -> None:
+        """Registra una excepción humana antes de aprobar Cumplimiento sin hoja de cruce."""
+        responsible = responsible.strip()
+        reason = reason.strip()
+        if not responsible or not reason:
+            raise ValueError("La excepción requiere responsable y motivo.")
+        with self.connect() as conn:
+            batch = conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
+            if batch is None:
+                raise KeyError("Lote no encontrado.")
+            warnings = json.loads(batch["warnings"] or "[]")
+            missing_cross = any(
+                str(item).startswith("CROSS_SHEET_NOT_SELECTED") for item in warnings
+            )
+            ambiguous_cross = any(
+                str(item).startswith(("CROSS_SHEET_AMBIGUOUS", "CROSS_MAPPING_AMBIGUOUS"))
+                for item in warnings
+            )
+            if batch["mode"] != "CUMPLIMIENTO" or not missing_cross:
+                raise ValueError("Este lote no requiere excepción por ausencia de hoja de cruce.")
+            if ambiguous_cross:
+                raise ValueError(
+                    "La hoja de cruce es ambigua; selecciónala o corrige su mapeo antes de aprobar."
+                )
+            conn.execute(
+                """INSERT INTO batch_exceptions(batch_id,code,responsible,reason,created_at)
+                   VALUES(?,?,?,?,?)
+                   ON CONFLICT(batch_id) DO UPDATE SET
+                   code=excluded.code,responsible=excluded.responsible,
+                   reason=excluded.reason,created_at=excluded.created_at""",
+                (batch_id, "CROSS_SHEET_NOT_SELECTED", responsible, reason, utc_now()),
+            )
+            conn.execute(
+                "UPDATE batches SET status='review',snapshot_hash='',approved_at='' WHERE id=?",
+                (batch_id,),
+            )
+
+    def get_batch_exception(self, batch_id: str) -> sqlite3.Row | None:
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM batch_exceptions WHERE batch_id=?", (batch_id,)
+            ).fetchone()
+
     def get_original_workbook(self, batch_id: str, *, snapshot_hash: str = "") -> bytes:
         """Recupera bytes verificados; nunca relee la ruta externa como sustituto."""
         if snapshot_hash:
@@ -467,6 +517,25 @@ class Database:
             batch = conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
             if batch is None:
                 raise KeyError("Lote no encontrado.")
+            warnings = json.loads(batch["warnings"] or "[]")
+            exception = conn.execute(
+                "SELECT * FROM batch_exceptions WHERE batch_id=?", (batch_id,)
+            ).fetchone()
+            missing_cross = batch["mode"] == "CUMPLIMIENTO" and any(
+                str(item).startswith("CROSS_SHEET_NOT_SELECTED") for item in warnings
+            )
+            ambiguous_cross = any(
+                str(item).startswith(("CROSS_SHEET_AMBIGUOUS", "CROSS_MAPPING_AMBIGUOUS"))
+                for item in warnings
+            )
+            if missing_cross and ambiguous_cross:
+                raise ValueError(
+                    "La hoja de cruce es ambigua; no puede aprobarse mediante excepción."
+                )
+            if missing_cross and exception is None:
+                raise ValueError(
+                    "Cumplimiento requiere una excepción documentada por ausencia de hoja de cruce."
+                )
             rows = conn.execute(
                 "SELECT * FROM review_records WHERE batch_id=? ORDER BY source_sheet,source_row",
                 (batch_id,),
@@ -490,11 +559,20 @@ class Database:
                 "SELECT * FROM review_records WHERE batch_id=? ORDER BY source_sheet,source_row",
                 (batch_id,),
             ).fetchall()
+            exceptions = []
+            if exception is not None:
+                exceptions.append({
+                    "code": exception["code"],
+                    "responsible": exception["responsible"],
+                    "reason": exception["reason"],
+                    "created_at": exception["created_at"],
+                })
             snapshot = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "batch": {k: batch[k] for k in batch.keys()
                           if k not in {"status", "snapshot_hash", "approved_at"}},
                 "records": [{k: r[k] for k in r.keys() if k != "updated_at"} for r in rows],
+                "exceptions": exceptions,
             }
             digest = _digest_payload(snapshot)
             conn.execute(

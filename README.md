@@ -19,6 +19,7 @@ Aplicación de escritorio local para analizar y revisar planillas del seguimient
 - Vista de revisión por fila con RIT, tribunal, programa, observación, reglas e incidencias.
 - Aprobación, edición con motivo, exclusión con motivo y restauración de propuesta.
 - Snapshot SHA-256 del lote aprobado; los productos posteriores deben usar ese snapshot y no recalcular la planilla.
+- Cumplimiento sin hoja de cruce solo se aprueba tras documentar responsable y motivo; la excepción queda dentro del snapshot.
 - SQLite local con claves foráneas activas, lote/origen persistente y versiones inmutables de plantillas.
 - Comunicación particular sin planilla RUS.
 - Adaptador Outlook aislado para **guardar borradores únicamente**. Todavía no está conectado a la GUI productiva.
@@ -38,7 +39,7 @@ Aplicación de escritorio local para analizar y revisar planillas del seguimient
 La instalación debe quedar aislada del Python general del equipo.
 
 1. Descarga o clona el repositorio en una carpeta estable.
-2. Ejecuta `Instalar_NuRus.bat`.
+2. Ejecuta `Instalar_NuRus.bat`. El instalador detecta Python 3.12 con `py -3.12`, `python`, `python3.12` y rutas estándar por usuario.
 3. Después abre con doble clic `Abrir_NuRus.bat`.
 
 El instalador crea `.venv` y usa ese Python para NuRus; no modifica políticas de Windows ni desactiva controles institucionales.
@@ -46,8 +47,8 @@ El instalador crea `.venv` y usa ese Python para NuRus; no modifica políticas d
 Instalación manual equivalente desde `cmd`:
 
 ```cmd
-py -3.12 -m venv .venv
-.venv\Scripts\python.exe -m pip install -e ".[excel-legacy,outlook]"
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -e ".[excel-legacy,excel-native,outlook]"
 .venv\Scripts\python.exe -m pip check
 .venv\Scripts\python.exe -m nurus.app
 ```
@@ -55,7 +56,7 @@ py -3.12 -m venv .venv
 Para desarrollo y pruebas:
 
 ```cmd
-.venv\Scripts\python.exe -m pip install -e ".[dev,excel-legacy,outlook]"
+.venv\Scripts\python.exe -m pip install -e ".[dev,excel-legacy,excel-native,outlook]"
 .venv\Scripts\python.exe -m pytest -q
 ```
 

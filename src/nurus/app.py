@@ -153,6 +153,7 @@ class NuRusApp(ttk.Frame):
         ttk.Button(actions, text="Excluir", command=self.exclude_selected_row).pack(side="left", padx=4)
         ttk.Button(actions, text="Restaurar propuesta", command=self.restore_selected_row).pack(side="left")
         ttk.Button(actions, text="Aprobar lote", style="Primary.TButton", command=self.approve_current_batch).pack(side="right")
+        ttk.Button(actions, text="Documentar excepción de cruce", command=self.document_cross_sheet_exception).pack(side="right", padx=(0, 6))
         ttk.Button(actions, text="Exportar Excel revisado", command=self.export_current_workbook).pack(side="right", padx=(0, 6))
         ttk.Button(actions, text="Preparar producto…", command=self.open_product_dialog).pack(side="right", padx=(0, 6))
 
@@ -227,8 +228,11 @@ class NuRusApp(ttk.Frame):
         rows = self.controller.rows_from_batch(batch)
         self._show_review_rows(rows)
         warning = f" · {len(batch.warnings)} advertencia(s)" if batch.warnings else ""
+        cross_notice = ""
+        if any(item.startswith("CROSS_SHEET_NOT_SELECTED") for item in batch.warnings):
+            cross_notice = " · requiere excepción documentada de hoja de cruce"
         self.analysis_status.set(
-            f"Analizado: {batch.workbook_name} · SHA-256 {batch.workbook_sha256[:12]}…{warning}"
+            f"Analizado: {batch.workbook_name} · SHA-256 {batch.workbook_sha256[:12]}…{warning}{cross_notice}"
         )
 
     def _show_review_rows(self, rows: tuple[ReviewRow, ...]) -> None:
@@ -338,6 +342,36 @@ class NuRusApp(ttk.Frame):
         messagebox.showinfo(
             "Lote aprobado",
             "La revisión quedó congelada. Ya puedes preparar un producto desde ese snapshot.",
+        )
+
+    def document_cross_sheet_exception(self) -> None:
+        if not self.current_batch_id:
+            messagebox.showwarning("Falta lote", "Analiza un lote de Cumplimiento antes de documentar una excepción.")
+            return
+        responsible = simpledialog.askstring(
+            "Responsable", "Indica el nombre de quien autoriza la excepción:", parent=self.root,
+            initialvalue=os.environ.get("USERNAME", ""),
+        ) or ""
+        if not responsible.strip():
+            return
+        reason = simpledialog.askstring(
+            "Motivo", "Indica el motivo de aprobar sin hoja de cruce:", parent=self.root,
+        ) or ""
+        if not reason.strip():
+            return
+        try:
+            self.controller.document_missing_cross_sheet_exception(
+                self.current_batch_id, responsible=responsible, reason=reason
+            )
+        except Exception as exc:
+            messagebox.showerror("No se pudo documentar", str(exc))
+            return
+        self.analysis_status.set(
+            "Excepción de hoja de cruce documentada. Revisa el lote y apruébalo cuando corresponda."
+        )
+        messagebox.showinfo(
+            "Excepción documentada",
+            "El responsable y el motivo quedarán congelados dentro del snapshot al aprobar el lote.",
         )
 
     def export_current_workbook(self) -> None:

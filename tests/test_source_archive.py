@@ -127,19 +127,18 @@ def test_missing_legacy_bytes_are_not_read_from_external_path(tmp_path):
     assert path.exists()
 
 
-def test_v3_migration_backs_up_and_preserves_existing_data(tmp_path):
+def test_v4_migration_backs_up_and_preserves_existing_data(tmp_path):
     db = Database(tmp_path / "db.sqlite3")
     with db.connect() as conn:
-        conn.execute("PRAGMA user_version=3")
+        conn.execute("PRAGMA user_version=4")
     migrated = Database(db.path)
-    assert ".pre-v4-" in migrated.migration_backup.name
+    assert ".pre-v5-" in migrated.migration_backup.name
     with sqlite3.connect(migrated.migration_backup) as backup:
-        assert backup.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert backup.execute("PRAGMA user_version").fetchone()[0] == 4
         assert backup.execute("SELECT COUNT(*) FROM templates").fetchone()[0] == 2
     with migrated.connect() as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 5
     assert Database(db.path).migration_backup is None
-
 
 def test_snapshot_bytes_hash_and_repr(tmp_path):
     path = source_file(tmp_path)

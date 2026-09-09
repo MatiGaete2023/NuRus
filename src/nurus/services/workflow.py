@@ -151,6 +151,13 @@ class WorkController:
     def restore_record(self, batch_id: str, record_id: str) -> None:
         self.db.restore_record(batch_id, record_id)
 
+    def document_missing_cross_sheet_exception(
+        self, batch_id: str, *, responsible: str, reason: str
+    ) -> None:
+        self.db.document_missing_cross_sheet_exception(
+            batch_id, responsible=responsible, reason=reason
+        )
+
     def approve_batch(self, batch_id: str) -> str:
         """Una acción humana, una transacción de aprobación y snapshot."""
         return self.db.approve_batch(batch_id)

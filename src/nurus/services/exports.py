@@ -187,6 +187,7 @@ def _trace_rows(snapshot: dict) -> list[tuple[object, ...]]:
         ("FUENTE_SHA256", batch["source_hash"]),
         ("MODO", batch["mode"]),
         ("HOJA_PROCESADA", batch["primary_sheet"]),
+        ("EXCEPCIONES", json.dumps(snapshot.get("exceptions", []), ensure_ascii=False, sort_keys=True)),
         (),
         ("HOJA", "FILA", "ESTADO", "MOTIVO", "OBSERVACION", "REGLAS", "HASH_ORIGEN"),
     ]
