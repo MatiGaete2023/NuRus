@@ -84,6 +84,11 @@ def test_blocked_row_cannot_be_approved_but_can_be_explicitly_excluded(tmp_path)
         controller.approve_batch(batch.batch_id)
 
     controller.exclude_record(batch.batch_id, row.record_id, reason="Revisión manual: tribunal no reconocido")
+    controller.document_missing_cross_sheet_exception(
+        batch.batch_id,
+        responsible="Revisor de prueba",
+        reason="La planilla de prueba no contiene hoja de cruce.",
+    )
     snapshot_hash = controller.approve_batch(batch.batch_id)
     assert len(snapshot_hash) == 64
 
@@ -119,6 +124,11 @@ def test_blocked_exception_does_not_force_clicking_clean_rows_one_by_one(tmp_pat
         batch.batch_id,
         blocked.record_id,
         reason="Revisión manual: tribunal no reconocido",
+    )
+    controller.document_missing_cross_sheet_exception(
+        batch.batch_id,
+        responsible="Revisor de prueba",
+        reason="La planilla de prueba no contiene hoja de cruce.",
     )
     snapshot_hash = controller.approve_batch(batch.batch_id)
     assert len(snapshot_hash) == 64
