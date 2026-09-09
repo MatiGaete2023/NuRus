@@ -53,7 +53,7 @@ class WorkController:
             max_file_size_bytes=max_file_size_bytes,
         )
         result = evaluate_batch(read_batch, as_of=as_of)
-        self.db.save_evaluation_batch(result)
+        self.db.save_evaluation_batch(result, source_bytes=read_batch.source_bytes)
         return result
 
     @staticmethod

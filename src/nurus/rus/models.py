@@ -75,6 +75,7 @@ class ReadBatch:
     excel_epoch: str = "1900"
     column_mapping: Mapping[str, str] = field(default_factory=dict)
     cross_mapping: Mapping[str, str] = field(default_factory=dict)
+    source_bytes: bytes = field(default=b"", repr=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "column_mapping", _freeze(dict(self.column_mapping)))

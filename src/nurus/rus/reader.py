@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from io import BytesIO
 import os
 import tempfile
 from pathlib import Path
@@ -27,11 +28,15 @@ def _snapshot_file(path: Path, *, max_file_size_bytes: int | None = None) -> tup
             suffix=path.suffix, delete=False
         ) as target:
             temp_path = Path(target.name)
+            total = 0
             for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                total += len(chunk)
+                if max_file_size_bytes is not None and total > max_file_size_bytes:
+                    raise WorkbookReadError("El archivo supera el límite configurado durante la lectura.")
                 digest.update(chunk)
                 target.write(chunk)
         return temp_path, digest.hexdigest()
-    except OSError as exc:
+    except (OSError, WorkbookReadError) as exc:
         if temp_path:
             temp_path.unlink(missing_ok=True)
         raise WorkbookReadError(f"No se pudo crear una copia estable del archivo: {exc}") from exc
@@ -168,7 +173,10 @@ def read_workbook(
     snapshot, digest = _snapshot_file(source, max_file_size_bytes=max_file_size_bytes)
     try:
         try:
-            workbook = pd.ExcelFile(snapshot, engine=_engine(source))
+            source_bytes = snapshot.read_bytes()
+            if hashlib.sha256(source_bytes).hexdigest() != digest:
+                raise WorkbookReadError("La copia de origen no coincide con su hash.")
+            workbook = pd.ExcelFile(BytesIO(source_bytes), engine=_engine(source))
         except ImportError as exc:
             dependency = "xlrd" if source.suffix.lower() == ".xls" else "openpyxl"
             raise WorkbookReadError(
@@ -272,6 +280,7 @@ def read_workbook(
                 excel_epoch=_excel_epoch(workbook),
                 column_mapping=primary_mapping,
                 cross_mapping=cross_mapping,
+                source_bytes=source_bytes,
             )
     finally:
         try:

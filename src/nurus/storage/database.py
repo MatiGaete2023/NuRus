@@ -14,6 +14,15 @@ from nurus.rus.models import EvaluationBatch, SourceReference
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS workbook_sources (
+  hash TEXT PRIMARY KEY, content BLOB NOT NULL, size INTEGER NOT NULL,
+  created_at TEXT NOT NULL, CHECK(length(content)=size)
+);
+CREATE TRIGGER IF NOT EXISTS source_no_update BEFORE UPDATE ON workbook_sources
+BEGIN SELECT RAISE(ABORT, 'Origen inmutable'); END;
+CREATE TRIGGER IF NOT EXISTS source_no_delete BEFORE DELETE ON workbook_sources
+BEGIN SELECT RAISE(ABORT, 'Origen inmutable'); END;
+
 CREATE TABLE IF NOT EXISTS approved_snapshots (
   hash TEXT PRIMARY KEY, batch_id TEXT NOT NULL REFERENCES batches(id),
   payload TEXT NOT NULL, created_at TEXT NOT NULL
@@ -170,10 +179,10 @@ class Database:
         if path.exists() and path.stat().st_size:
             with sqlite3.connect(path) as source:
                 version = source.execute("PRAGMA user_version").fetchone()[0]
-                if version > 3:
+                if version > 4:
                     raise ValueError("Base de una versión posterior: no se permite degradarla.")
-                if version < 3:
-                    backup = path.with_name(path.name + f".pre-v3-{uuid4().hex}.bak")
+                if version < 4:
+                    backup = path.with_name(path.name + f".pre-v4-{uuid4().hex}.bak")
                     with sqlite3.connect(backup) as destination:
                         source.backup(destination)
                     self.migration_backup = backup
@@ -214,7 +223,7 @@ class Database:
                SELECT id,version,name,kind,subject,body,allowed_variables,status,updated_at
                FROM templates"""
         )
-        conn.execute("PRAGMA user_version = 3")
+        conn.execute("PRAGMA user_version = 4")
 
     def foreign_keys_enabled(self) -> bool:
         with self.connect() as conn:
@@ -309,12 +318,27 @@ class Database:
                 (entity_key, entity_key, display_name, email, cc, 1, utc_now()),
             )
 
-    def save_evaluation_batch(self, batch: EvaluationBatch) -> str:
+    def save_evaluation_batch(self, batch: EvaluationBatch, *, source_bytes: bytes | None = None) -> str:
         """Persiste exactamente la evaluación recibida; no recalcula reglas."""
+        if source_bytes is not None:
+            if not isinstance(source_bytes, bytes) or not source_bytes:
+                raise ValueError("El origen debe contener bytes inmutables no vacíos.")
+            if sha256(source_bytes).hexdigest() != batch.workbook_sha256:
+                raise ValueError("Los bytes de origen no coinciden con el hash del lote.")
         payload = _evaluation_payload(batch)
         evaluation_hash = _digest_payload(payload)
         now = utc_now()
         with self.connect() as conn:
+            if source_bytes is not None:
+                conn.execute(
+                    "INSERT OR IGNORE INTO workbook_sources(hash,content,size,created_at) VALUES(?,?,?,?)",
+                    (batch.workbook_sha256, source_bytes, len(source_bytes), now),
+                )
+                stored = conn.execute(
+                    "SELECT content FROM workbook_sources WHERE hash=?", (batch.workbook_sha256,)
+                ).fetchone()
+                if bytes(stored["content"]) != source_bytes:
+                    raise ValueError("El origen almacenado no coincide con los bytes importados.")
             conn.execute(
                 """INSERT INTO batches(
                        id,source_name,source_hash,created_at,mode,source_path,primary_sheet,
@@ -349,6 +373,26 @@ class Database:
                      item.status.value, decision, "", now),
                 )
         return evaluation_hash
+
+    def get_original_workbook(self, batch_id: str, *, snapshot_hash: str = "") -> bytes:
+        """Recupera bytes verificados; nunca relee la ruta externa como sustituto."""
+        if snapshot_hash:
+            digest = self.get_snapshot(batch_id, snapshot_hash)["batch"]["source_hash"]
+        else:
+            batch = self.get_batch(batch_id)
+            if batch is None:
+                raise KeyError("Lote no encontrado.")
+            digest = batch["source_hash"]
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT content,size FROM workbook_sources WHERE hash=?", (digest,)
+            ).fetchone()
+        if row is None:
+            raise ValueError("No se conservan bytes originales para este lote; vuelve a importarlo.")
+        content = bytes(row["content"])
+        if len(content) != row["size"] or sha256(content).hexdigest() != digest:
+            raise ValueError("El origen almacenado no coincide con su hash o tamaño.")
+        return content
 
     def get_batch(self, batch_id: str) -> sqlite3.Row | None:
         with self.connect() as conn:
