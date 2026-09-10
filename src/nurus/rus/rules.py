@@ -359,12 +359,24 @@ def evaluate_compliance(
     if days_exit_column and days_exit is None:
         issues.append(_issue(record, "C-04/C-05", "Días para egresar ausentes o inválidos (G-05)."))
     projected_exit = as_date(row.get(columns.get("egreso_proy", "")), excel_epoch) if columns.get("egreso_proy") else None
-    expired = bool(projected_exit and ((days_exit is not None and days_exit < 0) or (days_compliance is not None and days_compliance < 0)))
+    negative_days = (days_exit is not None and days_exit < 0) or (
+        days_compliance is not None and days_compliance < 0
+    )
+    inconsistent_future_exit = bool(projected_exit and projected_exit > today and negative_days)
+    if inconsistent_future_exit:
+        issues.append(
+            _issue(
+                record,
+                "C-04",
+                "Datos contradictorios: los días indican vencimiento, pero el egreso proyectado es futuro.",
+            )
+        )
+    expired = bool(projected_exit and negative_days and not inconsistent_future_exit)
     if expired:
         fragments.append(render(catalog, "CUMPLIMIENTO", "C04_VENCIDA", FECHA_EGRESO_PROYECTADO=format_date(projected_exit)))
         ids.append("C-04")
         principal = True
-    elif ((days_exit is not None and days_exit < 0) or (days_compliance is not None and days_compliance < 0)) and not projected_exit:
+    elif negative_days and not projected_exit:
         issues.append(_issue(record, "C-04", "Sin egreso proyectado (G-05)."))
 
     ending = bool(projected_exit and days_exit is not None and 0 <= days_exit <= 45 and not expired)
@@ -373,6 +385,8 @@ def evaluate_compliance(
         fragments.append(render(catalog, "CUMPLIMIENTO", key, FECHA_EGRESO_PROYECTADO=format_date(projected_exit)))
         ids.append("C-05")
         principal = True
+    elif days_exit is not None and 0 <= days_exit <= 45 and not projected_exit:
+        issues.append(_issue(record, "C-05", "Sin egreso proyectado; regla no evaluable (G-05)."))
 
     if cross_due and not expired and not ending:
         fragments.append(render(catalog, "CUMPLIMIENTO", "C10_HOJA2", PROGRAMA=program_title(program), FECHA_VENCIMIENTO=format_date(cross_due)))
@@ -402,9 +416,12 @@ def evaluate_compliance(
     fae_column = columns.get("ficha_fae")
     fae = as_date(row.get(fae_column), excel_epoch) if fae_column else None
     tokens = set(re.findall(r"[a-z0-9]+", program_normalized))
-    if {"fae", "fas"} & tokens and entry and (today - entry).days > 120 and not fae:
-        fragments.append(render(catalog, "CUMPLIMIENTO", "C08_FICHA_FAE", PNOMBRE=first))
-        ids.append("C-08")
+    if {"fae", "fas"} & tokens and entry and (today - entry).days > 120:
+        if not fae_column:
+            issues.append(_issue(record, "C-08", "No existe columna de ficha FAE; regla no evaluable (G-05)."))
+        elif not fae:
+            fragments.append(render(catalog, "CUMPLIMIENTO", "C08_FICHA_FAE", PNOMBRE=first))
+            ids.append("C-08")
 
     audience, audience_ids = _audience(record, columns, catalog, today, excel_epoch)
     fragments += audience

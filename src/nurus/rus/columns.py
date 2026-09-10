@@ -48,7 +48,9 @@ MODE_COLUMNS: dict[Mode, dict[str, tuple[str, ...]]] = {
     },
     Mode.INFORMES: {
         "vencimiento": ("FECHA VENCIMIENTO", "FEC.VENCIMIENTO", "FEC. VENCIMIENTO"),
-        "ingreso": ("FEC.INGRESO EFECTIVO", "FEC. INGRESO EFECTIVO", "FECHA INGRESO"),
+        # FECHA INGRESO y FEC. INGRESO EFECTIVO son datos distintos en los
+        # libros RUS. I-01/I-02 no consumen la primera; no deben colisionar.
+        "ingreso": ("FEC.INGRESO EFECTIVO", "FEC. INGRESO EFECTIVO", "FEC INGRESO EFECTIVO"),
     },
 }
 

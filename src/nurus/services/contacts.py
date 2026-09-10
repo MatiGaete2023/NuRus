@@ -308,3 +308,4 @@ def resolve_contact_exact(db: Database, entity_or_alias: str):
             ).fetchone()
         except Exception:
             return None
+

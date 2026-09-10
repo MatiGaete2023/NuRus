@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nurus"
-version = "0.2.0.dev1"
+version = "0.3.0.dev1"
 description = "Flujo local de revisión y generación para CSMP"
 requires-python = ">=3.12"
-dependencies = ["pandas>=2.2,<3", "openpyxl>=3.1,<4"]
+dependencies = ["pandas>=2.2,<3", "openpyxl>=3.1,<4", "python-docx>=1.1,<2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
@@ -24,3 +24,4 @@ testpaths = ["tests"]
 
 [tool.setuptools.package-data]
 "nurus.rus" = ["*.json"]
+"nurus.services" = ["*.json"]

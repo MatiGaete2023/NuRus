@@ -71,3 +71,4 @@ def test_existing_destination_is_not_overwritten_without_explicit_permission(tmp
     with pytest.raises(ExportError, match="ya existe"):
         export_review_snapshot(db, batch.batch_id, target)
     assert target.read_text(encoding="utf-8") == "existente"
+

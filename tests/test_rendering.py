@@ -88,3 +88,4 @@ def test_history_keeps_the_reviewed_snapshot(tmp_path):
     saved = db.list_products()
     assert len(saved) == 1
     assert saved[0]["subject"] == "Ingreso Laja"
+

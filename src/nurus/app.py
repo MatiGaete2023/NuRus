@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import queue
 import threading
 import tkinter as tk
@@ -8,11 +9,19 @@ from datetime import date
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from nurus.domain.models import Product, Template
-from nurus.services.exports import ExportError, export_preserved_workbook
+from nurus.domain.models import Product, ProductKind, Template
+from nurus.product_ui import communications_dialog, review_product
+from nurus.services.contacts import _valid_addresses, apply_contact_preview, preview_contact_import
+from nurus.services.exports import ExportError, export_preserved_workbook, export_proposal_workbook
 from nurus.rus import Mode
 from nurus.services.products import approve_product, persist_approved_product, prepare_from_snapshot
+from nurus.services.review_import import (
+    ReviewImportError,
+    import_reviewed_workbook,
+    preview_reviewed_workbook,
+)
 from nurus.services.rendering import prepare
+from nurus.services.resolutions import prepare_resolution
 from nurus.services.workflow import ReviewRow, WorkController
 from nurus.storage.database import Database
 
@@ -33,6 +42,7 @@ class NuRusApp(ttk.Frame):
         self.analysis_generation = 0
         self.analysis_queue: queue.Queue[tuple[int, object, Exception | None]] = queue.Queue()
         self.analysis_busy = False
+        self.io_busy = False
         self.review_by_id: dict[str, ReviewRow] = {}
 
         root.title("NuRus · CSMP")
@@ -53,7 +63,7 @@ class NuRusApp(ttk.Frame):
         ttk.Label(header, text="NuRus", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             header,
-            text="Analiza, revisa y prepara productos con control humano. NuRus nunca envía correos.",
+            text="Analiza, propone e incorpora constancias con control humano. NuRus nunca envía correos.",
             style="Subtitle.TLabel",
         ).pack(anchor="w", pady=(0, 8))
 
@@ -71,10 +81,91 @@ class NuRusApp(ttk.Frame):
         self._templates_tab()
         self._contacts_tab()
         self._history_tab()
+        self.counter = ttk.Frame(self.tabs, padding=12)
+        self.tabs.add(self.counter, text="Contador")
+        ttk.Label(self.counter, text="Correos enviados", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(
+            self.counter,
+            text="Consulta de solo lectura por período; no abre cuerpos ni modifica Outlook.",
+        ).pack(anchor="w", pady=8)
+        ttk.Button(self.counter, text="Consultar período…", command=self.count_mail).pack(anchor="w")
+        self.counter_status = tk.StringVar(value="Sin consulta ejecutada.")
+        ttk.Label(self.counter, textvariable=self.counter_status, wraplength=800).pack(anchor="w", pady=12)
+
+    def run_io(self, job, success) -> None:
+        if self.io_busy:
+            messagebox.showwarning("Operación en curso", "Espera a que termine la operación actual.")
+            return
+        self.io_busy = True
+        output = queue.Queue()
+
+        def worker():
+            try:
+                output.put((job(), None))
+            except Exception as exc:
+                output.put((None, exc))
+
+        def poll():
+            try:
+                result, error = output.get_nowait()
+            except queue.Empty:
+                self.root.after(100, poll)
+                return
+            self.io_busy = False
+            if error:
+                messagebox.showerror("Operación no confirmada", str(error))
+            else:
+                success(result)
+
+        threading.Thread(target=worker, daemon=True, name="NuRusSerialIO").start()
+        self.root.after(100, poll)
+
+    def count_mail(self) -> None:
+        from nurus.adapters.sent_mail import count_sent_mail, export_sent_report
+
+        start = simpledialog.askstring("Contador", "Desde (AAAA-MM-DD):", parent=self.root)
+        if start is None:
+            return
+        end = simpledialog.askstring("Contador", "Hasta inclusive (AAAA-MM-DD):", parent=self.root)
+        if end is None:
+            return
+        account = simpledialog.askstring(
+            "Contador", "Cuenta SMTP exacta (vacío = predeterminada):", parent=self.root
+        )
+        if account is None:
+            return
+        try:
+            first, last = date.fromisoformat(start), date.fromisoformat(end)
+            if first > last:
+                raise ValueError("Período invertido.")
+        except ValueError as exc:
+            messagebox.showerror("Fechas", str(exc))
+            return
+        self.counter_status.set("Consultando Enviados…")
+
+        def done(report):
+            self.counter_status.set(
+                f"{len(report.rows)} correos · {report.skipped} omitidos · {report.errors} errores · "
+                + ("consulta parcial" if report.truncated else "consulta terminada")
+            )
+            path = filedialog.asksaveasfilename(
+                defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")]
+            )
+            if path:
+                self.run_io(
+                    lambda: export_sent_report(report, path),
+                    lambda saved: messagebox.showinfo("Contador", f"Reporte guardado en {saved}"),
+                )
+
+        self.run_io(lambda: count_sent_mail(first, last, account_key=account or None), done)
 
     # ---------- Trabajo ----------
     def _work_tab(self) -> None:
-        ttk.Label(self.work, text="1 Cargar  ·  2 Revisar  ·  3 Aprobar  ·  4 Preparar", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(
+            self.work,
+            text="1 Analizar  ·  2 Exportar propuestas  ·  3 Cargar constancia  ·  4 Preparar",
+            style="Title.TLabel",
+        ).pack(anchor="w")
         self.work_tabs = ttk.Notebook(self.work)
         self.work_tabs.pack(fill="both", expand=True, pady=(6, 0))
         self.rus_tab = ttk.Frame(self.work_tabs, padding=8)
@@ -115,7 +206,7 @@ class NuRusApp(ttk.Frame):
         self.review_pane.pack(fill="both", expand=True, pady=(8, 0))
 
         table_frame = ttk.Frame(self.review_pane)
-        detail_frame = ttk.LabelFrame(self.review_pane, text="Detalle y revisión", padding=8)
+        detail_frame = ttk.LabelFrame(self.review_pane, text="Detalle de la propuesta del motor", padding=8)
         self.review_pane.add(table_frame, weight=3)
         self.review_pane.add(detail_frame, weight=2)
 
@@ -139,23 +230,34 @@ class NuRusApp(ttk.Frame):
         table_frame.rowconfigure(0, weight=1)
         table_frame.columnconfigure(0, weight=1)
         self.review_tree.bind("<<TreeviewSelect>>", self._load_selected_review)
+        self.review_tree.tag_configure("excluded", background="#FFF2CC")
+        self.review_tree.tag_configure("blocked", background="#F8D7DA")
+        self.review_tree.tag_configure("approved", background="#D9EAD3")
+        self.review_tree.tag_configure("pending", background="#D9EAF7")
 
         self.review_summary = tk.StringVar(value="Sin análisis.")
         ttk.Label(detail_frame, textvariable=self.review_summary).pack(anchor="w")
         self.review_meta = tk.StringVar(value="Selecciona una fila para ver su procedencia y reglas.")
         ttk.Label(detail_frame, textvariable=self.review_meta, style="Subtitle.TLabel").pack(anchor="w", pady=(2, 4))
-        self.observation_edit = tk.Text(detail_frame, height=5, wrap="word")
+        self.observation_edit = tk.Text(detail_frame, height=5, wrap="word", state="disabled")
         self.observation_edit.pack(fill="both", expand=True)
 
         actions = ttk.Frame(detail_frame)
         actions.pack(fill="x", pady=(6, 0))
-        ttk.Button(actions, text="Aprobar fila", command=self.approve_selected_row).pack(side="left")
-        ttk.Button(actions, text="Excluir", command=self.exclude_selected_row).pack(side="left", padx=4)
-        ttk.Button(actions, text="Restaurar propuesta", command=self.restore_selected_row).pack(side="left")
-        ttk.Button(actions, text="Aprobar lote", style="Primary.TButton", command=self.approve_current_batch).pack(side="right")
+        ttk.Button(
+            actions, text="Congelar constancia", style="Primary.TButton",
+            command=self.approve_current_batch,
+        ).pack(side="right")
         ttk.Button(actions, text="Documentar excepción de cruce", command=self.document_cross_sheet_exception).pack(side="right", padx=(0, 6))
-        ttk.Button(actions, text="Exportar Excel revisado", command=self.export_current_workbook).pack(side="right", padx=(0, 6))
-        ttk.Button(actions, text="Preparar producto…", command=self.open_product_dialog).pack(side="right", padx=(0, 6))
+        ttk.Button(actions, text="Cargar Excel revisado", command=self.import_reviewed_excel).pack(side="right", padx=(0, 6))
+        ttk.Button(actions, text="Exportar propuestas", command=self.export_current_workbook).pack(side="right", padx=(0, 6))
+        outputs = ttk.Frame(self.rus_tab)
+        outputs.pack(fill="x", pady=(4, 0))
+        ttk.Button(outputs, text="Exportar constancia final…", command=self.export_final_workbook).pack(side="left")
+        ttk.Button(outputs, text="Correos agrupados…", command=lambda: communications_dialog(self)).pack(side="left", padx=4)
+        ttk.Button(outputs, text="Proyecto de la fila…", command=self.resolution_dialog).pack(side="left", padx=4)
+        ttk.Button(outputs, text="Estadísticas…", command=self.export_statistics).pack(side="left")
+        ttk.Button(outputs, text="Otro producto…", command=self.open_product_dialog).pack(side="left")
 
     def choose_file(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("Excel", "*.xlsx *.xlsm *.xls"), ("Todos", "*.*")])
@@ -171,7 +273,7 @@ class NuRusApp(ttk.Frame):
         self.review_by_id.clear()
         self.review_summary.set("Sin análisis vigente.")
         self.review_meta.set("Selecciona y analiza un archivo.")
-        self.observation_edit.delete("1.0", "end")
+        self._set_observation_text("")
         for item in self.review_tree.get_children():
             self.review_tree.delete(item)
         self.analysis_status.set(message)
@@ -225,6 +327,7 @@ class NuRusApp(ttk.Frame):
 
         batch = result
         self.current_batch_id = batch.batch_id
+        self.file_var.set(f"{batch.workbook_name} · analizado")
         rows = self.controller.rows_from_batch(batch)
         self._show_review_rows(rows)
         warning = f" · {len(batch.warnings)} advertencia(s)" if batch.warnings else ""
@@ -236,6 +339,12 @@ class NuRusApp(ttk.Frame):
         )
 
     def _show_review_rows(self, rows: tuple[ReviewRow, ...]) -> None:
+        labels = {
+            "pending": "Propuesta",
+            "blocked": "Requiere atención",
+            "approved": "Con constancia",
+            "excluded": "Excluido",
+        }
         self.review_by_id = {row.record_id: row for row in rows}
         for item in self.review_tree.get_children():
             self.review_tree.delete(item)
@@ -243,15 +352,24 @@ class NuRusApp(ttk.Frame):
             observation = " ".join(row.observation.split())
             self.review_tree.insert(
                 "", "end", iid=row.record_id,
-                values=(row.decision, row.rit, row.tribunal, row.programa, observation),
+                values=(labels.get(row.decision, row.decision), row.rit, row.tribunal, row.programa, observation),
+                tags=(row.decision,),
             )
         counts: dict[str, int] = {}
         for row in rows:
             counts[row.decision] = counts.get(row.decision, 0) + 1
-        summary = " · ".join(f"{key}: {value}" for key, value in sorted(counts.items())) or "sin filas"
+        summary = " · ".join(
+            f"{labels.get(key, key)}: {value}" for key, value in sorted(counts.items())
+        ) or "sin filas"
         self.review_summary.set(f"{len(rows)} fila(s) · {summary}")
         self.review_meta.set("Selecciona una fila para revisar procedencia, reglas e incidencias.")
+        self._set_observation_text("")
+
+    def _set_observation_text(self, value: str) -> None:
+        self.observation_edit.configure(state="normal")
         self.observation_edit.delete("1.0", "end")
+        self.observation_edit.insert("1.0", value)
+        self.observation_edit.configure(state="disabled")
 
     def _selected_row(self) -> ReviewRow | None:
         selection = self.review_tree.selection()
@@ -272,8 +390,7 @@ class NuRusApp(ttk.Frame):
         self.review_meta.set(
             f"Origen: {row.source_sheet}, fila {row.source_row} · Reglas: {rules} · {issues}"
         )
-        self.observation_edit.delete("1.0", "end")
-        self.observation_edit.insert("1.0", row.observation)
+        self._set_observation_text(row.observation)
 
     def _refresh_review_from_db(self, selected_id: str = "") -> None:
         if not self.current_batch_id:
@@ -285,63 +402,91 @@ class NuRusApp(ttk.Frame):
             self.review_tree.see(selected_id)
             self._load_selected_review()
 
-    def approve_selected_row(self) -> None:
-        row = self._selected_row()
-        if row is None or not self.current_batch_id:
-            return
-        observation = self.observation_edit.get("1.0", "end-1c").strip()
-        reason = ""
-        if observation != row.original_observation:
-            reason = simpledialog.askstring("Motivo", "Indica el motivo de la edición:", parent=self.root) or ""
-            if not reason.strip():
-                return
-        try:
-            self.controller.approve_record(
-                self.current_batch_id, row.record_id, observation=observation, reason=reason
-            )
-        except Exception as exc:
-            messagebox.showerror("No se pudo aprobar", str(exc))
-            return
-        self._refresh_review_from_db(row.record_id)
-
-    def exclude_selected_row(self) -> None:
-        row = self._selected_row()
-        if row is None or not self.current_batch_id:
-            return
-        reason = simpledialog.askstring("Motivo", "Indica por qué se excluye esta fila:", parent=self.root) or ""
-        if not reason.strip():
-            return
-        try:
-            self.controller.exclude_record(self.current_batch_id, row.record_id, reason=reason)
-        except Exception as exc:
-            messagebox.showerror("No se pudo excluir", str(exc))
-            return
-        self._refresh_review_from_db(row.record_id)
-
-    def restore_selected_row(self) -> None:
-        row = self._selected_row()
-        if row is None or not self.current_batch_id:
-            return
-        try:
-            self.controller.restore_record(self.current_batch_id, row.record_id)
-        except Exception as exc:
-            messagebox.showerror("No se pudo restaurar", str(exc))
-            return
-        self._refresh_review_from_db(row.record_id)
-
     def approve_current_batch(self) -> None:
         if not self.current_batch_id:
             messagebox.showwarning("Falta lote", "Analiza y revisa un archivo antes de aprobar.")
             return
         try:
-            snapshot_hash = self.controller.approve_batch(self.current_batch_id)
+            snapshot_hash = self.controller.approve_batch(
+                self.current_batch_id, require_review_import=True
+            )
         except Exception as exc:
             messagebox.showerror("Lote no aprobable", str(exc))
             return
         self.analysis_status.set(f"Lote aprobado y congelado · snapshot {snapshot_hash[:12]}…")
         messagebox.showinfo(
-            "Lote aprobado",
-            "La revisión quedó congelada. Ya puedes preparar un producto desde ese snapshot.",
+            "Constancia congelada",
+            "La constancia del trabajo registrado en RUS quedó congelada. Ya puedes preparar productos.",
+        )
+
+    def import_reviewed_excel(self) -> None:
+        if not self.current_batch_id:
+            messagebox.showwarning("Falta análisis", "Analiza un archivo antes de cargar su constancia.")
+            return
+        path = filedialog.askopenfilename(
+            title="Seleccionar Excel revisado",
+            filetypes=[("Excel", "*.xlsx *.xlsm *.xls")],
+        )
+        if not path:
+            return
+        try:
+            preview = preview_reviewed_workbook(self.db, self.current_batch_id, path)
+        except Exception as exc:
+            messagebox.showerror("No se pudo leer la constancia", str(exc))
+            return
+        if not preview.valid:
+            messagebox.showerror(
+                "Constancia no válida",
+                "\n".join(preview.errors[:12]),
+            )
+            return
+        responsible = simpledialog.askstring(
+            "Responsable de la revisión",
+            "Nombre de quien confirma la revisión registrada en RUS:",
+            parent=self.root,
+            initialvalue=os.environ.get("USERNAME", ""),
+        ) or ""
+        if not responsible.strip():
+            return
+        confirmed = messagebox.askyesno(
+            "Confirmación obligatoria",
+            "¿Confirmas que las filas incluidas en esta constancia fueron revisadas una por una y que "
+            "su observación oficial quedó registrada en el sistema RUS?\n\n"
+            f"Incluidas revisadas: {preview.reviewed_count}\n"
+            f"Excluidas: {preview.excluded_count}\n"
+            f"Observaciones modificadas: {preview.changed_observations}\n"
+            + ("\n".join(preview.warnings) if preview.warnings else ""),
+        )
+        if not confirmed:
+            return
+        try:
+            imported = import_reviewed_workbook(
+                self.db,
+                self.current_batch_id,
+                path,
+                responsible=responsible,
+                confirmed_in_rus=True,
+            )
+        except ReviewImportError as exc:
+            messagebox.showerror("No se pudo registrar la constancia", str(exc))
+            return
+        self._refresh_review_from_db()
+        pending = sum(
+            row["decision"] != "excluded" and not row["rus_recorded"]
+            for row in self.db.list_review_records(self.current_batch_id)
+        )
+        self.analysis_status.set(
+            f"Constancia cargada · SHA-256 {imported.sha256[:12]}… · "
+            + (f"{pending} fila(s) aún pendientes" if pending else "lista para congelar")
+        )
+        messagebox.showinfo(
+            "Constancia cargada",
+            "La constancia fue validada. "
+            + (
+                f"Quedan {pending} fila(s) sin constancia; carga las devoluciones restantes."
+                if pending
+                else "Documenta la excepción de cruce si corresponde y presiona «Congelar constancia»."
+            ),
         )
 
     def document_cross_sheet_exception(self) -> None:
@@ -376,36 +521,89 @@ class NuRusApp(ttk.Frame):
 
     def export_current_workbook(self) -> None:
         if not self.current_batch_id:
-            messagebox.showwarning("Falta lote", "Analiza y aprueba un lote antes de exportar.")
+            messagebox.showwarning("Falta análisis", "Analiza un archivo antes de exportar las propuestas.")
             return
         batch = self.db.get_batch(self.current_batch_id)
-        if batch is None or batch["status"] != "approved":
-            messagebox.showwarning("Lote no aprobado", "Primero aprueba y congela la revisión del lote.")
+        if batch is None:
+            messagebox.showwarning("Falta análisis", "No se encontró el análisis actual.")
             return
         suffix = Path(batch["source_name"]).suffix.lower()
         if suffix not in {".xls", ".xlsx", ".xlsm"}:
             messagebox.showerror("Formato no admitido", "El lote no proviene de un archivo Excel exportable.")
             return
         target = filedialog.asksaveasfilename(
-            title="Guardar Excel revisado",
+            title="Guardar Excel de propuestas",
             defaultextension=suffix,
-            initialfile=Path(batch["source_name"]).stem + " - revisado" + suffix,
+            initialfile=Path(batch["source_name"]).stem + " - propuestas" + suffix,
             filetypes=[("Excel", "*" + suffix)],
         )
         if not target:
             return
-        try:
-            result = export_preserved_workbook(self.db, self.current_batch_id, target)
-        except ExportError as exc:
-            messagebox.showerror("No se pudo exportar", str(exc))
+        batch_id = self.current_batch_id
+
+        def done(result):
+            messagebox.showinfo(
+                "Excel de propuestas",
+                "Se creó el insumo para revisión humana. Todavía no acredita revisión ni registro en RUS.\n"
+                f"{result.row_count} fila(s) · {result.path.name}",
+            )
+
+        self.analysis_status.set("Exportando una copia preservada…")
+        self.run_io(lambda: export_proposal_workbook(self.db, batch_id, target), done)
+
+    def export_final_workbook(self) -> None:
+        batch = self.db.get_batch(self.current_batch_id) if self.current_batch_id else None
+        if batch is None or batch["status"] != "approved":
+            messagebox.showwarning("Falta constancia", "Carga y congela la constancia antes de exportarla.")
             return
-        except Exception as exc:
-            messagebox.showerror("Error de exportación", str(exc))
-            return
-        messagebox.showinfo(
-            "Excel revisado",
-            f"Se creó una copia revisada de {result.row_count} fila(s).\n{result.path.name}",
+        suffix = Path(batch["source_name"]).suffix.lower()
+        target = filedialog.asksaveasfilename(
+            title="Guardar constancia final",
+            defaultextension=suffix,
+            initialfile=Path(batch["source_name"]).stem + " - constancia" + suffix,
+            filetypes=[("Excel", "*" + suffix)],
         )
+        if not target:
+            return
+        batch_id = self.current_batch_id
+        self.run_io(
+            lambda: export_preserved_workbook(self.db, batch_id, target),
+            lambda result: messagebox.showinfo(
+                "Constancia exportada", f"{result.row_count} filas · {result.path.name}"
+            ),
+        )
+
+    def export_statistics(self) -> None:
+        from nurus.services.statistics import build_review_statistics, export_review_statistics
+
+        batch = self.db.get_batch(self.current_batch_id) if self.current_batch_id else None
+        if batch is None or batch["status"] != "approved":
+            messagebox.showwarning("Falta constancia", "Congela una constancia antes de contar gestión.")
+            return
+        start = simpledialog.askstring("Estadísticas", "Desde FECHA_OBS (AAAA-MM-DD):", parent=self.root)
+        if start is None:
+            return
+        end = simpledialog.askstring("Estadísticas", "Hasta FECHA_OBS inclusive (AAAA-MM-DD):", parent=self.root)
+        if end is None:
+            return
+        try:
+            stats = build_review_statistics(
+                self.db, self.current_batch_id, date.fromisoformat(start), date.fromisoformat(end)
+            )
+        except ValueError as exc:
+            messagebox.showerror("Estadísticas", str(exc))
+            return
+        target = filedialog.asksaveasfilename(
+            defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx")]
+        )
+        if target:
+            self.run_io(
+                lambda: export_review_statistics(stats, target),
+                lambda path: messagebox.showinfo(
+                    "Estadísticas",
+                    f"{stats.reviewed_in_period} revisiones en período. Reporte: {path}",
+                ),
+            )
 
     def open_product_dialog(self) -> None:
         if not self.current_batch_id:
@@ -495,32 +693,67 @@ class NuRusApp(ttk.Frame):
             if product is None:
                 messagebox.showwarning("Falta vista previa", "Prepara primero la vista previa.", parent=dialog)
                 return
-            try:
-                approve_product(
-                    product,
-                    subject=subject_var.get(),
-                    body=body_text.get("1.0", "end-1c"),
-                )
-                persist_approved_product(self.db, product)
-            except Exception as exc:
-                messagebox.showerror("No se pudo aprobar", str(exc), parent=dialog)
-                return
-            self.refresh_history()
-            messagebox.showinfo(
-                "Producto aprobado",
-                "El texto final quedó guardado con referencia al snapshot. No se creó ni envió ningún correo.",
-                parent=dialog,
-            )
+            product.recipient = recipient_var.get().strip()
+            product.cc = cc_var.get().strip()
+            product.rendered_subject = subject_var.get().strip()
+            product.rendered_body = body_text.get("1.0", "end-1c").strip()
+            review_product(self, product)
             dialog.destroy()
 
         buttons = ttk.Frame(frame)
         buttons.grid(row=6, column=0, columnspan=4, sticky="e", pady=(4, 0))
         ttk.Button(buttons, text="Preparar vista previa", command=prepare_preview).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Aprobar y guardar", style="Primary.TButton", command=approve_and_save).pack(side="left")
+        ttk.Button(buttons, text="Abrir revisión final", style="Primary.TButton", command=approve_and_save).pack(side="left")
 
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(3, weight=1)
         frame.rowconfigure(4, weight=1)
+
+    def resolution_dialog(self) -> None:
+        selected = self._selected_row()
+        if not selected or not self.current_batch_id:
+            return
+        templates = [
+            item for item in self.db.list_templates()
+            if item.id.startswith("historica-") and item.status == "published"
+        ]
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Proyecto · revisión judicial obligatoria")
+        combo = ttk.Combobox(
+            dialog, state="readonly", width=60, values=[item.name for item in templates]
+        )
+        combo.pack(padx=12, pady=12)
+        if templates:
+            combo.current(0)
+
+        def build():
+            if combo.current() < 0:
+                return
+            if not messagebox.askyesno(
+                "Revisión previa",
+                "¿Verificaste la carpeta judicial, el tipo de proyecto y su procedencia?\n"
+                "La antigüedad por sí sola no autoriza generar el proyecto.",
+                parent=dialog,
+            ):
+                return
+            template = templates[combo.current()]
+            extra = {}
+            if "NOMENCLATURA" in template.allowed_variables:
+                value = simpledialog.askstring("Dato verificado", "Nomenclatura:", parent=dialog)
+                if not value:
+                    return
+                extra["NOMENCLATURA"] = value
+            try:
+                product = prepare_resolution(
+                    self.db, self.current_batch_id, selected.record_id, template.id,
+                    confirmed_review=True, extra=extra,
+                )
+                review_product(self, product)
+                dialog.destroy()
+            except Exception as exc:
+                messagebox.showerror("Proyecto", str(exc), parent=dialog)
+
+        ttk.Button(dialog, text="Preparar desde esta fila", command=build).pack(pady=8)
 
     # ---------- Comunicación particular ----------
     def _particular_work_tab(self) -> None:
@@ -556,7 +789,16 @@ class NuRusApp(ttk.Frame):
         self.refresh_templates()
 
     def refresh_templates(self) -> None:
-        self.template_items = self.db.list_templates()
+        self.template_items = []
+        for template in self.db.list_templates():
+            if template.kind is not ProductKind.EMAIL:
+                continue
+            try:
+                if self.db.get_communication_policy(template.id)["filter"] != "manual":
+                    continue
+            except ValueError:
+                pass
+            self.template_items.append(template)
         names = [
             f"{template.kind.value}: {template.name} (v{template.version})"
             for template in self.template_items if template.status == "published"
@@ -581,15 +823,29 @@ class NuRusApp(ttk.Frame):
             "OBSERVACION": detail,
             "TABLA_REGISTROS": detail,
         }
+        for key in template.allowed_variables:
+            if key not in context:
+                value = simpledialog.askstring(
+                    "Dato para la plantilla", key.replace("_", " "), parent=self.root
+                )
+                if value is None:
+                    return
+                context[key] = value
+        try:
+            attachment_required = bool(
+                self.db.get_communication_policy(template.id)["required_attachment"]
+            )
+        except ValueError:
+            attachment_required = False
         self.current = prepare(
             Product(
                 kind=template.kind,
                 template=template,
                 context=context,
                 recipient=self.recipient_var.get().strip(),
+                required_attachment=attachment_required,
             )
         )
-        self.db.record_product(self.current)
         text = (
             f"Estado: {self.current.status.value}\n\nAsunto\n{self.current.rendered_subject}\n\n"
             f"Contenido\n{self.current.rendered_body}\n\n"
@@ -602,7 +858,7 @@ class NuRusApp(ttk.Frame):
         self.preview.delete("1.0", "end")
         self.preview.insert("1.0", text)
         self.preview.configure(state="disabled")
-        self.refresh_history()
+        review_product(self, self.current)
 
     # ---------- Plantillas ----------
     def _templates_tab(self) -> None:
@@ -622,7 +878,50 @@ class NuRusApp(ttk.Frame):
         self.body_edit = tk.Text(fields, height=12, wrap="word")
         self.body_edit.pack(fill="both", expand=True)
         ttk.Button(self.templates, text="Guardar como nueva versión", command=self.save_template).pack(anchor="e", pady=8)
+        ttk.Button(self.templates, text="Configurar este tipo de correo…", command=self.edit_communication_policy).pack(anchor="e")
         self.refresh_template_editor()
+
+    def edit_communication_policy(self) -> None:
+        if not hasattr(self, "editing_template"):
+            messagebox.showwarning("Plantilla", "Selecciona un tipo de correo.")
+            return
+        try:
+            policy = self.db.get_communication_policy(self.editing_template.id)
+        except ValueError as exc:
+            messagebox.showinfo("Política", str(exc))
+            return
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Configuración operativa · solo nuevas preparaciones")
+        variables = {}
+        for key, label, options in (
+            ("mode", "Modalidad", ("", "ESPERA", "CUMPLIMIENTO", "INFORMES")),
+            ("group", "Agrupar por", ("tribunal", "programa")),
+            ("filter", "Selección propuesta", ("all", "manual", "medidas", "E-05", "I-01", "I-02")),
+        ):
+            ttk.Label(dialog, text=label).pack(anchor="w", padx=12)
+            variable = tk.StringVar(value=policy[key])
+            ttk.Combobox(
+                dialog, textvariable=variable, state="readonly", values=options
+            ).pack(fill="x", padx=12, pady=4)
+            variables[key] = variable
+        required = tk.BooleanVar(value=policy["required_attachment"])
+        ttk.Checkbutton(dialog, text="Exigir adjunto", variable=required).pack(padx=12, pady=8)
+
+        def save():
+            try:
+                self.db.save_communication_policy(
+                    self.editing_template.id,
+                    {
+                        **{key: value.get() for key, value in variables.items()},
+                        "required_attachment": required.get(),
+                    },
+                )
+                self.refresh_templates()
+                dialog.destroy()
+            except ValueError as exc:
+                messagebox.showerror("Política", str(exc), parent=dialog)
+
+        ttk.Button(dialog, text="Guardar configuración", command=save).pack(pady=8)
 
     def refresh_template_editor(self) -> None:
         self.template_list.delete(0, "end")
@@ -668,16 +967,72 @@ class NuRusApp(ttk.Frame):
         self.contacts_text = tk.Text(self.contacts, height=20, state="disabled")
         self.contacts_text.pack(fill="both", expand=True, pady=10)
         ttk.Button(self.contacts, text="Actualizar lista", command=self.refresh_contacts).pack(anchor="e")
+        ttk.Button(self.contacts, text="Importar Excel con vista previa…", command=self.import_contacts).pack(anchor="e")
+        ttk.Button(self.contacts, text="Agregar / actualizar contacto…", command=self.edit_contact).pack(anchor="e")
         self.refresh_contacts()
 
     def refresh_contacts(self) -> None:
         lines = [f"{row['display_name']}  <{row['email']}>" for row in self.db.list_contacts()] or [
-            "Aún no hay contactos. La importación con vista previa corresponde a una fase posterior."
+            "Aún no hay contactos. Importa el catastro o agrega un tribunal/programa."
         ]
         self.contacts_text.configure(state="normal")
         self.contacts_text.delete("1.0", "end")
         self.contacts_text.insert("1.0", "\n".join(lines))
         self.contacts_text.configure(state="disabled")
+
+    def edit_contact(self) -> None:
+        from nurus.rus.columns import normalize
+
+        name = simpledialog.askstring(
+            "Contacto", "Nombre exacto del tribunal o programa:", parent=self.root
+        )
+        if not name:
+            return
+        email = simpledialog.askstring(
+            "Contacto", "Direcciones separadas por ;", parent=self.root
+        )
+        if not email or not _valid_addresses(email):
+            messagebox.showerror("Contacto", "Dirección inválida.")
+            return
+        if messagebox.askyesno("Confirmar contacto", f"¿Guardar o actualizar {name}?"):
+            self.db.save_contact(normalize(name), name.strip(), email.strip())
+            self.refresh_contacts()
+
+    def import_contacts(self) -> None:
+        path = filedialog.askopenfilename(
+            filetypes=[("Catastro Excel", "*.xlsx *.xlsm *.xls")]
+        )
+        if not path:
+            return
+        try:
+            preview = preview_contact_import(self.db, path)
+        except Exception as exc:
+            messagebox.showerror("Importación", str(exc))
+            return
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Contactos · selecciona altas y cambios")
+        dialog.geometry("900x500")
+        listing = tk.Listbox(dialog, selectmode="extended")
+        listing.pack(fill="both", expand=True)
+        for item in preview.changes:
+            listing.insert(
+                "end", f"{item.action} | {item.display_name} | {item.email} | {item.issue}"
+            )
+
+        def apply():
+            accepted = {preview.changes[int(index)].entity_key for index in listing.curselection()}
+            try:
+                count = apply_contact_preview(self.db, preview, accepted)
+            except Exception as exc:
+                messagebox.showerror("No se aplicaron cambios", str(exc), parent=dialog)
+                return
+            messagebox.showinfo(
+                "Contactos", f"{count} contactos actualizados localmente. Outlook no fue modificado."
+            )
+            dialog.destroy()
+            self.refresh_contacts()
+
+        ttk.Button(dialog, text="Aplicar seleccionados", command=apply).pack(anchor="e")
 
     # ---------- Historial ----------
     def _history_tab(self) -> None:

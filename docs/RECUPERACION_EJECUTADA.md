@@ -43,3 +43,4 @@ Revisar Database.approve_batch y WorkController.approve_batch en el HEAD vigente
 
 ## Si vuelve el acceso local
 Inspeccionar el ZIP y el directorio anterior, comparar contra estos commits y recuperar únicamente diferencias necesarias. No sustituir la rama completa con la copia antigua.
+

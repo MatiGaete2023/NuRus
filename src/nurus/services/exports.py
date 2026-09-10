@@ -34,6 +34,10 @@ def _safe_cell(value: object) -> object:
     return value
 
 
+def _is_blank_excel_value(value: object) -> bool:
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
 def _snapshot_rows(db: Database, batch_id: str) -> tuple[object, list[dict[str, object]]]:
     try:
         snapshot = db.get_snapshot(batch_id)
@@ -181,9 +185,12 @@ def _review_records(snapshot: dict) -> list[dict]:
 
 def _trace_rows(snapshot: dict) -> list[tuple[object, ...]]:
     batch = snapshot["batch"]
+    stage = str(batch.get("export_stage", "reviewed"))
     rows: list[tuple[object, ...]] = [
         ("CAMPO", "VALOR"),
-        ("SNAPSHOT", batch["snapshot_hash"]),
+        ("ESTADO_DOCUMENTO", "PROPUESTA_NO_REVISADA" if stage == "proposal" else "CONSTANCIA_REVISADA"),
+        ("EVALUACION_SHA256", batch.get("evaluation_hash", "")),
+        ("SNAPSHOT", batch.get("snapshot_hash", "")),
         ("FUENTE_SHA256", batch["source_hash"]),
         ("MODO", batch["mode"]),
         ("HOJA_PROCESADA", batch["primary_sheet"]),
@@ -210,26 +217,35 @@ def _trace_name(existing: set[str]) -> str:
     return result
 
 
-def _annotation_plan(headers: list[object]) -> tuple[int, int]:
+def _column_plan(headers: list[object], titles: tuple[str, ...]) -> dict[str, int]:
     positions: dict[str, list[int]] = {}
     for position, value in enumerate(headers, start=1):
         key = _normalized_header(value)
         if key:
             positions.setdefault(key, []).append(position)
-    required = ("NURUS OBSERVACION", "NURUS ESTADO REVISION")
-    for name in required:
+    for title in titles:
+        name = _normalized_header(title)
         if len(positions.get(name, [])) > 1:
             raise ExportError(f"Hay más de una columna {name!r}; no se puede anotar sin ambigüedad.")
     last = len(headers)
-    observation = positions.get("NURUS OBSERVACION", [last + 1])[0]
-    if observation > last:
-        last = observation
-    state = positions.get("NURUS ESTADO REVISION", [last + 1])[0]
-    return observation, state
+    result: dict[str, int] = {}
+    for title in titles:
+        name = _normalized_header(title)
+        position = positions.get(name, [last + 1])[0]
+        result[title] = position
+        last = max(last, position)
+    return result
 
 
-def _annotation_values(record: dict) -> tuple[str, str]:
-    state = "EXCLUIDO" if record["decision"] == "excluded" else "APROBADO"
+def _annotation_values(record: dict, stage: str) -> tuple[str, str]:
+    if record["decision"] == "excluded":
+        state = "EXCLUIDO"
+    elif stage == "proposal" and record["evaluation_status"] == "blocked":
+        state = "REQUIERE_REVISION"
+    elif stage == "proposal":
+        state = "PROPUESTA"
+    else:
+        state = "REVISADO"
     return str(_safe_cell(record["edited_observation"])), state
 
 
@@ -250,15 +266,21 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         if batch["primary_sheet"] not in book.sheetnames:
             raise ExportError("La hoja procesada no existe en los bytes conservados.")
         sheet = book[batch["primary_sheet"]]
+        stage = str(batch.get("export_stage", "reviewed"))
+        observation_title = "NURUS_PROPUESTA" if stage == "proposal" else "NURUS_OBSERVACION_FINAL"
         header_row = int(batch["header_row"])
         if header_row < 1 or header_row > sheet.max_row:
             raise ExportError("La fila de encabezado del snapshot no es válida en el libro conservado.")
         headers = [sheet.cell(header_row, col).value for col in range(1, sheet.max_column + 1)]
-        observation_column, state_column = _annotation_plan(headers)
-        for column, title in (
-            (observation_column, "NURUS_OBSERVACION"),
-            (state_column, "NURUS_ESTADO_REVISION"),
-        ):
+        titles = (
+            ("NURUS_ID_REGISTRO", "NURUS_PROPUESTA", "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES", "NURUS_ESTADO_REVISION")
+            if stage == "proposal"
+            else ("NURUS_ID_REGISTRO", observation_title, "NURUS_ESTADO_REVISION")
+        )
+        columns = _column_plan(headers, titles)
+        observation_column = columns[observation_title]
+        state_column = columns["NURUS_ESTADO_REVISION"]
+        for title, column in columns.items():
             cell = sheet.cell(header_row, column)
             if cell.value is None:
                 source = sheet.cell(header_row, max(1, column - 1))
@@ -273,9 +295,12 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             row = int(record["source_row"])
             if row <= header_row or row > sheet.max_row:
                 raise ExportError(f"La fila {row} no existe en la hoja procesada.")
-            observation, state = _annotation_values(record)
+            observation, state = _annotation_values(record, stage)
+            sheet.cell(row, columns["NURUS_ID_REGISTRO"]).value = _safe_cell(record["record_id"])
             sheet.cell(row, observation_column).value = observation
             sheet.cell(row, state_column).value = state
+            if stage == "proposal" and _is_blank_excel_value(sheet.cell(row, columns["OBSERVACION"]).value):
+                sheet.cell(row, columns["OBSERVACION"]).value = observation
 
         first_data_row = header_row + 1
         last_column = max(sheet.max_column, state_column)
@@ -290,7 +315,7 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
 
         trace = book.create_sheet(_trace_name(set(book.sheetnames)))
         for values in _trace_rows(snapshot):
-            trace.append(list(values))
+            trace.append([_safe_cell(value) for value in values])
         trace.sheet_state = "hidden"
         book.save(target)
     finally:
@@ -338,15 +363,21 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         placeholder = None
 
         batch = snapshot["batch"]
+        stage = str(batch.get("export_stage", "reviewed"))
+        observation_title = "NURUS_PROPUESTA" if stage == "proposal" else "NURUS_OBSERVACION_FINAL"
         sheet = book.Worksheets(batch["primary_sheet"])
         header_row = int(batch["header_row"])
         used_last = sheet.UsedRange.Column + sheet.UsedRange.Columns.Count - 1
         headers = [sheet.Cells(header_row, column).Value2 for column in range(1, used_last + 1)]
-        observation_column, state_column = _annotation_plan(headers)
-        for column, title in (
-            (observation_column, "NURUS_OBSERVACION"),
-            (state_column, "NURUS_ESTADO_REVISION"),
-        ):
+        titles = (
+            ("NURUS_ID_REGISTRO", "NURUS_PROPUESTA", "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES", "NURUS_ESTADO_REVISION")
+            if stage == "proposal"
+            else ("NURUS_ID_REGISTRO", observation_title, "NURUS_ESTADO_REVISION")
+        )
+        columns = _column_plan(headers, titles)
+        observation_column = columns[observation_title]
+        state_column = columns["NURUS_ESTADO_REVISION"]
+        for title, column in columns.items():
             if sheet.Cells(header_row, column).Value2 in (None, ""):
                 sheet.Cells(header_row, column).Value2 = title
 
@@ -356,11 +387,16 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             row = int(record["source_row"])
             if row <= header_row or row > last_row:
                 raise ExportError(f"La fila {row} no existe en la hoja procesada.")
-            observation, state = _annotation_values(record)
+            observation, state = _annotation_values(record, stage)
+            sheet.Cells(row, columns["NURUS_ID_REGISTRO"]).NumberFormat = "@"
+            sheet.Cells(row, columns["NURUS_ID_REGISTRO"]).Value2 = str(record["record_id"])
             sheet.Cells(row, observation_column).NumberFormat = "@"
             sheet.Cells(row, observation_column).Value2 = observation
             sheet.Cells(row, state_column).NumberFormat = "@"
             sheet.Cells(row, state_column).Value2 = state
+            if stage == "proposal" and sheet.Cells(row, columns["OBSERVACION"]).Value2 in (None, ""):
+                sheet.Cells(row, columns["OBSERVACION"]).NumberFormat = "@"
+                sheet.Cells(row, columns["OBSERVACION"]).Value2 = observation
 
         last_column = max(used_last, state_column)
         status_column_letter = _excel_column_name(state_column)
@@ -406,21 +442,14 @@ def _excel_column_name(column: int) -> str:
     return result
 
 
-def export_preserved_workbook(
-    db: Database,
-    batch_id: str,
+def _export_preserved_payload(
+    content: bytes,
+    snapshot: dict,
     destination: str | Path,
     *,
-    backend: Literal["native", "portable"] = "native",
-    allow_reduced_fidelity: bool = False,
+    backend: Literal["native", "portable"],
+    allow_reduced_fidelity: bool,
 ) -> ExportResult:
-    """Crea una salida nueva desde los bytes congelados y el snapshot vigente."""
-    try:
-        snapshot = db.get_snapshot(batch_id)
-        content = db.get_original_workbook(batch_id, snapshot_hash=snapshot["batch"]["snapshot_hash"])
-    except ValueError as exc:
-        raise ExportError(str(exc)) from exc
-
     batch = snapshot["batch"]
     suffix = Path(str(batch["source_name"])).suffix.lower()
     target = Path(destination).expanduser().resolve()
@@ -442,16 +471,68 @@ def export_preserved_workbook(
     )
     handle.close()
     temporary = Path(handle.name)
+    target_created = False
     try:
         if backend == "native":
             _native_preserved(content, temporary, snapshot)
         else:
             _portable_preserved(content, temporary, snapshot)
         with target.open("xb") as output, temporary.open("rb") as source:
+            target_created = True
             shutil.copyfileobj(source, output)
     except OSError as exc:
+        if target_created:
+            target.unlink(missing_ok=True)
         raise ExportError(f"No se pudo escribir la exportación: {exc}") from exc
     finally:
         temporary.unlink(missing_ok=True)
 
     return ExportResult(target, _hash(target), len(snapshot["records"]))
+
+
+def export_proposal_workbook(
+    db: Database,
+    batch_id: str,
+    destination: str | Path,
+    *,
+    backend: Literal["native", "portable"] = "native",
+    allow_reduced_fidelity: bool = False,
+) -> ExportResult:
+    """Exporta la propuesta del motor antes de la revisión humana."""
+    try:
+        proposal = db.get_proposal_payload(batch_id)
+        content = db.get_original_workbook(batch_id)
+    except (KeyError, ValueError) as exc:
+        raise ExportError(str(exc)) from exc
+    return _export_preserved_payload(
+        content,
+        proposal,
+        destination,
+        backend=backend,
+        allow_reduced_fidelity=allow_reduced_fidelity,
+    )
+
+
+def export_preserved_workbook(
+    db: Database,
+    batch_id: str,
+    destination: str | Path,
+    *,
+    backend: Literal["native", "portable"] = "native",
+    allow_reduced_fidelity: bool = False,
+) -> ExportResult:
+    """Crea una salida nueva desde los bytes congelados y el snapshot vigente."""
+    try:
+        snapshot = db.get_snapshot(batch_id)
+        content = db.get_original_workbook(batch_id, snapshot_hash=snapshot["batch"]["snapshot_hash"])
+    except ValueError as exc:
+        raise ExportError(str(exc)) from exc
+
+    snapshot["batch"]["export_stage"] = "reviewed"
+    return _export_preserved_payload(
+        content,
+        snapshot,
+        destination,
+        backend=backend,
+        allow_reduced_fidelity=allow_reduced_fidelity,
+    )

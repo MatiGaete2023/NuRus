@@ -190,3 +190,4 @@ def test_edit_or_exclusion_requires_a_reason(tmp_path):
         )
     with pytest.raises(ValueError):
         controller.exclude_record(batch.batch_id, row.record_id, reason="")
+

@@ -1,4 +1,5 @@
 from hashlib import sha256
+from unittest.mock import patch
 
 import pytest
 from openpyxl import Workbook
@@ -81,3 +82,60 @@ def test_autodetects_displaced_header_and_preserves_physical_rows(tmp_path):
     assert result.column_mapping["programa"] == "DERIVACIÓN"
     assert result.column_mapping["dias_cumpl"] == "DÍAS DE CUMPLIMIENTO"
     assert any(item.startswith("HEADER_ROW_AUTODETECTED") for item in result.warnings)
+
+
+def test_displaced_header_scans_loaded_rows_without_reopening_each_prefix(tmp_path):
+    path = tmp_path / "displaced.xlsx"
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "informe_1"
+    for _ in range(13):
+        sheet.append(["REPORTE DE CUMPLIMIENTO"])
+    sheet.append([
+        "RIT", "TRIBUNAL", "NOMBRE", "DERIVACION",
+        "DIAS DE CUMPLIMIENTO", "DIAS PARA EGRESAR",
+    ])
+    sheet.append(["X-1", "Laja", "Persona", "PRM", 50, 50])
+    book.save(path)
+
+    import pandas as pd
+    with patch("pandas.read_excel", wraps=pd.read_excel) as reader:
+        result = read_workbook(path, Mode.CUMPLIMIENTO)
+
+    assert result.header_row == 14
+    assert reader.call_count == 3
+
+
+def test_structural_formula_footer_is_not_a_review_record(tmp_path):
+    path = tmp_path / "totals.xlsx"
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "ESPERA"
+    sheet.append(["DERIVACION", "TRIBUNAL", "NOMBRE", "RIT", "T ESPERA", "TT"])
+    sheet.append(["PRM Norte", "Laja", "Persona", "X-1", 40, 1])
+    sheet.append([None, None, None, None, None, "=SUM(F2:F2)"])
+    book.save(path)
+
+    result = read_workbook(path, Mode.ESPERA)
+
+    assert len(result.records) == 1
+    assert result.records[0].source.row_number == 2
+
+
+def test_reports_preserves_both_ingress_dates_without_ambiguity(tmp_path):
+    path = tmp_path / "informes.xlsx"
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "INFORMES"
+    sheet.append([
+        "DERIVACION", "TRIBUNAL", "NOMBRE", "RIT", "FECHA VENCIMIENTO",
+        "FECHA INGRESO", "FEC. INGRESO EFECTIVO",
+    ])
+    sheet.append(["PRM Norte", "Laja", "Persona", "X-1", "20/09/2026", "01/01/2025", "02/02/2025"])
+    book.save(path)
+
+    result = read_workbook(path, Mode.INFORMES)
+
+    assert result.column_mapping["ingreso"] == "FEC. INGRESO EFECTIVO"
+    assert result.records[0].values["FECHA INGRESO"] == "01/01/2025"
+    assert result.records[0].values["FEC. INGRESO EFECTIVO"] == "02/02/2025"

@@ -24,9 +24,25 @@ def _write(path, rows):
 def _approved_batch(db, path):
     controller = WorkController(db)
     batch = controller.analyze(path, Mode.ESPERA, as_of=date(2026, 9, 8))
-    for row in controller.rows_from_batch(batch):
-        controller.approve_record(batch.batch_id, row.record_id)
-    controller.approve_batch(batch.batch_id)
+    updates = [
+        {
+            "record_id": row["record_id"],
+            "observation": row["edited_observation"],
+            "review_date": "2026-09-08",
+            "tt": "",
+            "workload": "",
+            "resolution": "",
+        }
+        for row in db.list_review_records(batch.batch_id)
+    ]
+    db.apply_review_import(
+        batch.batch_id,
+        source_name="constancia.xlsx",
+        source_bytes=b"constancia completa",
+        responsible="Revisora CSMP",
+        updates=updates,
+    )
+    controller.approve_batch(batch.batch_id, require_review_import=True)
     return batch
 
 

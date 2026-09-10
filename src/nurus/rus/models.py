@@ -124,3 +124,4 @@ class EvaluationBatch:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "column_mapping", _freeze(dict(self.column_mapping)))
+

@@ -43,3 +43,4 @@ def render(catalog: dict, scope: str, key: str, **values: str) -> str:
         return str(text).format_map(values)
     except KeyError as exc:
         raise CatalogError(f"Falta el campo {exc.args[0]} para {scope}.{key}") from exc
+

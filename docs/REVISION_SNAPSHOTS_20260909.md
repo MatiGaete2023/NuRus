@@ -64,3 +64,4 @@ Las pruebas de CI utilizan datos sintéticos. Windows en GitHub Actions no equiv
 
 [L-SIGUIENTE]
 Inspeccionar la captura del archivo en WorkController.analyze y el modelo del lote para implementar conservación de bytes originales vinculados al hash.
+

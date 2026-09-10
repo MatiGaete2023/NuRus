@@ -194,3 +194,4 @@ def test_resolution_cannot_create_mail():
     product.kind = ProductKind.RESOLUTION
     with pytest.raises(ValueError, match="Solo un producto"):
         outlook_adapter.save_draft(product, confirmed=True)
+

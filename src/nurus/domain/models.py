@@ -41,6 +41,9 @@ class Product:
     recipient: str = ""
     cc: str = ""
     batch_id: str = ""
+    record_ids: tuple[str, ...] = ()
+    attachments: list[tuple[str, str]] = field(default_factory=list)
+    required_attachment: bool = False
     id: str = field(default_factory=lambda: str(uuid4()))
     status: ProductStatus = ProductStatus.PENDING
     rendered_subject: str = ""

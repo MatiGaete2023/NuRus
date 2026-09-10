@@ -139,3 +139,4 @@ def test_alias_identity_collision_rolls_back_entire_import(tmp_path):
         apply_contact_preview(db, preview, {"aaa", "prm norte"})
     assert len(db.list_contacts()) == 1
     assert resolve_contact_exact(db, "PRM Sur")["email"] == "sur@example.test"
+

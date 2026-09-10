@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from .columns import ColumnMappingError, has_full_cross_mapping, map_columns, map_cross_columns, normalize
+from .columns import H2_COLUMNS, ColumnMappingError, has_full_cross_mapping, map_columns, map_cross_columns, normalize
 from .models import Mode, ReadBatch, SourceRecord, SourceReference
 
 _ALLOWED_SUFFIXES = {".xls", ".xlsx", ".xlsm"}
@@ -60,13 +60,28 @@ def _is_empty(value: object) -> bool:
     return text in {"", "nan", "nat", "none"}
 
 
-def _records(frame, source_name: str, digest: str, sheet_name: str, header_row: int) -> tuple[SourceRecord, ...]:
+def _records(
+    frame,
+    source_name: str,
+    digest: str,
+    sheet_name: str,
+    header_row: int,
+    mapping: dict[str, str],
+) -> tuple[SourceRecord, ...]:
     frame = frame.copy()
     frame.columns = [str(header).strip() for header in frame.columns]
     records: list[SourceRecord] = []
     for index, row in frame.iterrows():
         values = {str(key): value for key, value in row.items()}
         if all(_is_empty(value) for value in values.values()):
+            continue
+        # Totales, pies y notas pertenecen a la estructura del libro. Solo se
+        # convierten en registros las filas con algún dato mapeado de caso.
+        # Esto conserva en Excel las fórmulas originales sin pedir su revisión.
+        if not any(
+            column in values and not _is_empty(values[column])
+            for column in mapping.values()
+        ):
             continue
         records.append(
             SourceRecord(
@@ -89,23 +104,8 @@ def _sheet_by_name(names: list[str], requested: str) -> str:
     return matches[0]
 
 
-def _headers(pd, workbook, sheet_name: str, header_row: int) -> list[str]:
-    try:
-        raw = pd.read_excel(
-            workbook,
-            sheet_name=sheet_name,
-            header=None,
-            nrows=header_row,
-            dtype=object,
-            keep_default_na=False,
-        )
-    except Exception as exc:
-        raise WorkbookReadError(f"No se pudieron leer los encabezados de {sheet_name!r}: {exc}") from exc
-    if raw.empty or len(raw.index) < header_row:
-        raise WorkbookReadError(
-            f"La hoja {sheet_name!r} no contiene la fila de encabezado {header_row}."
-        )
-    values = [str(value).strip() for value in raw.iloc[header_row - 1].tolist()]
+def _validate_headers(values: list[str], sheet_name: str) -> list[str]:
+    values = [str(value).strip() for value in values]
     seen: dict[str, str] = {}
     duplicates: list[str] = []
     for header in values:
@@ -122,6 +122,25 @@ def _headers(pd, workbook, sheet_name: str, header_row: int) -> list[str]:
             f"Encabezados duplicados o equivalentes en {sheet_name!r}: {', '.join(unique)}."
         )
     return values
+
+
+def _headers(pd, workbook, sheet_name: str, header_row: int) -> list[str]:
+    try:
+        raw = pd.read_excel(
+            workbook,
+            sheet_name=sheet_name,
+            header=None,
+            nrows=header_row,
+            dtype=object,
+            keep_default_na=False,
+        )
+    except Exception as exc:
+        raise WorkbookReadError(f"No se pudieron leer los encabezados de {sheet_name!r}: {exc}") from exc
+    if raw.empty or len(raw.index) < header_row:
+        raise WorkbookReadError(
+            f"La hoja {sheet_name!r} no contiene la fila de encabezado {header_row}."
+        )
+    return _validate_headers(raw.iloc[header_row - 1].tolist(), sheet_name)
 
 
 def _has_required_mapping(mapping: dict[str, str], mode: Mode) -> bool:
@@ -161,7 +180,7 @@ def _resolve_header_row(pd, workbook, sheet_name: str, mode: Mode, header_row: i
         if candidate_row == header_row:
             continue
         try:
-            candidate_headers = _headers(pd, workbook, sheet_name, candidate_row)
+            candidate_headers = _validate_headers(raw.iloc[index].tolist(), sheet_name)
             candidate_mapping = map_columns(candidate_headers, mode)
         except (WorkbookReadError, ColumnMappingError):
             continue
@@ -281,6 +300,7 @@ def read_workbook(
                 digest,
                 primary_name,
                 actual_header_row,
+                primary_mapping,
             )
 
             warnings: list[str] = []
@@ -325,6 +345,12 @@ def read_workbook(
                     except ColumnMappingError as exc:
                         warnings.append(f"CROSS_MAPPING_AMBIGUOUS: {exc}")
                         chosen = ""
+                    if chosen and set(cross_mapping) != set(H2_COLUMNS):
+                        missing = sorted(set(H2_COLUMNS) - set(cross_mapping))
+                        warnings.append(
+                            "CROSS_MAPPING_MISSING: faltan " + ", ".join(missing) + "; C-10 no se evaluará."
+                        )
+                        chosen = ""
                     if chosen:
                         cross = _records(
                             _read_sheet(pd, workbook, chosen, header_row),
@@ -332,6 +358,7 @@ def read_workbook(
                             digest,
                             chosen,
                             header_row,
+                            cross_mapping,
                         )
                 if not chosen:
                     warnings.append(

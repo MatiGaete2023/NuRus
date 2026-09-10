@@ -68,3 +68,4 @@ La excepción documentada para Cumplimiento y la aceptación institucional de Ou
 
 [L-SIGUIENTE]
 Implementar la excepción documentada de la hoja cruzada de Cumplimiento, con responsable, motivo y persistencia dentro del snapshot.
+

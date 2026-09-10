@@ -1,6 +1,6 @@
 # Implementación de NuRus
 
-Fecha de actualización: 8 de septiembre de 2026. Rama de integración: `implementacion-plan-2026-09-08`. Versión: `0.2.0.dev1`. Base técnica objetivo: Python 3.12, Windows 10, Tkinter/ttk, SQLite local y Outlook Object Model opcional.
+Fecha de actualización: 10 de septiembre de 2026. Rama de integración: `implementacion-plan-2026-09-08`. Versión: `0.3.0.dev1`. Base técnica objetivo: Python 3.12, Windows 10, Tkinter/ttk, SQLite local y Outlook Object Model opcional. Estado detallado: `EJECUCION_PLAN_NURUS_20260910.md`.
 
 ## Decisiones cerradas e invariantes
 

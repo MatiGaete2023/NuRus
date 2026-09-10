@@ -1,1 +1,2 @@
 """Persistencia local de NuRus."""
+

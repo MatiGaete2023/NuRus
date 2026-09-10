@@ -26,6 +26,24 @@ def fixture(tmp_path):
     return db, controller, batch.batch_id, source
 
 
+def confirm_review(db, batch):
+    rows = db.list_review_records(batch)
+    db.apply_review_import(
+        batch,
+        source_name="constancia.xlsx",
+        source_bytes=b"constancia humana",
+        responsible="Revisora CSMP",
+        updates=[{
+            "record_id": row["record_id"],
+            "observation": row["edited_observation"],
+            "review_date": "2026-09-08",
+            "tt": "",
+            "workload": "",
+            "resolution": "",
+        } for row in rows],
+    )
+
+
 @pytest.mark.parametrize("failure", ["snapshot", "batch"])
 def test_failure_rolls_back_rows_and_snapshot(tmp_path, failure):
     db, controller, batch, _ = fixture(tmp_path)
@@ -62,7 +80,8 @@ def test_historical_snapshot_survives_reapproval_and_source_removal(tmp_path):
 
 def test_product_and_export_read_frozen_records_not_working_table(tmp_path):
     db, controller, batch, _ = fixture(tmp_path)
-    controller.approve_batch(batch)
+    confirm_review(db, batch)
+    controller.approve_batch(batch, require_review_import=True)
     before = prepare_from_snapshot(db, batch, "email-ingreso")
     # Simula una modificación fuera del servicio: el snapshot sigue siendo la fuente.
     with db.connect() as conn:
@@ -78,12 +97,14 @@ def test_product_and_export_read_frozen_records_not_working_table(tmp_path):
 
 def test_old_preview_cannot_be_saved_as_new_snapshot(tmp_path):
     db, controller, batch, _ = fixture(tmp_path)
-    first = controller.approve_batch(batch)
+    confirm_review(db, batch)
+    first = controller.approve_batch(batch, require_review_import=True)
     old = prepare_from_snapshot(db, batch, "email-ingreso")
     assert old.source_snapshot_hash == first
     row = db.list_review_records(batch)[0]
     controller.approve_record(batch, row["record_id"], observation="Nueva", reason="Corrección")
-    controller.approve_batch(batch)
+    confirm_review(db, batch)
+    controller.approve_batch(batch, require_review_import=True)
     approve_product(old)
     with pytest.raises(ValueError, match="vista previa"):
         persist_approved_product(db, old)

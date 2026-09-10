@@ -41,3 +41,4 @@ Pruebas nuevas: recuperación tras modificación, eliminación y reapertura; sus
 
 [L-SIGUIENTE]
 Implementar el exportador sobre una copia de los bytes conservados, con observaciones y colores por fila física, y pruebas de preservación de las partes originales. Diferenciar explícitamente el backend nativo de cualquier alternativa con fidelidad reducida.
+

@@ -50,3 +50,4 @@ def prepare(product: Product) -> Product:
         )
     product.mark_ready()
     return product
+

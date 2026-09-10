@@ -158,6 +158,6 @@ class WorkController:
             batch_id, responsible=responsible, reason=reason
         )
 
-    def approve_batch(self, batch_id: str) -> str:
+    def approve_batch(self, batch_id: str, *, require_review_import: bool = False) -> str:
         """Una acción humana, una transacción de aprobación y snapshot."""
-        return self.db.approve_batch(batch_id)
+        return self.db.approve_batch(batch_id, require_review_import=require_review_import)

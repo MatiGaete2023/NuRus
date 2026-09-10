@@ -13,3 +13,4 @@ def with_mandatory_cc(value: str) -> str:
             addresses.append(address)
             seen.add(address.casefold())
     return "; ".join(addresses)
+

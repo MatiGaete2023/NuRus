@@ -82,3 +82,4 @@ def test_ambiguous_cross_sheet_cannot_be_approved_by_exception(tmp_path):
         db.document_missing_cross_sheet_exception(
             batch.batch_id, responsible="Matías", reason="No corresponde"
         )
+

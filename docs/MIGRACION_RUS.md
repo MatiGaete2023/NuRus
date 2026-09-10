@@ -40,3 +40,4 @@ py -3.12 -m pytest -q
 ```
 
 Para libros `.xls` de Excel 2010 instale también `.[excel-legacy]`. Los libros `.xlsx` y `.xlsm` usan `openpyxl`.
+

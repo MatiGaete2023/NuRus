@@ -72,3 +72,4 @@ Esta secuencia es complementaria: no impide continuar cambios independientes y v
 8. Solo tras resolver las pruebas y las matrices faltantes, evaluar la declaración de compatibilidad productiva.
 
 Este documento es memoria de navegación. La fuente para editar sigue siendo el código recuperado y la fuente para acreditar pruebas sigue siendo su resultado.
+

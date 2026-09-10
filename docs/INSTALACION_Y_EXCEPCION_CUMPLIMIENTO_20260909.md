@@ -8,17 +8,18 @@ Rama: `implementacion-plan-2026-09-08`.
 
 El mensaje recibido no acredita que Python 3.12 no esté instalado. Solo acreditaba que el instalador anterior no encontró el lanzador `py`.
 
-El instalador actualizado prueba, en este orden:
+El instalador primero reutiliza `.venv\Scripts\python.exe` cuando ya existe y es Python 3.12. En ese caso no necesita el comando `py`. Para crear un entorno nuevo prueba:
 
-1. `py -3.12`;
-2. `python`, si corresponde a Python 3.12;
-3. `python3.12`;
-4. `%LOCALAPPDATA%\Programs\Python\Python312\python.exe`;
-5. `%ProgramFiles%\Python312\python.exe`.
+1. la ruta indicada en `NURUS_PYTHON_EXE`;
+2. `py -3.12`;
+3. `python`, si corresponde a Python 3.12;
+4. `python3.12`;
+5. `%LOCALAPPDATA%\Programs\Python\Python312\python.exe`;
+6. `%ProgramFiles%\Python312\python.exe`.
 
 También verifica que una carpeta `.venv` existente use Python 3.12 antes de reutilizarla. Si no cumple, se detiene sin borrarla.
 
-La instalación ahora incorpora los extras `excel-legacy`, `excel-native` y `outlook`. Así quedan disponibles lectura `.xls`, exportación con Excel de escritorio y el adaptador de borradores. Requiere acceso a paquetes Python; no exige permisos de administrador si Python y el entorno virtual son de usuario.
+La instalación incorpora los extras de Excel/Outlook y `python-docx`. Si existe `paquetes\`, usa exclusivamente ese repositorio local; de lo contrario `pip` necesita acceso autorizado a dependencias.
 
 ### Qué hacer en el otro PC
 
@@ -36,7 +37,7 @@ La instalación ahora incorpora los extras `excel-legacy`, `excel-native` y `out
    python3.12 --version
    ```
 
-   Si ninguno muestra `Python 3.12.x`, corresponde instalar Python 3.12 por usuario o solicitar soporte institucional. No usar Python 3.13, 3.14 ni otra versión como sustituto.
+   Si conoces la ruta exacta, ejecuta `set "NURUS_PYTHON_EXE=C:\ruta\a\Python312\python.exe"` y vuelve a llamar a `Instalar_NuRus.bat`. Si ninguna alternativa muestra `Python 3.12.x`, corresponde instalar Python 3.12 por usuario o solicitar soporte institucional.
 4. Si informa que `.venv` no usa Python 3.12, cierra NuRus y renombra esa carpeta, por ejemplo a `.venv-anterior`; vuelve a ejecutar el instalador. No borrar una base de NuRus ni respaldos de datos.
 5. Abre `Abrir_NuRus.bat` solo después de que la instalación termine correctamente.
 
@@ -44,7 +45,7 @@ La instalación ahora incorpora los extras `excel-legacy`, `excel-native` y `out
 
 Cuando Cumplimiento no contiene una hoja de cruce identificable, la pantalla informa que se requiere excepción documentada. El lote no se puede aprobar mientras falte esa decisión.
 
-La persona revisora debe presionar **Documentar excepción de cruce**, indicar responsable y motivo, revisar nuevamente el lote y después aprobarlo. NuRus guarda la excepción dentro del snapshot aprobado con:
+La persona revisora debe presionar **Documentar excepción de cruce**, indicar responsable y motivo, cargar el Excel revisado y después **Congelar constancia**. NuRus guarda la excepción dentro del snapshot con:
 
 - código de excepción;
 - responsable;
@@ -53,7 +54,7 @@ La persona revisora debe presionar **Documentar excepción de cruce**, indicar r
 
 Modificar posteriormente ese registro devuelve el lote a revisión y genera un nuevo snapshot al aprobarlo. Los snapshots anteriores conservan la excepción que tuvieron.
 
-Si existen varias hojas de cruce posibles o columnas ambiguas, NuRus no permite la excepción. Debe seleccionarse o corregirse la hoja antes de aprobar. Si hay filas bloqueadas, primero se deben resolver o excluir con motivo; la excepción no reemplaza esa revisión individual.
+Si existen varias hojas de cruce posibles o columnas ambiguas, NuRus no permite la excepción. La excepción no reemplaza la revisión individual en RUS; la constancia debe identificar todas las filas y contener fecha/observación válidas.
 
 La hoja oculta de trazabilidad de la exportación incorpora la información de excepciones del snapshot.
 
@@ -72,7 +73,7 @@ La CI no puede acreditar Excel 2010, Outlook clásico ni la configuración insti
 
 1. Instalar con el script actualizado y abrir NuRus.
 2. Importar copias de una planilla Espera, una Cumplimiento sin cruce, una Cumplimiento con cruce, una Informes y, si se usan, archivos `.xls` y `.xlsm`.
-3. En Cumplimiento sin cruce, comprobar que no aprueba sin excepción; documentar responsable y motivo; aprobar y revisar la traza de la salida.
+3. En Cumplimiento sin cruce, comprobar que no congela sin excepción; documentar responsable y motivo, cargar el Excel revisado, congelar y revisar la traza.
 4. Exportar y comprobar fórmulas, filtros, anchos, estilos, hojas ocultas, OB y Medidas vencidas, las columnas de NuRus y las filas excluidas.
 5. Preparar un producto de correo con destinatario vacío y verificar la CC obligatoria. Guardar únicamente un borrador en Outlook, confirmar que no se envía y revisar la cuenta/carpeta correcta.
 6. Conservar el resultado de cada paso, el hash del snapshot y cualquier mensaje de error. No usar planillas reales en GitHub.

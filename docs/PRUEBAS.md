@@ -14,3 +14,4 @@ Ejecutar `py -3.12 -m pytest -q` y repetir manualmente, en datos ficticios, los 
 | Migración | dos ejecuciones, base corrupta, restauración | no duplica ni reemplaza ediciones |
 
 La aprobación exige cero P0 pendiente y que toda excepción tenga producto, fila/origen, estado y evidencia registrable.
+

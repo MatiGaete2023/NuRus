@@ -38,3 +38,4 @@ jobs:
 
       - name: Tests
         run: python -m pytest -q
+

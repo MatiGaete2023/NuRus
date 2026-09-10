@@ -10,7 +10,7 @@ from openpyxl.styles import Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from nurus.rus import Mode
-from nurus.services.exports import ExportError, export_preserved_workbook
+from nurus.services.exports import ExportError, export_preserved_workbook, export_proposal_workbook
 from nurus.services.workflow import WorkController
 from nurus.storage.database import Database
 
@@ -85,17 +85,52 @@ def test_preserved_export_uses_archived_bytes_and_marks_excluded(tmp_path):
         assert sheet["C2"].fill.fgColor.rgb == "0092D050"
         assert len(sheet.data_validations.dataValidation) == 1
         headers = [cell.value for cell in sheet[1]]
-        observation = headers.index("NURUS_OBSERVACION") + 1
+        observation = headers.index("NURUS_OBSERVACION_FINAL") + 1
         state = headers.index("NURUS_ESTADO_REVISION") + 1
         assert sheet.cell(2, observation).value == "'=texto de prueba"
-        assert sheet.cell(2, state).value == "APROBADO"
+        assert sheet.cell(2, state).value == "REVISADO"
         assert sheet.cell(3, state).value == "EXCLUIDO"
         rules = list(sheet.conditional_formatting)
         assert rules
         assert "EXCLUIDO" in str(sheet.conditional_formatting[rules[0]][0].formula)
         trace = generated["NURUS_TRAZABILIDAD"]
         assert trace.sheet_state == "hidden"
-        assert trace["B2"].value == db.get_batch(batch.batch_id)["snapshot_hash"]
+        assert trace["B2"].value == "CONSTANCIA_REVISADA"
+        assert trace["B4"].value == db.get_batch(batch.batch_id)["snapshot_hash"]
+    finally:
+        expected.close()
+        generated.close()
+
+
+def test_proposal_export_does_not_require_human_approval(tmp_path):
+    db = Database(tmp_path / "nurus.sqlite3")
+    source = tmp_path / "entrada.xlsx"
+    original = _source(source)
+    controller = WorkController(db)
+    batch = controller.analyze(source, Mode.ESPERA, as_of=date(2026, 9, 8))
+    assert db.get_batch(batch.batch_id)["status"] == "review"
+
+    source.unlink()
+    target = tmp_path / "propuestas.xlsx"
+    result = export_proposal_workbook(
+        db, batch.batch_id, target, backend="portable", allow_reduced_fidelity=True
+    )
+
+    expected = load_workbook(BytesIO(original), data_only=False)
+    generated = load_workbook(target, data_only=False)
+    try:
+        assert generated.sheetnames[:4] == expected.sheetnames
+        assert generated["OB"]["A1"].value == "=1+2"
+        sheet = generated["Espera"]
+        headers = [cell.value for cell in sheet[1]]
+        proposal = headers.index("NURUS_PROPUESTA") + 1
+        state = headers.index("NURUS_ESTADO_REVISION") + 1
+        assert sheet.cell(2, proposal).value
+        assert sheet.cell(2, state).value == "PROPUESTA"
+        trace = generated["NURUS_TRAZABILIDAD"]
+        assert trace["B2"].value == "PROPUESTA_NO_REVISADA"
+        assert trace["B3"].value == db.get_batch(batch.batch_id)["evaluation_hash"]
+        assert result.row_count == 2
     finally:
         expected.close()
         generated.close()

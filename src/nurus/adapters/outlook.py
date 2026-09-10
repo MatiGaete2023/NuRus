@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import platform
 from dataclasses import dataclass
+from hashlib import sha256
+from pathlib import Path
 
 from nurus.domain.models import Product, ProductStatus, ProductKind
 from nurus.services.policy import with_mandatory_cc
@@ -85,6 +87,11 @@ def save_draft(
         raise ValueError("Confirma explícitamente la creación del borrador Outlook.")
     if product.kind is not ProductKind.EMAIL:
         raise ValueError("Solo un producto de correo puede crear un borrador Outlook.")
+    if product.required_attachment and not product.attachments:
+        raise ValueError("El tipo de correo requiere un adjunto.")
+    for path, digest in product.attachments:
+        if sha256(Path(path).read_bytes()).hexdigest() != digest:
+            raise ValueError("El adjunto cambió después de la revisión. Prepara una nueva versión.")
     if product.status not in {ProductStatus.READY, ProductStatus.APPROVED}:
         raise ValueError("Solo se pueden crear borradores de productos completos y revisados.")
     if platform.system() != "Windows":
@@ -122,6 +129,8 @@ def save_draft(
         mail.CC = with_mandatory_cc(product.cc)
         mail.Subject = product.rendered_subject
         mail.Body = product.rendered_body
+        for path, _digest in product.attachments:
+            mail.Attachments.Add(str(Path(path).resolve()))
 
         # INVARIANTE D01: el único efecto externo permitido es guardar un borrador.
         save_attempted = True

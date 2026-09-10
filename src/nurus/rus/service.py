@@ -258,3 +258,4 @@ def evaluate_batch(
         catalog_sha256=catalog_sha256(catalog_path),
         column_mapping=columns,
     )
+

@@ -14,6 +14,18 @@ from nurus.rus.models import EvaluationBatch, SourceReference
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS communication_policies (
+  template_id TEXT PRIMARY KEY, policy_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS deliveries (
+  product_id TEXT PRIMARY KEY REFERENCES products(id), status TEXT NOT NULL,
+  receipt_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS artifacts (
+  id TEXT PRIMARY KEY, batch_id TEXT NOT NULL REFERENCES batches(id),
+  snapshot_hash TEXT NOT NULL REFERENCES approved_snapshots(hash), path TEXT NOT NULL,
+  sha256 TEXT NOT NULL, profile TEXT NOT NULL, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS workbook_sources (
   hash TEXT PRIMARY KEY, content BLOB NOT NULL, size INTEGER NOT NULL,
   created_at TEXT NOT NULL, CHECK(length(content)=size)
@@ -106,10 +118,30 @@ _BATCH_COLUMNS = {
 }
 
 _PRODUCT_COLUMNS = {
+    "attachments": "TEXT NOT NULL DEFAULT '[]'",
+    "record_ids": "TEXT NOT NULL DEFAULT '[]'",
+    "required_attachment": "INTEGER NOT NULL DEFAULT 0",
     "cc": "TEXT NOT NULL DEFAULT ''",
     "context": "TEXT NOT NULL DEFAULT '{}'",
     "warnings": "TEXT NOT NULL DEFAULT '[]'",
     "source_snapshot_hash": "TEXT NOT NULL DEFAULT ''",
+}
+
+_REVIEW_RECORD_COLUMNS = {
+    "review_date": "TEXT NOT NULL DEFAULT ''",
+    "tt_value": "TEXT NOT NULL DEFAULT ''",
+    "workload_value": "TEXT NOT NULL DEFAULT ''",
+    "resolution_value": "TEXT NOT NULL DEFAULT ''",
+    "rus_recorded": "INTEGER NOT NULL DEFAULT 0 CHECK(rus_recorded IN (0,1))",
+    "review_import_name": "TEXT NOT NULL DEFAULT ''",
+    "review_import_hash": "TEXT NOT NULL DEFAULT ''",
+}
+
+_BATCH_REVIEW_COLUMNS = {
+    "review_import_name": "TEXT NOT NULL DEFAULT ''",
+    "review_import_hash": "TEXT NOT NULL DEFAULT ''",
+    "review_responsible": "TEXT NOT NULL DEFAULT ''",
+    "review_confirmed_at": "TEXT NOT NULL DEFAULT ''",
 }
 
 
@@ -184,10 +216,10 @@ class Database:
         if path.exists() and path.stat().st_size:
             with sqlite3.connect(path) as source:
                 version = source.execute("PRAGMA user_version").fetchone()[0]
-                if version > 5:
+                if version > 7:
                     raise ValueError("Base de una versión posterior: no se permite degradarla.")
-                if version < 5:
-                    backup = path.with_name(path.name + f".pre-v5-{uuid4().hex}.bak")
+                if version < 7:
+                    backup = path.with_name(path.name + f".pre-v7-{uuid4().hex}.bak")
                     with sqlite3.connect(backup) as destination:
                         source.backup(destination)
                     self.migration_backup = backup
@@ -219,7 +251,9 @@ class Database:
 
     def _migrate(self, conn: sqlite3.Connection) -> None:
         self._ensure_columns(conn, "batches", _BATCH_COLUMNS)
+        self._ensure_columns(conn, "batches", _BATCH_REVIEW_COLUMNS)
         self._ensure_columns(conn, "products", _PRODUCT_COLUMNS)
+        self._ensure_columns(conn, "review_records", _REVIEW_RECORD_COLUMNS)
         # Las instalaciones 0.1 guardaban solo la última versión. Se conserva como
         # versión histórica inicial sin reconstruir información inexistente.
         conn.execute(
@@ -228,14 +262,45 @@ class Database:
                SELECT id,version,name,kind,subject,body,allowed_variables,status,updated_at
                FROM templates"""
         )
-        conn.execute("PRAGMA user_version = 5")
+        conn.execute("PRAGMA user_version = 7")
 
     def foreign_keys_enabled(self) -> bool:
         with self.connect() as conn:
             return bool(conn.execute("PRAGMA foreign_keys").fetchone()[0])
 
     def seed(self) -> None:
-        if self.list_templates():
+        from importlib.resources import files
+        import re
+
+        existing = {item.id for item in self.list_templates()}
+        defaults = json.loads(
+            files("nurus.services").joinpath("operational_templates.json").read_text(encoding="utf-8")
+        )
+        for item in defaults:
+            policy = {key: item[key] for key in ("required_attachment", "group", "mode", "filter")}
+            with self.connect() as conn:
+                conn.execute(
+                    "INSERT OR IGNORE INTO communication_policies VALUES(?,?)",
+                    (item["id"], _json(policy)),
+                )
+            if item["id"] not in existing:
+                variables = tuple(sorted(set(re.findall(r"\{([A-Z_]+)\}", item["subject"] + item["body"]))))
+                self.save_template(Template(
+                    id=item["id"], name=item["name"], kind=ProductKind(item["kind"]),
+                    subject=item["subject"], body=item["body"],
+                    allowed_variables=variables, status="published",
+                ))
+        for item in json.loads(
+            files("nurus.services").joinpath("resolution_templates.json").read_text(encoding="utf-8")
+        ):
+            if item["id"] not in existing:
+                variables = tuple(sorted(set(re.findall(r"\{([A-Z_]+)\}", item["subject"] + item["body"]))))
+                self.save_template(Template(
+                    id=item["id"], name=item["name"], kind=ProductKind.RESOLUTION,
+                    subject=item["subject"], body=item["body"],
+                    allowed_variables=variables, status="published",
+                ))
+        if existing:
             return
         self.save_template(Template(
             id="email-ingreso", name="Consulta de ingreso", kind=ProductKind.EMAIL,
@@ -455,6 +520,48 @@ class Database:
                 (batch_id,),
             ).fetchall()
 
+    def get_proposal_payload(self, batch_id: str) -> dict:
+        """Construye el documento inicial sin afirmar revisión humana.
+
+        La evaluación permanece identificada por su hash. Los productos
+        posteriores continúan requiriendo un snapshot humano aprobado.
+        """
+        with self.connect() as conn:
+            batch = conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
+            if batch is None:
+                raise KeyError("Lote no encontrado.")
+            records = conn.execute(
+                "SELECT * FROM review_records WHERE batch_id=? ORDER BY source_sheet,source_row",
+                (batch_id,),
+            ).fetchall()
+            exception = conn.execute(
+                "SELECT * FROM batch_exceptions WHERE batch_id=?", (batch_id,)
+            ).fetchone()
+        if not records:
+            raise ValueError("El lote no contiene registros para proponer.")
+        exceptions = []
+        if exception is not None:
+            exceptions.append({
+                "code": exception["code"],
+                "responsible": exception["responsible"],
+                "reason": exception["reason"],
+                "created_at": exception["created_at"],
+            })
+        batch_data = {key: batch[key] for key in batch.keys()}
+        batch_data.update(export_stage="proposal")
+        proposal_records = []
+        for row in records:
+            item = {key: row[key] for key in row.keys() if key != "updated_at"}
+            # La propuesta siempre refleja el motor, no una edición posterior.
+            item["edited_observation"] = item["original_observation"]
+            proposal_records.append(item)
+        return {
+            "schema_version": 1,
+            "batch": batch_data,
+            "records": proposal_records,
+            "exceptions": exceptions,
+        }
+
     def set_record_decision(
         self,
         batch_id: str,
@@ -485,7 +592,9 @@ class Database:
                 (decision, new_observation, reason.strip(), utc_now(), batch_id, record_id),
             )
             conn.execute(
-                "UPDATE batches SET status='review',snapshot_hash='',approved_at='' WHERE id=?",
+                """UPDATE batches SET status='review',snapshot_hash='',approved_at='',
+                   review_import_name='',review_import_hash='',review_responsible='',
+                   review_confirmed_at='' WHERE id=?""",
                 (batch_id,),
             )
 
@@ -506,11 +615,97 @@ class Database:
                 (decision, utc_now(), batch_id, record_id),
             )
             conn.execute(
-                "UPDATE batches SET status='review',snapshot_hash='',approved_at='' WHERE id=?",
+                """UPDATE batches SET status='review',snapshot_hash='',approved_at='',
+                   review_import_name='',review_import_hash='',review_responsible='',
+                   review_confirmed_at='' WHERE id=?""",
                 (batch_id,),
             )
 
-    def approve_batch(self, batch_id: str) -> str:
+    def apply_review_import(
+        self,
+        batch_id: str,
+        *,
+        source_name: str,
+        source_bytes: bytes,
+        responsible: str,
+        updates: list[dict[str, object]],
+    ) -> str:
+        """Registra en una transacción la constancia proveniente del Excel revisado.
+
+        La confirmación de que la observación oficial fue ingresada en RUS ocurre en
+        la interfaz antes de llamar este método; aquí se conserva quién confirmó,
+        cuándo y el hash exacto del archivo importado.
+        """
+        responsible = responsible.strip()
+        if not responsible:
+            raise ValueError("La constancia requiere identificar a la persona responsable.")
+        if not source_bytes:
+            raise ValueError("El archivo de constancia está vacío.")
+        digest = sha256(source_bytes).hexdigest()
+        now = utc_now()
+        with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            batch = conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
+            if batch is None:
+                raise KeyError("Lote no encontrado.")
+            known = {
+                row["record_id"]: row
+                for row in conn.execute(
+                    "SELECT * FROM review_records WHERE batch_id=?", (batch_id,)
+                ).fetchall()
+            }
+            supplied_list = [str(item.get("record_id", "")).strip() for item in updates]
+            supplied = set(supplied_list)
+            if not supplied or "" in supplied:
+                raise ValueError("La constancia no contiene registros identificables.")
+            if len(supplied) != len(supplied_list):
+                raise ValueError("La constancia contiene identificadores repetidos.")
+            unknown = supplied - set(known)
+            if unknown:
+                raise ValueError("La constancia contiene registros que no pertenecen al lote.")
+            for item in updates:
+                record_id = str(item["record_id"]).strip()
+                current = known[record_id]
+                if current["decision"] == "excluded":
+                    decision = "excluded"
+                    rus_recorded = 0
+                else:
+                    decision = "approved"
+                    rus_recorded = 1
+                observation = str(item.get("observation", "")).strip()
+                review_date = str(item.get("review_date", "")).strip()
+                if current["decision"] != "excluded":
+                    if not observation:
+                        raise ValueError(f"El registro {record_id} no contiene observación.")
+                    try:
+                        parsed_review_date = date.fromisoformat(review_date)
+                    except ValueError as exc:
+                        raise ValueError(f"El registro {record_id} no contiene una fecha válida.") from exc
+                    if parsed_review_date > date.today():
+                        raise ValueError(f"El registro {record_id} contiene una fecha futura.")
+                changed = observation != current["original_observation"]
+                reason = "Modificada durante la revisión humana registrada en RUS." if changed else ""
+                conn.execute(
+                    """UPDATE review_records SET decision=?,edited_observation=?,edit_reason=?,
+                       review_date=?,tt_value=?,workload_value=?,resolution_value=?,rus_recorded=?,
+                       review_import_name=?,review_import_hash=?,updated_at=?
+                       WHERE batch_id=? AND record_id=?""",
+                    (
+                        decision, observation, reason, review_date,
+                        str(item.get("tt", "")), str(item.get("workload", "")),
+                        str(item.get("resolution", "")), rus_recorded, source_name, digest,
+                        now, batch_id, record_id,
+                    ),
+                )
+            conn.execute(
+                """UPDATE batches SET status='review',snapshot_hash='',approved_at='',
+                   review_import_name=?,review_import_hash=?,review_responsible=?,
+                   review_confirmed_at=? WHERE id=?""",
+                (source_name, digest, responsible, now, batch_id),
+            )
+        return digest
+
+    def approve_batch(self, batch_id: str, *, require_review_import: bool = False) -> str:
         """Aprueba filas y persiste el snapshot en una única transacción."""
         with self.connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -534,8 +729,28 @@ class Database:
             ).fetchall()
             if not rows:
                 raise ValueError("El lote no contiene registros revisables.")
-            blocked = [r for r in rows if r["decision"] == "blocked"
-                       or (r["evaluation_status"] == "blocked" and r["decision"] != "excluded")]
+            if require_review_import and not batch["review_import_hash"]:
+                raise ValueError(
+                    "Primero carga el Excel revisado y confirma que sus observaciones fueron registradas en RUS."
+                )
+            if require_review_import:
+                not_recorded = [
+                    row for row in rows
+                    if row["decision"] != "excluded" and not row["rus_recorded"]
+                ]
+                if not_recorded:
+                    raise ValueError(
+                        f"Quedan {len(not_recorded)} filas sin constancia de registro en RUS."
+                    )
+            blocked = [
+                row for row in rows
+                if row["decision"] == "blocked"
+                or (
+                    row["evaluation_status"] == "blocked"
+                    and row["decision"] != "excluded"
+                    and not (require_review_import and row["rus_recorded"])
+                )
+            ]
             if blocked:
                 pending = sum(r["decision"] == "pending" for r in rows)
                 message = f"Quedan {len(blocked)} filas bloqueadas que requieren revisión individual."
@@ -620,6 +835,10 @@ class Database:
                     raise ValueError("El producto referencia un lote inexistente.")
                 if batch["status"] != "approved":
                     raise ValueError("El lote debe estar aprobado antes de preparar productos.")
+                if not batch["review_import_hash"]:
+                    raise ValueError(
+                        "El producto requiere una constancia humana importada desde el Excel revisado."
+                    )
                 snapshot_hash = product.source_snapshot_hash
                 if not snapshot_hash or snapshot_hash != batch["snapshot_hash"]:
                     raise ValueError("La vista previa no corresponde al snapshot vigente; prepara nuevamente el producto.")
@@ -635,13 +854,15 @@ class Database:
             conn.execute(
                 """INSERT INTO products(
                        id,batch_id,kind,template_id,template_version,recipient,status,subject,body,
-                       issues,created_at,cc,context,warnings,source_snapshot_hash)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       issues,created_at,cc,context,warnings,source_snapshot_hash,
+                       attachments,record_ids,required_attachment)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (product.id, batch_id, product.kind.value, product.template.id,
                  product.template.version, product.recipient, product.status.value,
                  product.rendered_subject, product.rendered_body, _json(product.issues), now,
                  product.cc, _json(product.context), _json(getattr(product, "warnings", [])),
-                 snapshot_hash),
+                 snapshot_hash, _json(product.attachments), _json(product.record_ids),
+                 int(product.required_attachment)),
             )
 
     def list_products(self) -> list[sqlite3.Row]:
@@ -650,3 +871,40 @@ class Database:
                 """SELECT p.*, b.source_name FROM products p JOIN batches b ON b.id=p.batch_id
                    ORDER BY p.created_at DESC LIMIT 100"""
             ).fetchall()
+
+    def record_artifact(
+        self, batch_id: str, snapshot_hash: str, path: str, digest: str, profile: str
+    ) -> None:
+        # Verifica la relación batch/snapshot antes de conservar el recibo.
+        self.get_snapshot(batch_id, snapshot_hash)
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO artifacts VALUES(?,?,?,?,?,?,?)",
+                (str(uuid4()), batch_id, snapshot_hash, path, digest, profile, utc_now()),
+            )
+
+    def get_communication_policy(self, template_id: str) -> dict[str, object]:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT policy_json FROM communication_policies WHERE template_id=?",
+                (template_id,),
+            ).fetchone()
+        if row is None:
+            raise ValueError("La plantilla no tiene política de comunicaciones.")
+        return json.loads(row[0])
+
+    def save_communication_policy(self, template_id: str, policy: dict[str, object]) -> None:
+        if (
+            set(policy) != {"required_attachment", "group", "mode", "filter"}
+            or type(policy["required_attachment"]) is not bool
+            or policy["group"] not in {"tribunal", "programa"}
+            or policy["mode"] not in {"", "ESPERA", "CUMPLIMIENTO", "INFORMES"}
+            or policy["filter"] not in {"all", "manual", "medidas", "E-05", "I-01", "I-02"}
+        ):
+            raise ValueError("Política no válida: utiliza únicamente las opciones disponibles.")
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO communication_policies VALUES(?,?)
+                   ON CONFLICT(template_id) DO UPDATE SET policy_json=excluded.policy_json""",
+                (template_id, _json(policy)),
+            )

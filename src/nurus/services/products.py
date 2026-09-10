@@ -48,6 +48,10 @@ def prepare_from_snapshot(
     except ValueError as exc:
         raise ProductBuildError(str(exc)) from exc
     batch = snapshot["batch"]
+    if not batch.get("review_import_hash"):
+        raise ProductBuildError(
+            "El producto requiere una constancia humana importada desde el Excel revisado."
+        )
 
     template = _published_template(db, template_id)
     rows = snapshot["records"]
@@ -108,6 +112,7 @@ def prepare_from_snapshot(
             cc=cc.strip(),
             batch_id=batch_id,
             source_snapshot_hash=batch["snapshot_hash"],
+            record_ids=tuple(row["record_id"] for row in rows),
         )
     )
 

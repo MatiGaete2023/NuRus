@@ -9,3 +9,4 @@ def test_windows_installer_detects_python_without_requiring_py_launcher():
     assert "%LOCALAPPDATA%\\Programs\\Python\\Python312\\python.exe" in script
     assert "sys.version_info[:2] == (3, 12)" in script
     assert "excel-native" in script
+
