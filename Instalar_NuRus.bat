@@ -6,18 +6,22 @@ echo ========================================
 echo NuRus - instalacion local aislada
 echo ========================================
 
-if exist ".venv\Scripts\python.exe" (
-  ".venv\Scripts\python.exe" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >nul 2>&1
-  if errorlevel 1 goto :wrong_venv
-  echo Entorno NuRus existente detectado. No se requiere el comando py.
-) else (
-  call :find_python
-  if not defined NURUS_PYTHON goto :no_python
-  echo Python 3.12 detectado: %NURUS_PYTHON%
-  echo Creando entorno virtual .venv...
-  %NURUS_PYTHON% -m venv .venv
-  if errorlevel 1 goto :error
-)
+if not exist ".venv\Scripts\python.exe" goto :create_venv
+
+".venv\Scripts\python.exe" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >nul 2>&1
+if errorlevel 1 goto :wrong_venv
+echo Entorno NuRus existente detectado. No se requiere el comando py.
+goto :install
+
+:create_venv
+call :find_python
+if not defined NURUS_PYTHON goto :no_python
+echo Python 3.12 detectado: %NURUS_PYTHON%
+echo Creando entorno virtual .venv...
+%NURUS_PYTHON% -m venv .venv
+if errorlevel 1 goto :error
+
+:install
 
 echo Instalando NuRus y soporte Excel / Outlook...
 set "NURUS_PIP_SOURCE="
@@ -42,7 +46,7 @@ exit /b 0
 :find_python
 set "NURUS_PYTHON="
 if defined NURUS_PYTHON_EXE call :try_python "%NURUS_PYTHON_EXE%"
-call :try_python py -3.12
+if not defined NURUS_PYTHON call :try_python py -3.12
 if not defined NURUS_PYTHON call :try_python python
 if not defined NURUS_PYTHON call :try_python python3.12
 if not defined NURUS_PYTHON if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" call :try_python "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"

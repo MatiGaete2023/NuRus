@@ -2,7 +2,7 @@
 
 Aplicación de escritorio local para analizar y revisar planillas del seguimiento de medidas de protección con trazabilidad y control humano.
 
-**Versión de esta rama:** `0.3.0.dev1`. Requiere aceptación institucional antes de uso productivo.
+**Versión de esta rama:** `0.3.0.dev2`. Requiere aceptación institucional antes de uso productivo.
 
 ## Invariante de correo
 

@@ -1,6 +1,6 @@
 # Ejecución del plan NuRus
 
-Fecha: 10 de septiembre de 2026. Versión: `0.3.0.dev1`.
+Fecha: 10 de septiembre de 2026. Versión: `0.3.0.dev2`.
 
 ## Resultado implementado
 
@@ -70,7 +70,7 @@ Resultado local del 10 de septiembre de 2026:
 
 - `100 passed` tras incorporar la invalidación de productos obsoletos;
 - compilación de `src/` y `tests/` sin errores;
-- catálogos JSON válidos y presentes en el wheel `0.3.0.dev1`;
+- catálogos JSON válidos y presentes en el wheel `0.3.0.dev2`;
 - búsqueda estática sin llamadas `.Send()`;
 - `AGOSTO.xlsx`: Espera 95; Cumplimiento 760 (756 revisables y 4 excluidos); Informes 300, sin falsos registros estructurales;
 - `RUS_CUMPLIMIENTO_20260904_114132_856292.xlsx`: 255 revisables y 7 excluidos en Cumplimiento; la ausencia de cruce queda advertida y requiere excepción;

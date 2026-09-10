@@ -1,6 +1,6 @@
 # Protocolo de aceptación institucional NuRus
 
-Versión bajo prueba: `0.3.0.dev1`. No utilizar datos reales en GitHub.
+Versión bajo prueba: `0.3.0.dev2`. No utilizar datos reales en GitHub.
 
 ## Registro obligatorio por caso
 
