@@ -76,7 +76,7 @@ Resultado local del 10 de septiembre de 2026:
 - `RUS_CUMPLIMIENTO_20260904_114132_856292.xlsx`: 255 revisables y 7 excluidos en Cumplimiento; la ausencia de cruce queda advertida y requiere excepción;
 - propuesta portable de las tres modalidades: hojas originales presentes, 30/30 fórmulas conservadas, columnas administradas incorporadas y excluidos marcados mediante formato condicional.
 
-La cifra de pruebas debe confirmarse otra vez sobre el commit publicado. La fidelidad nativa y el comportamiento real de Excel/Outlook siguen sujetos al protocolo institucional.
+GitHub Actions confirmó las 100 pruebas, instalación, dependencias y compilación en Ubuntu y Windows sobre el commit `c1122c4d966eca4a80c50698dd383b914e9f9245`. La fidelidad nativa y el comportamiento real de Excel/Outlook siguen sujetos al protocolo institucional.
 
 ## Próximo cierre
 
