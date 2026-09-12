@@ -139,7 +139,7 @@ def review_product(app, product):
 def communications_dialog(app):
     batch = app.db.get_batch(app.current_batch_id) if app.current_batch_id else None
     if batch is None or batch["status"] != "approved":
-        messagebox.showwarning("Falta constancia", "Carga y congela una constancia antes de preparar correos.")
+        messagebox.showwarning("Falta constancia", "Guarda tu revisión en Excel y pulsa «Usar revisión guardada». No necesitas volver a seleccionar la copia exportada.")
         return
     dialog = tk.Toplevel(app.root)
     dialog.title("Correos agrupados desde la constancia")

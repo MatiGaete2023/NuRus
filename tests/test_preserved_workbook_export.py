@@ -166,3 +166,86 @@ def test_native_backend_requires_windows_excel_environment(tmp_path):
     batch, _ = _approved_excluded(db, tmp_path / "entrada.xlsx")
     with pytest.raises(ExportError, match="Windows"):
         export_preserved_workbook(db, batch.batch_id, tmp_path / "salida.xlsx")
+
+
+@pytest.mark.parametrize("suffix,file_format", [(".xls", 56), (".xlsx", 51), (".xlsm", 52)])
+@pytest.mark.parametrize("failure", [False, True])
+def test_native_saveas_separates_input_output_and_closes_excel(tmp_path, monkeypatch, suffix, file_format, failure):
+    """Contrato COM simulado; no sustituye la aceptación en Excel real."""
+    import sys
+    from pathlib import Path
+    from unittest.mock import MagicMock
+    from nurus.services.exports import _native_preserved
+
+    content = b"legacy xls fixture"
+    if suffix != ".xls":
+        buffer = BytesIO()
+        book = Workbook()
+        book.save(buffer)
+        content = buffer.getvalue()
+    target = tmp_path / ("output" + suffix)
+    target.touch()
+    sheet = MagicMock()
+    sheet.Name = "Espera"
+    sheet.UsedRange.Column = sheet.UsedRange.Row = 1
+    sheet.UsedRange.Columns.Count = 1
+    sheet.UsedRange.Rows.Count = 2
+    cells = {}
+
+    def cell(row, column):
+        if (row, column) not in cells:
+            cells[row, column] = MagicMock(Value2="RIT" if (row, column) == (1, 1) else None)
+        return cells[row, column]
+
+    sheet.Cells.side_effect = cell
+    book = MagicMock()
+    book.Worksheets.return_value = sheet
+    book.Worksheets.Count = 1
+    app = MagicMock()
+    opened = []
+
+    def open_book(path, **kwargs):
+        opened.append(Path(path))
+        assert Path(path).read_bytes() == content
+        assert Path(path) != target
+        assert kwargs["AddToMru"] is False
+        return book
+
+    def save_as(**kwargs):
+        assert kwargs["FileFormat"] == file_format
+        assert kwargs["Filename"] == str(target)
+        assert kwargs["AddToMru"] is False
+        assert not target.exists()
+        if failure:
+            raise RuntimeError("SaveAs refused")
+        target.write_bytes(b"output-created-by-fake-excel")
+
+    app.Workbooks.Open.side_effect = open_book
+    book.SaveAs.side_effect = save_as
+    pythoncom = MagicMock()
+    win32com = MagicMock()
+    win32com.client.DispatchEx.return_value = app
+    monkeypatch.setitem(sys.modules, "pythoncom", pythoncom)
+    monkeypatch.setitem(sys.modules, "win32com", win32com)
+    monkeypatch.setitem(sys.modules, "win32com.client", win32com.client)
+    monkeypatch.setattr("platform.system", lambda: "Windows")
+    snapshot = {
+        "batch": {"primary_sheet": "Espera", "header_row": 1, "source_hash": "hash",
+                  "mode": "ESPERA", "export_stage": "proposal"},
+        "records": [{"record_id": "id", "source_sheet": "Espera", "source_row": 2,
+                     "decision": "excluded", "evaluation_status": "excluded",
+                     "edited_observation": "Propuesta", "edit_reason": "", "rule_ids_json": "[]",
+                     "source_hash": "hash"}],
+    }
+    if failure:
+        with pytest.raises(ExportError, match="Excel no pudo completar"):
+            _native_preserved(content, target, snapshot)
+    else:
+        _native_preserved(content, target, snapshot)
+        assert target.read_bytes() == b"output-created-by-fake-excel"
+    book.Save.assert_not_called()
+    assert sheet.Range.return_value.FormatConditions.Add.return_value.Interior.Color == 255 + 242 * 256 + 204 * 65536
+    book.Close.assert_called_once_with(SaveChanges=False)
+    app.Quit.assert_called_once()
+    pythoncom.CoUninitialize.assert_called_once()
+    assert opened and not opened[0].exists()

@@ -14,6 +14,10 @@ from nurus.rus.models import EvaluationBatch, SourceReference
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS working_workbooks (
+  batch_id TEXT PRIMARY KEY REFERENCES batches(id), path TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS communication_policies (
   template_id TEXT PRIMARY KEY, policy_json TEXT NOT NULL
 );
@@ -216,10 +220,10 @@ class Database:
         if path.exists() and path.stat().st_size:
             with sqlite3.connect(path) as source:
                 version = source.execute("PRAGMA user_version").fetchone()[0]
-                if version > 7:
+                if version > 8:
                     raise ValueError("Base de una versión posterior: no se permite degradarla.")
-                if version < 7:
-                    backup = path.with_name(path.name + f".pre-v7-{uuid4().hex}.bak")
+                if version < 8:
+                    backup = path.with_name(path.name + f".pre-v8-{uuid4().hex}.bak")
                     with sqlite3.connect(backup) as destination:
                         source.backup(destination)
                     self.migration_backup = backup
@@ -262,7 +266,7 @@ class Database:
                SELECT id,version,name,kind,subject,body,allowed_variables,status,updated_at
                FROM templates"""
         )
-        conn.execute("PRAGMA user_version = 7")
+        conn.execute("PRAGMA user_version = 8")
 
     def foreign_keys_enabled(self) -> bool:
         with self.connect() as conn:
@@ -512,6 +516,23 @@ class Database:
     def get_batch(self, batch_id: str) -> sqlite3.Row | None:
         with self.connect() as conn:
             return conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
+
+    def remember_working_workbook(self, batch_id: str, path: str | Path) -> None:
+        """Recuerda la copia editable; no la declara revisada ni cambia el snapshot."""
+        target = Path(path).expanduser().resolve()
+        if not target.is_file():
+            raise ValueError("No existe la copia de trabajo que se intenta recordar.")
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO working_workbooks VALUES(?,?,?)
+                   ON CONFLICT(batch_id) DO UPDATE SET path=excluded.path,updated_at=excluded.updated_at""",
+                (batch_id, str(target), utc_now()),
+            )
+
+    def get_working_workbook(self, batch_id: str) -> Path | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT path FROM working_workbooks WHERE batch_id=?", (batch_id,)).fetchone()
+        return Path(row[0]) if row else None
 
     def list_review_records(self, batch_id: str) -> list[sqlite3.Row]:
         with self.connect() as conn:

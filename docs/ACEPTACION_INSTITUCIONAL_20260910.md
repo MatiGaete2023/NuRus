@@ -1,6 +1,8 @@
 # Protocolo de aceptación institucional NuRus
 
-Versión bajo prueba: `0.3.0.dev2`. No utilizar datos reales en GitHub.
+Versión bajo prueba: `0.3.0.dev3`. No utilizar datos reales en GitHub.
+
+Para esta actualización ejecutar además los casos de [reconocimiento, SaveAs y revisión guardada](CORRECCIONES_EXCEL_20260912.md). Los resultados simulados no acreditan Excel/Outlook institucionales.
 
 ## Registro obligatorio por caso
 

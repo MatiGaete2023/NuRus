@@ -2,7 +2,9 @@
 
 Aplicación de escritorio local para analizar y revisar planillas del seguimiento de medidas de protección con trazabilidad y control humano.
 
-**Versión de esta rama:** `0.3.0.dev2`. Requiere aceptación institucional antes de uso productivo.
+**Versión de esta rama:** `0.3.0.dev3`. Requiere aceptación institucional antes de uso productivo.
+
+Correcciones de reconocimiento, guardado Excel y reutilización de la copia: [informe y prueba de actualización](docs/CORRECCIONES_EXCEL_20260912.md).
 
 ## Invariante de correo
 
@@ -50,10 +52,10 @@ Si existe una carpeta `paquetes`, instala desde ella sin Internet (`--no-index`)
 1. Analiza una copia del Excel en Espera, Cumplimiento o Informes.
 2. Exporta propuestas; esto no acredita revisión.
 3. Revisa cada registro en RUS y deja en Excel la constancia, fecha y campos administrativos.
-4. Carga una o varias copias revisadas y confirma responsable/registro en RUS para las filas incluidas.
+4. Guarda y cierra el Excel exportado, pulsa **Usar revisión guardada** y confirma responsable/registro en RUS. NuRus recuerda la ruta por lote: no necesitas buscar otra vez el archivo. Para una copia movida o una devolución diferente, usa **Elegir otra copia…**.
 5. Cada devolución parcial conserva su hash; las filas ausentes permanecen pendientes.
 6. Si Cumplimiento no tiene cruce, documenta la excepción.
-7. Congela la constancia solo cuando todas las filas revisables estén incorporadas; recién entonces prepara correos, estadísticas o proyectos.
+7. **Usar revisión guardada** intenta congelar la constancia al completar todas las filas revisables. Si falta una excepción de cruce, documéntala y pulsa **Congelar constancia**. Después prepara todos los productos desde esa constancia sin recargar el Excel para cada uno.
 
 Instalación manual equivalente desde `cmd`:
 

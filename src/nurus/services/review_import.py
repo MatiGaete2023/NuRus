@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from io import BytesIO
 from datetime import date, datetime
 from pathlib import Path
 from typing import Iterable
@@ -25,6 +26,7 @@ class ReviewImportPreview:
     changed_observations: int
     errors: tuple[str, ...]
     warnings: tuple[str, ...]
+    source_bytes: bytes = field(repr=False, compare=False, default=b"")
 
     @property
     def valid(self) -> bool:
@@ -124,15 +126,15 @@ def _xls_rows(path: Path, sheet_name: str, header_row: int) -> tuple[list[object
     try:
         import pandas as pd
 
-        frame = pd.read_excel(path, sheet_name=sheet_name, header=None, dtype=object)
         trace_values: dict[str, str] = {}
-        excel = pd.ExcelFile(path)
-        trace_names = [name for name in excel.sheet_names if name.startswith("NURUS_TRAZABILIDAD")]
-        if trace_names:
-            trace = pd.read_excel(path, sheet_name=trace_names[-1], header=None, dtype=object)
-            for row in trace.iloc[1:7].itertuples(index=False, name=None):
-                if row and not _blank(row[0]):
-                    trace_values[_text(row[0])] = _text(row[1] if len(row) > 1 else "")
+        with pd.ExcelFile(path, engine="xlrd") as excel:
+            frame = pd.read_excel(excel, sheet_name=sheet_name, header=None, dtype=object)
+            trace_names = [name for name in excel.sheet_names if name.startswith("NURUS_TRAZABILIDAD")]
+            if trace_names:
+                trace = pd.read_excel(excel, sheet_name=trace_names[-1], header=None, dtype=object)
+                for row in trace.iloc[1:7].itertuples(index=False, name=None):
+                    if row and not _blank(row[0]):
+                        trace_values[_text(row[0])] = _text(row[1] if len(row) > 1 else "")
     except ImportError as exc:
         raise ReviewImportError("Para leer .xls instala la dependencia opcional excel-legacy.") from exc
     except ValueError as exc:
@@ -156,9 +158,9 @@ def preview_reviewed_workbook(db: Database, batch_id: str, path: str | Path) -> 
     if batch is None:
         raise KeyError("Lote no encontrado.")
     if suffix == ".xls":
-        headers, rows, trace = _xls_rows(source, batch["primary_sheet"], int(batch["header_row"]))
+        headers, rows, trace = _xls_rows(BytesIO(content), batch["primary_sheet"], int(batch["header_row"]))
     else:
-        headers, rows, trace = _xlsx_rows(source, batch["primary_sheet"], int(batch["header_row"]))
+        headers, rows, trace = _xlsx_rows(BytesIO(content), batch["primary_sheet"], int(batch["header_row"]))
 
     positions, errors = _positions(headers)
     if trace.get("ESTADO_DOCUMENTO") != "PROPUESTA_NO_REVISADA":
@@ -245,6 +247,7 @@ def preview_reviewed_workbook(db: Database, batch_id: str, path: str | Path) -> 
         changed_observations=changed,
         errors=tuple(errors),
         warnings=tuple(warnings),
+        source_bytes=content,
     )
 
 
@@ -255,16 +258,19 @@ def import_reviewed_workbook(
     *,
     responsible: str,
     confirmed_in_rus: bool,
+    expected_sha256: str | None = None,
 ) -> ReviewImportPreview:
     if not confirmed_in_rus:
         raise ReviewImportError("Debes confirmar que la revisión y sus observaciones quedaron registradas en RUS.")
     preview = preview_reviewed_workbook(db, batch_id, path)
+    if expected_sha256 is not None and preview.sha256 != expected_sha256:
+        raise ReviewImportError("El Excel cambió durante la confirmación. Guarda tus cambios y vuelve a validar.")
     if not preview.valid:
         raise ReviewImportError("\n".join(preview.errors[:12]))
     db.apply_review_import(
         batch_id,
         source_name=preview.path.name,
-        source_bytes=preview.path.read_bytes(),
+        source_bytes=preview.source_bytes,
         responsible=responsible,
         updates=[dict(item) for item in preview.updates],
     )

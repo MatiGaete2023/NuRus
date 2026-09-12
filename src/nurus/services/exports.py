@@ -345,10 +345,21 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             "Falta pywin32 para usar Excel de escritorio. Instala la dependencia excel-native."
         ) from exc
 
-    target.write_bytes(content)
-    pythoncom.CoInitialize()
+    source_handle = tempfile.NamedTemporaryFile(
+        prefix="nurus-origen-", suffix=target.suffix,
+        dir=target.parent, delete=False,
+    )
+    source_path = Path(source_handle.name)
+    with source_handle:
+        source_handle.write(content)
+    # SaveAs crea un resultado separado con formato explícito. El error genérico
+    # 0x800A03EC no acredita por sí solo una causa específica en Excel.
+    target.unlink(missing_ok=True)
+    initialized = False
     app = book = placeholder = None
     try:
+        pythoncom.CoInitialize()
+        initialized = True
         app = win32com.client.DispatchEx("Excel.Application")
         app.Visible = False
         app.DisplayAlerts = False
@@ -358,7 +369,7 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         placeholder = app.Workbooks.Add()
         app.Calculation = -4135
         app.CalculateBeforeSave = False
-        book = app.Workbooks.Open(str(target), UpdateLinks=0, ReadOnly=False)
+        book = app.Workbooks.Open(str(source_path), UpdateLinks=0, ReadOnly=False, AddToMru=False)
         placeholder.Close(SaveChanges=False)
         placeholder = None
 
@@ -408,7 +419,7 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             rule = region.FormatConditions.Add(
                 Type=2, Formula1="=$" + status_column_letter + str(row) + '="EXCLUIDO"'
             )
-            rule.Interior.Color = 204 + 242 * 256 + 255 * 65536
+            rule.Interior.Color = 255 + 242 * 256 + 204 * 65536  # RGB FFF2CC, igual al portable
             rule.SetFirstPriority()
             rule.StopIfTrue = False
 
@@ -419,7 +430,22 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             for column, value in enumerate(values, start=1):
                 trace.Cells(row_number, column).NumberFormat = "@"
                 trace.Cells(row_number, column).Value2 = str(value or "")
-        book.Save()
+        formats = {".xls": 56, ".xlsx": 51, ".xlsm": 52}
+        book.SaveAs(
+            Filename=str(target), FileFormat=formats[target.suffix.lower()],
+            AddToMru=False, ConflictResolution=2, Local=True,
+        )
+        if not target.is_file() or target.stat().st_size == 0:
+            raise ExportError("Excel no produjo un archivo de salida verificable.")
+    except ExportError:
+        raise
+    except Exception as exc:
+        raise ExportError(
+            "Excel no pudo completar la copia. El original no fue modificado. "
+            "Prueba guardar en una carpeta local con ruta corta; si Excel solicita permisos "
+            "o muestra Vista protegida, consulta a soporte sin desactivar controles. "
+            f"Detalle: {exc}"
+        ) from exc
     finally:
         try:
             if book is not None:
@@ -431,7 +457,11 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
                 if app is not None:
                     app.Quit()
             finally:
-                pythoncom.CoUninitialize()
+                try:
+                    if initialized:
+                        pythoncom.CoUninitialize()
+                finally:
+                    source_path.unlink(missing_ok=True)
 
 
 def _excel_column_name(column: int) -> str:
@@ -467,7 +497,7 @@ def _export_preserved_payload(
     target.parent.mkdir(parents=True, exist_ok=True)
 
     handle = tempfile.NamedTemporaryFile(
-        prefix=target.stem + ".", suffix=target.suffix, dir=target.parent, delete=False
+        prefix="nurus-salida-", suffix=target.suffix, dir=target.parent, delete=False
     )
     handle.close()
     temporary = Path(handle.name)
@@ -504,13 +534,15 @@ def export_proposal_workbook(
         content = db.get_original_workbook(batch_id)
     except (KeyError, ValueError) as exc:
         raise ExportError(str(exc)) from exc
-    return _export_preserved_payload(
+    result = _export_preserved_payload(
         content,
         proposal,
         destination,
         backend=backend,
         allow_reduced_fidelity=allow_reduced_fidelity,
     )
+    db.remember_working_workbook(batch_id, result.path)
+    return result
 
 
 def export_preserved_workbook(

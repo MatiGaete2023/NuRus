@@ -216,6 +216,56 @@ def _read_sheet(pd, workbook, sheet_name: str, header_row: int):
         raise WorkbookReadError(f"No se pudo leer la hoja {sheet_name!r}: {exc}") from exc
 
 
+def _detect_primary_sheet(pd, workbook, names: list[str], selected_mode: Mode, header_row: int):
+    """Selecciona una tabla única de la modalidad solicitada, sin cambiar reglas.
+
+    No usa cantidad de columnas como desempate: dos tablas compatibles requieren
+    elección explícita, aunque una tenga más datos opcionales que la otra.
+    """
+    usable = [name for name in names if normalize(name) not in {"ob", "medidas vencidas"}]
+    candidates: list[tuple[int, Mode, str, int, list[str], dict[str, str]]] = []
+    for name in usable:
+        raw = pd.read_excel(workbook, sheet_name=name, header=None,
+                            nrows=max(header_row, _AUTO_DETECT_HEADER_SCAN_ROWS),
+                            dtype=object, keep_default_na=False)
+        for index in range(len(raw.index)):
+            if header_row != 1 and index != header_row - 1:
+                continue
+            try:
+                headers = _validate_headers(raw.iloc[index].tolist(), name)
+            except WorkbookReadError:
+                continue
+            for candidate_mode in Mode:
+                try:
+                    mapping = map_columns(headers, candidate_mode)
+                except ColumnMappingError:
+                    continue
+                if _has_required_mapping(mapping, candidate_mode):
+                    candidates.append((len(mapping), candidate_mode, name, index + 1, headers, mapping))
+
+    preferred = [item for item in candidates if item[1] is selected_mode]
+    if not candidates:
+        raise WorkbookReadError(
+            "No se identifica una tabla de Espera, Cumplimiento o Informes en las hojas del archivo. "
+            "Revisa sus encabezados o selecciona la hoja explícitamente."
+        )
+    if not preferred:
+        descriptions = ", ".join(dict.fromkeys(f"{item[1].value} ({item[2]})" for item in candidates))
+        raise WorkbookReadError(
+            f"No hay una tabla compatible con {selected_mode.value}. "
+            f"Se detectaron: {descriptions}. Cambia la modalidad y vuelve a analizar; "
+            "no necesitas seleccionar el archivo otra vez."
+        )
+    if len(preferred) != 1:
+        descriptions = ", ".join(f"{item[2]} (fila {item[3]})" for item in preferred)
+        raise WorkbookReadError(
+            "La estructura coincide con más de una tabla posible: " + descriptions + ". "
+            "Selecciona la hoja explícitamente."
+        )
+    _, actual_mode, name, row, headers, mapping = preferred[0]
+    return actual_mode, name, row, headers, mapping
+
+
 def _excel_epoch(workbook) -> str:
     book = getattr(workbook, "book", None)
     datemode = getattr(book, "datemode", None)
@@ -275,6 +325,7 @@ def read_workbook(
             names = list(workbook.sheet_names)
             if not names:
                 raise WorkbookReadError("El libro no contiene hojas.")
+            detected_structure = None
             if sheet_name:
                 primary_name = _sheet_by_name(names, sheet_name)
             elif any(name.strip().casefold() == selected_mode.value.casefold() for name in names):
@@ -282,18 +333,20 @@ def read_workbook(
             elif len(names) == 1:
                 primary_name = names[0]
             else:
-                raise WorkbookReadError(
-                    "No se identifica la hoja de la modalidad; selecciona una hoja explícitamente."
+                detected_structure = _detect_primary_sheet(
+                    pd, workbook, names, selected_mode, header_row
                 )
+                selected_mode, primary_name, actual_header_row, primary_headers, primary_mapping = detected_structure
             if normalize(primary_name) in {"ob", "medidas vencidas"}:
                 raise WorkbookReadError("OB y Medidas vencidas no se procesan como Espera, Cumplimiento o Informes.")
 
-            try:
-                actual_header_row, primary_headers, primary_mapping = _resolve_header_row(
-                    pd, workbook, primary_name, selected_mode, header_row
-                )
-            except ColumnMappingError as exc:
-                raise WorkbookReadError(str(exc)) from exc
+            if detected_structure is None:
+                try:
+                    actual_header_row, primary_headers, primary_mapping = _resolve_header_row(
+                        pd, workbook, primary_name, selected_mode, header_row
+                    )
+                except ColumnMappingError as exc:
+                    raise WorkbookReadError(str(exc)) from exc
             primary = _records(
                 _read_sheet(pd, workbook, primary_name, actual_header_row),
                 source.name,
@@ -304,6 +357,10 @@ def read_workbook(
             )
 
             warnings: list[str] = []
+            if detected_structure is not None:
+                warnings.append(
+                    f"MODE_AND_SHEET_AUTODETECTED: se detectó {selected_mode.value} en {primary_name!r} por sus columnas."
+                )
             if actual_header_row != header_row:
                 warnings.append(
                     f"HEADER_ROW_AUTODETECTED: se usó la fila {actual_header_row} como encabezado de {primary_name!r}."

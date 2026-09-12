@@ -163,7 +163,7 @@ class NuRusApp(ttk.Frame):
     def _work_tab(self) -> None:
         ttk.Label(
             self.work,
-            text="1 Analizar  ·  2 Exportar propuestas  ·  3 Cargar constancia  ·  4 Preparar",
+            text="1 Analizar  ·  2 Revisar en Excel / RUS  ·  3 Preparar productos",
             style="Title.TLabel",
         ).pack(anchor="w")
         self.work_tabs = ttk.Notebook(self.work)
@@ -249,7 +249,8 @@ class NuRusApp(ttk.Frame):
             command=self.approve_current_batch,
         ).pack(side="right")
         ttk.Button(actions, text="Documentar excepción de cruce", command=self.document_cross_sheet_exception).pack(side="right", padx=(0, 6))
-        ttk.Button(actions, text="Cargar Excel revisado", command=self.import_reviewed_excel).pack(side="right", padx=(0, 6))
+        ttk.Button(actions, text="Usar revisión guardada", command=self.use_saved_review).pack(side="right", padx=(0, 6))
+        ttk.Button(actions, text="Elegir otra copia…", command=self.import_reviewed_excel).pack(side="right", padx=(0, 6))
         ttk.Button(actions, text="Exportar propuestas", command=self.export_current_workbook).pack(side="right", padx=(0, 6))
         outputs = ttk.Frame(self.rus_tab)
         outputs.pack(fill="x", pady=(4, 0))
@@ -288,7 +289,7 @@ class NuRusApp(ttk.Frame):
             return
         path = self.selected_path
         mode = self.mode_var.get()
-        self.analysis_generation += 1
+        self._invalidate_analysis("Analizando copia estable del archivo…", keep_file=True)
         generation = self.analysis_generation
         self.analysis_busy = True
         self.analyze_button.configure(state="disabled")
@@ -327,15 +328,21 @@ class NuRusApp(ttk.Frame):
 
         batch = result
         self.current_batch_id = batch.batch_id
+        if self.mode_var.get() != batch.mode.value:
+            self.mode_var.set(batch.mode.value)
         self.file_var.set(f"{batch.workbook_name} · analizado")
         rows = self.controller.rows_from_batch(batch)
         self._show_review_rows(rows)
         warning = f" · {len(batch.warnings)} advertencia(s)" if batch.warnings else ""
         cross_notice = ""
+        detection_notice = ""
+        if any(item.startswith("MODE_AND_SHEET_AUTODETECTED") for item in batch.warnings):
+            detection_notice = f" · detectado como {batch.mode.value} ({batch.primary_sheet})"
         if any(item.startswith("CROSS_SHEET_NOT_SELECTED") for item in batch.warnings):
             cross_notice = " · requiere excepción documentada de hoja de cruce"
         self.analysis_status.set(
-            f"Analizado: {batch.workbook_name} · SHA-256 {batch.workbook_sha256[:12]}…{warning}{cross_notice}"
+            f"Analizado: {batch.workbook_name} · SHA-256 {batch.workbook_sha256[:12]}…"
+            f"{detection_notice}{warning}{cross_notice}"
         )
 
     def _show_review_rows(self, rows: tuple[ReviewRow, ...]) -> None:
@@ -419,14 +426,34 @@ class NuRusApp(ttk.Frame):
             "La constancia del trabajo registrado en RUS quedó congelada. Ya puedes preparar productos.",
         )
 
-    def import_reviewed_excel(self) -> None:
+    def use_saved_review(self) -> None:
+        if not self.current_batch_id:
+            messagebox.showwarning("Falta análisis", "Analiza un archivo primero.")
+            return
+        path = self.db.get_working_workbook(self.current_batch_id)
+        if path is None or not path.is_file():
+            messagebox.showwarning(
+                "Copia no disponible",
+                "Exporta las propuestas primero. Si moviste o renombraste el Excel, usa «Elegir otra copia…».",
+            )
+            return
+        if not messagebox.askyesno(
+            "Usar copia de trabajo",
+            f"Se leerá la copia:\n{path}\n\nGuarda y cierra tus cambios en Excel antes de continuar. "
+            "No necesitas volver a seleccionar el archivo. ¿Continuar?",
+        ):
+            return
+        self.import_reviewed_excel(path=path, freeze_when_ready=True)
+
+    def import_reviewed_excel(self, *, path=None, freeze_when_ready=False) -> None:
         if not self.current_batch_id:
             messagebox.showwarning("Falta análisis", "Analiza un archivo antes de cargar su constancia.")
             return
-        path = filedialog.askopenfilename(
-            title="Seleccionar Excel revisado",
-            filetypes=[("Excel", "*.xlsx *.xlsm *.xls")],
-        )
+        if path is None:
+            path = filedialog.askopenfilename(
+                title="Seleccionar Excel revisado",
+                filetypes=[("Excel", "*.xlsx *.xlsm *.xls")],
+            )
         if not path:
             return
         try:
@@ -466,11 +493,13 @@ class NuRusApp(ttk.Frame):
                 path,
                 responsible=responsible,
                 confirmed_in_rus=True,
+                expected_sha256=preview.sha256,
             )
         except ReviewImportError as exc:
             messagebox.showerror("No se pudo registrar la constancia", str(exc))
             return
         self._refresh_review_from_db()
+        self.db.remember_working_workbook(self.current_batch_id, path)
         pending = sum(
             row["decision"] != "excluded" and not row["rus_recorded"]
             for row in self.db.list_review_records(self.current_batch_id)
@@ -479,6 +508,9 @@ class NuRusApp(ttk.Frame):
             f"Constancia cargada · SHA-256 {imported.sha256[:12]}… · "
             + (f"{pending} fila(s) aún pendientes" if pending else "lista para congelar")
         )
+        if freeze_when_ready and not pending:
+            self.approve_current_batch()
+            return
         messagebox.showinfo(
             "Constancia cargada",
             "La constancia fue validada. "
@@ -545,8 +577,12 @@ class NuRusApp(ttk.Frame):
             messagebox.showinfo(
                 "Excel de propuestas",
                 "Se creó el insumo para revisión humana. Todavía no acredita revisión ni registro en RUS.\n"
-                f"{result.row_count} fila(s) · {result.path.name}",
+                f"{result.row_count} fila(s) · {result.path}\n\n"
+                "Revisa en RUS, guarda la constancia en este Excel y pulsa «Usar revisión guardada». "
+                "NuRus recordará esta copia; no tendrás que buscarla nuevamente.",
             )
+            if self.current_batch_id == batch_id:
+                self.analysis_status.set(f"Copia de revisión creada: {result.path}")
 
         self.analysis_status.set("Exportando una copia preservada…")
         self.run_io(lambda: export_proposal_workbook(self.db, batch_id, target), done)
@@ -554,7 +590,7 @@ class NuRusApp(ttk.Frame):
     def export_final_workbook(self) -> None:
         batch = self.db.get_batch(self.current_batch_id) if self.current_batch_id else None
         if batch is None or batch["status"] != "approved":
-            messagebox.showwarning("Falta constancia", "Carga y congela la constancia antes de exportarla.")
+            messagebox.showwarning("Falta constancia", "Guarda tu revisión en Excel y pulsa «Usar revisión guardada» antes de exportar la constancia.")
             return
         suffix = Path(batch["source_name"]).suffix.lower()
         target = filedialog.asksaveasfilename(
@@ -611,7 +647,7 @@ class NuRusApp(ttk.Frame):
             return
         batch = self.db.get_batch(self.current_batch_id)
         if batch is None or batch["status"] != "approved":
-            messagebox.showwarning("Lote no aprobado", "Primero aprueba y congela la revisión del lote.")
+            messagebox.showwarning("Falta constancia", "Guarda tu revisión en Excel y pulsa «Usar revisión guardada».")
             return
 
         published = [item for item in self.db.list_templates() if item.status == "published"]

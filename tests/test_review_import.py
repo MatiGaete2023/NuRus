@@ -66,6 +66,45 @@ def test_reviewed_excel_is_imported_and_required_before_freeze(tmp_path):
     assert db.get_snapshot(batch_id)["records"][0]["review_date"] == "2026-09-08"
 
 
+def test_working_copy_survives_database_reopen_without_approving(tmp_path):
+    db, _, batch_id, proposal = _proposal(tmp_path)
+    reopened = Database(db.path)
+    assert reopened.get_working_workbook(batch_id) == proposal.resolve()
+    assert reopened.get_batch(batch_id)["status"] == "review"
+    assert reopened.get_working_workbook("another-batch") is None
+
+
+def test_confirmation_rejects_a_changed_workbook(tmp_path):
+    db, _, batch_id, proposal = _proposal(tmp_path)
+    _complete_review(proposal)
+    preview = preview_reviewed_workbook(db, batch_id, proposal)
+    book = load_workbook(proposal)
+    book["Espera"].cell(2, 2, "Otro tribunal")
+    book.save(proposal)
+    with pytest.raises(ReviewImportError, match="cambió durante"):
+        import_reviewed_workbook(db, batch_id, proposal, responsible="Prueba",
+                                confirmed_in_rus=True, expected_sha256=preview.sha256)
+    assert not db.get_batch(batch_id)["review_import_hash"]
+
+
+def test_import_commits_the_bytes_actually_parsed(tmp_path, monkeypatch):
+    db, _, batch_id, proposal = _proposal(tmp_path)
+    _complete_review(proposal)
+    expected = proposal.read_bytes()
+    original_preview = preview_reviewed_workbook
+
+    def preview_then_change(*args, **kwargs):
+        result = original_preview(*args, **kwargs)
+        proposal.write_bytes(b"changed after parsing")
+        return result
+
+    monkeypatch.setattr("nurus.services.review_import.preview_reviewed_workbook", preview_then_change)
+    result = import_reviewed_workbook(db, batch_id, proposal, responsible="Prueba", confirmed_in_rus=True)
+    from hashlib import sha256
+    assert result.sha256 == sha256(expected).hexdigest()
+    assert db.get_batch(batch_id)["review_import_hash"] == result.sha256
+
+
 def test_import_requires_explicit_rus_confirmation(tmp_path):
     db, _, batch_id, proposal = _proposal(tmp_path)
     _complete_review(proposal)

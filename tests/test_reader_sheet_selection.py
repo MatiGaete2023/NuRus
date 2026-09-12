@@ -139,3 +139,63 @@ def test_reports_preserves_both_ingress_dates_without_ambiguity(tmp_path):
     assert result.column_mapping["ingreso"] == "FEC. INGRESO EFECTIVO"
     assert result.records[0].values["FECHA INGRESO"] == "01/01/2025"
     assert result.records[0].values["FEC. INGRESO EFECTIVO"] == "02/02/2025"
+
+
+def generic_cumplimiento(path):
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Hoja1"
+    sheet.append(["RIT", "TRIBUNAL", "DERIVACIÓN", "DÍAS DE CUMPLIMIENTO", "DÍAS PARA EGRESAR"])
+    sheet.append(["X-1", "Laja", "PRM Norte", 50, 60])
+    cross = book.create_sheet("Hoja2")
+    cross.append(["RIT", "TRIBUNAL", "RUT MENOR", "NOMBRE MENOR", "NOMBRE CENTRO", "FECHA VENCIMIENTO"])
+    cross.append(["X-1", "Laja", "111-1", "Prueba", "PRM Norte", "2026-09-30"])
+    book.save(path)
+
+
+def test_detects_primary_by_columns_and_keeps_cross(tmp_path):
+    path = tmp_path / "generic.xlsx"
+    generic_cumplimiento(path)
+    result = read_workbook(path, Mode.CUMPLIMIENTO)
+    assert result.primary_sheet == "Hoja1"
+    assert result.cross_sheet == "Hoja2"
+    assert result.records[0].source.row_number == 2
+    assert len(result.cross_records) == 1
+
+
+def test_wrong_mode_is_explained_not_silently_changed(tmp_path):
+    path = tmp_path / "generic.xlsx"
+    generic_cumplimiento(path)
+    with pytest.raises(WorkbookReadError, match="No hay una tabla compatible con ESPERA.*CUMPLIMIENTO"):
+        read_workbook(path, Mode.ESPERA)
+
+
+def test_does_not_choose_richer_sheet_over_another_valid_table(tmp_path):
+    path = tmp_path / "ambiguous.xlsx"
+    book = Workbook()
+    book.active.title = "Primera"
+    for sheet in (book.active, book.create_sheet("Segunda")):
+        sheet.append(["RIT", "TRIBUNAL", "DERIVACION", "T ESPERA"])
+        sheet.append(["X-1", "Laja", "PRM", 45])
+    book["Primera"].cell(1, 5, "NOMBRE")
+    book["Primera"].cell(2, 5, "Persona")
+    book.save(path)
+    with pytest.raises(WorkbookReadError, match="más de una tabla"):
+        read_workbook(path, Mode.ESPERA)
+
+
+def test_generic_espera_with_notes_detects_header_once_per_sheet(tmp_path):
+    path = tmp_path / "espera.xlsx"
+    book = Workbook()
+    book.active.title = "informe_1"
+    book.active.append(["Reporte"])
+    book.active.append(["RIT", "TRIBUNAL", "DERIVACION", "T ESPERA"])
+    book.active.append(["X-1", "Laja", "PRM", 45])
+    book.create_sheet("Notas").append(["No contiene casos"])
+    book.save(path)
+    import pandas as pd
+    with patch("pandas.read_excel", wraps=pd.read_excel) as reader:
+        result = read_workbook(path, Mode.ESPERA)
+    assert result.primary_sheet == "informe_1"
+    assert result.records[0].source.row_number == 3
+    assert reader.call_count == 3  # dos cabeceras y una tabla completa
