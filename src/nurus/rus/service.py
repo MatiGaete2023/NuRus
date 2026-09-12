@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from .catalog import catalog_sha256, load_catalog
+from .catalog import load_catalog_snapshot
 from .columns import H2_COLUMNS, ColumnMappingError, map_columns, map_cross_columns
 from .models import (
     Evaluation,
@@ -23,7 +23,7 @@ from .rules import (
     tribunal,
 )
 
-ENGINE_VERSION = "0.2.0"
+ENGINE_VERSION = "0.2.1"
 
 _REQUIRED_COLUMNS: dict[Mode, tuple[str, ...]] = {
     Mode.ESPERA: ("programa", "tribunal", "espera"),
@@ -37,23 +37,34 @@ def _cross_index(
     columns: dict[str, str],
     as_of: date,
     excel_epoch: str,
-) -> tuple[dict[tuple[str, ...], SourceRecord], list[str]]:
+) -> tuple[dict[tuple[str, ...], SourceRecord], dict[tuple[str, ...], tuple[SourceRecord, ...]], list[str]]:
     if not records:
-        return {}, []
+        return {}, {}, []
     missing = set(H2_COLUMNS) - set(columns)
     if missing:
-        return {}, [
+        return {}, {}, [
             f"CROSS_MAPPING_MISSING: faltan {', '.join(sorted(missing))}; C-10 no se evaluará."
         ]
     index: dict[tuple[str, ...], SourceRecord] = {}
+    conflicts: dict[tuple[str, ...], tuple[SourceRecord, ...]] = {}
     for record in records:
         due = as_date(record.values.get(columns["vencimiento"]), excel_epoch)
         if not due or due <= as_of:
             continue
         key = match_key(record.values, columns)
         if key and key[0]:
-            index[key] = record
-    return index, []
+            if key in conflicts:
+                conflicts[key] += (record,)
+            elif key in index:
+                previous = index[key]
+                previous_due = as_date(previous.values.get(columns["vencimiento"]), excel_epoch)
+                if previous_due != due:
+                    conflicts[key] = (index.pop(key), record)
+            else:
+                index[key] = record
+    warnings = ([f"CROSS_RECORD_CONFLICT: {len(conflicts)} identidades con vencimientos futuros distintos; revisar las filas relacionadas."]
+                if conflicts else [])
+    return index, conflicts, warnings
 
 
 def _missing_value(value: object) -> bool:
@@ -135,7 +146,7 @@ def evaluate_batch(
     Todas las filas de origen se conservan como reviewed, blocked o excluded.
     """
     today = as_of or date.today()
-    catalog = load_catalog(catalog_path)
+    catalog, catalog_hash = load_catalog_snapshot(catalog_path)
     warnings = list(batch.warnings)
 
     try:
@@ -155,6 +166,7 @@ def evaluate_batch(
         )
 
     cross: dict[tuple[str, ...], SourceRecord] = {}
+    cross_conflicts: dict[tuple[str, ...], tuple[SourceRecord, ...]] = {}
     if batch.mode is Mode.CUMPLIMIENTO:
         try:
             cross_columns = dict(batch.cross_mapping)
@@ -163,7 +175,7 @@ def evaluate_batch(
         except ColumnMappingError as exc:
             cross_columns = {}
             warnings.append(f"CROSS_MAPPING_AMBIGUOUS: {exc}")
-        cross, cross_warnings = _cross_index(
+        cross, cross_conflicts, cross_warnings = _cross_index(
             batch.cross_records, cross_columns, today, batch.excel_epoch
         )
         warnings.extend(cross_warnings)
@@ -220,6 +232,13 @@ def evaluate_batch(
                 if cross_record is not None and "C-10" in rule_ids
                 else ()
             )
+            if key in cross_conflicts:
+                related = tuple(item.source for item in cross_conflicts[key])
+                rule_issues = (*rule_issues, Issue(
+                    "CROSS_RECORD_CONFLICT",
+                    "La hoja cruzada contiene vencimientos futuros distintos para este registro; C-10 no se infiere. Revisar las filas de origen relacionadas.",
+                    record.source,
+                ))
 
         issues = _dedupe_issues([*precheck, *rule_issues])
         if excluded or "E-01" in rule_ids:
@@ -255,7 +274,6 @@ def evaluate_batch(
         header_row=batch.header_row,
         excel_epoch=batch.excel_epoch,
         engine_version=ENGINE_VERSION,
-        catalog_sha256=catalog_sha256(catalog_path),
+        catalog_sha256=catalog_hash,
         column_mapping=columns,
     )
-

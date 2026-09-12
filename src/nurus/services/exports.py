@@ -13,6 +13,7 @@ from typing import Literal
 from zipfile import ZipFile
 
 from nurus.storage.database import Database
+from nurus.services.file_output import write_new_file
 
 
 class ExportError(ValueError):
@@ -155,9 +156,13 @@ def export_review_snapshot(
                 writer.writerow(headers)
                 for row in rows:
                     writer.writerow([_safe_cell(row.get(header, "")) for header in headers])
-        os.replace(temp_path, target)
+        if overwrite:
+            os.replace(temp_path, target)
+        else:
+            write_new_file(target, lambda output: shutil.copyfile(temp_path, output))
+            temp_path.unlink(missing_ok=True)
         temp_path = None
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         raise ExportError(f"No se pudo escribir la exportación: {exc}") from exc
     finally:
         if temp_path is not None:
@@ -249,6 +254,18 @@ def _annotation_values(record: dict, stage: str) -> tuple[str, str]:
     return str(_safe_cell(record["edited_observation"])), state
 
 
+def _reviewed_fields(record: dict) -> dict[str, object]:
+    if record["decision"] != "approved" or not record.get("rus_recorded"):
+        return {}
+    return {
+        "OBSERVACION": record["edited_observation"],
+        "FECHA_OBS": record.get("review_date", ""),
+        "TT": record.get("tt_value", ""),
+        "CC": record.get("workload_value", ""),
+        "RES": record.get("resolution_value", ""),
+    }
+
+
 def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
     from copy import copy
 
@@ -275,7 +292,8 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         titles = (
             ("NURUS_ID_REGISTRO", "NURUS_PROPUESTA", "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES", "NURUS_ESTADO_REVISION")
             if stage == "proposal"
-            else ("NURUS_ID_REGISTRO", observation_title, "NURUS_ESTADO_REVISION")
+            else ("NURUS_ID_REGISTRO", observation_title, "NURUS_ESTADO_REVISION",
+                  "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES")
         )
         columns = _column_plan(headers, titles)
         observation_column = columns[observation_title]
@@ -301,6 +319,9 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             sheet.cell(row, state_column).value = state
             if stage == "proposal" and _is_blank_excel_value(sheet.cell(row, columns["OBSERVACION"]).value):
                 sheet.cell(row, columns["OBSERVACION"]).value = observation
+            if stage == "reviewed":
+                for title, value in _reviewed_fields(record).items():
+                    sheet.cell(row, columns[title]).value = _safe_cell(value)
 
         first_data_row = header_row + 1
         last_column = max(sheet.max_column, state_column)
@@ -383,7 +404,8 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         titles = (
             ("NURUS_ID_REGISTRO", "NURUS_PROPUESTA", "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES", "NURUS_ESTADO_REVISION")
             if stage == "proposal"
-            else ("NURUS_ID_REGISTRO", observation_title, "NURUS_ESTADO_REVISION")
+            else ("NURUS_ID_REGISTRO", observation_title, "NURUS_ESTADO_REVISION",
+                  "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES")
         )
         columns = _column_plan(headers, titles)
         observation_column = columns[observation_title]
@@ -408,6 +430,10 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             if stage == "proposal" and sheet.Cells(row, columns["OBSERVACION"]).Value2 in (None, ""):
                 sheet.Cells(row, columns["OBSERVACION"]).NumberFormat = "@"
                 sheet.Cells(row, columns["OBSERVACION"]).Value2 = observation
+            if stage == "reviewed":
+                for title, value in _reviewed_fields(record).items():
+                    sheet.Cells(row, columns[title]).NumberFormat = "@"
+                    sheet.Cells(row, columns[title]).Value2 = _safe_cell(value)
 
         last_column = max(used_last, state_column)
         status_column_letter = _excel_column_name(state_column)
@@ -426,10 +452,14 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         trace = book.Worksheets.Add(After=book.Worksheets(book.Worksheets.Count))
         trace.Name = _trace_name({book.Worksheets(index).Name for index in range(1, book.Worksheets.Count + 1)})
         trace.Visible = 0
-        for row_number, values in enumerate(_trace_rows(snapshot), start=1):
-            for column, value in enumerate(values, start=1):
-                trace.Cells(row_number, column).NumberFormat = "@"
-                trace.Cells(row_number, column).Value2 = str(value or "")
+        trace_rows = _trace_rows(snapshot)
+        width = max(map(len, trace_rows))
+        region = trace.Range(trace.Cells(1, 1), trace.Cells(len(trace_rows), width))
+        region.NumberFormat = "@"
+        region.Value2 = tuple(
+            tuple(str(_safe_cell(value)) if value is not None else "" for value in values)
+            + ("",) * (width - len(values)) for values in trace_rows
+        )
         formats = {".xls": 56, ".xlsx": 51, ".xlsm": 52}
         book.SaveAs(
             Filename=str(target), FileFormat=formats[target.suffix.lower()],

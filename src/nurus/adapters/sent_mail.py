@@ -4,6 +4,7 @@ from datetime import date
 import platform
 
 from nurus.adapters.outlook import OutlookUnavailable, _find_account
+from nurus.services.file_output import excel_text, write_new_file
 
 
 @dataclass(frozen=True)
@@ -101,7 +102,9 @@ def export_sent_report(report: SentMailReport, destination):
         ("Correos", len(report.rows)), ("Omitidos no correo", report.skipped),
         ("Errores", report.errors), ("Consulta limitada", report.truncated),
     ):
-        control.append(row)
-    with path.open("xb") as output:
-        book.save(output)
+        control.append([excel_text(value) for value in row])
+    try:
+        write_new_file(path, book.save)
+    finally:
+        book.close()
     return path

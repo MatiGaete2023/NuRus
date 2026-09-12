@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import platform
 from dataclasses import dataclass
+from contextlib import contextmanager
 from hashlib import sha256
 from pathlib import Path
+import tempfile
 
 from nurus.domain.models import Product, ProductStatus, ProductKind
 from nurus.services.policy import with_mandatory_cc
@@ -15,6 +17,26 @@ class OutlookUnavailable(RuntimeError):
 
 class DraftSaveUncertain(RuntimeError):
     """El guardado pudo producirse pero no se obtuvo confirmación suficiente."""
+
+
+@contextmanager
+def _reviewed_attachments(attachments):
+    """Entrega a Outlook exactamente los bytes cuyo hash aprobó la persona."""
+    with tempfile.TemporaryDirectory(prefix="nurus-adjuntos-") as directory:
+        copies = []
+        for index, (path, digest) in enumerate(attachments):
+            source = Path(path)
+            target = Path(directory) / str(index) / source.name
+            target.parent.mkdir()
+            calculated = sha256()
+            with source.open("rb") as input_file, target.open("xb") as output:
+                for block in iter(lambda: input_file.read(1024 * 1024), b""):
+                    calculated.update(block)
+                    output.write(block)
+            if calculated.hexdigest() != digest:
+                raise ValueError("El adjunto cambió después de la revisión. Prepara una nueva versión.")
+            copies.append(target)
+        yield copies
 
 
 @dataclass(frozen=True)
@@ -89,9 +111,6 @@ def save_draft(
         raise ValueError("Solo un producto de correo puede crear un borrador Outlook.")
     if product.required_attachment and not product.attachments:
         raise ValueError("El tipo de correo requiere un adjunto.")
-    for path, digest in product.attachments:
-        if sha256(Path(path).read_bytes()).hexdigest() != digest:
-            raise ValueError("El adjunto cambió después de la revisión. Prepara una nueva versión.")
     if product.status not in {ProductStatus.READY, ProductStatus.APPROVED}:
         raise ValueError("Solo se pueden crear borradores de productos completos y revisados.")
     if platform.system() != "Windows":
@@ -129,12 +148,13 @@ def save_draft(
         mail.CC = with_mandatory_cc(product.cc)
         mail.Subject = product.rendered_subject
         mail.Body = product.rendered_body
-        for path, _digest in product.attachments:
-            mail.Attachments.Add(str(Path(path).resolve()))
+        with _reviewed_attachments(product.attachments) as attachments:
+            for path in attachments:
+                mail.Attachments.Add(str(path))
 
-        # INVARIANTE D01: el único efecto externo permitido es guardar un borrador.
-        save_attempted = True
-        mail.Save()
+            # INVARIANTE D01: el único efecto externo permitido es guardar un borrador.
+            save_attempted = True
+            mail.Save()
         try:
             entry_id = str(getattr(mail, "EntryID", "") or "")
             store = getattr(folder, "Store", None)

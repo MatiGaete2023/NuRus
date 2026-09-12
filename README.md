@@ -2,7 +2,9 @@
 
 Aplicación de escritorio local para analizar y revisar planillas del seguimiento de medidas de protección con trazabilidad y control humano.
 
-**Versión de esta rama:** `0.3.0.dev3`. Requiere aceptación institucional antes de uso productivo.
+**Versión de esta rama:** `0.3.0.dev4`. Requiere aceptación institucional antes de uso productivo.
+
+Revisión automática y mejoras de integridad: [informe dev4](docs/REVISION_AUTOMATIZADA_20260912.md).
 
 Correcciones de reconocimiento, guardado Excel y reutilización de la copia: [informe y prueba de actualización](docs/CORRECCIONES_EXCEL_20260912.md).
 
@@ -19,7 +21,7 @@ Correcciones de reconocimiento, guardado Excel y reutilización de la copia: [in
 - Detección visible de columnas ambiguas y de filas bloqueadas.
 - GUI: seleccionar archivo no equivale a analizar; botón **Analizar archivo** ejecuta lector y reglas fuera del hilo de Tkinter.
 - Exportación inmediata del Excel de propuestas, conservando todas las hojas, fórmulas, estilos, anchos y filtros; las filas excluidas permanecen visibles y coloreadas.
-- Retorno del Excel revisado mediante ID estable; valida `OBSERVACION`, `FECHA_OBS`, `TT`, `CC` y `RES`, y exige confirmación humana de registro en RUS.
+- Retorno del Excel revisado mediante ID estable y comprobación de identidad; valida `OBSERVACION`, `FECHA_OBS`, `TT`, `CC` y `RES`, y exige confirmación humana de registro en RUS.
 - Snapshot SHA-256 de la constancia; los productos posteriores usan ese snapshot y no recalculan la planilla.
 - Cumplimiento sin hoja de cruce solo se aprueba tras documentar responsable y motivo; la excepción queda dentro del snapshot.
 - SQLite local con claves foráneas activas, lote/origen persistente y versiones inmutables de plantillas.
@@ -44,12 +46,14 @@ La instalación debe quedar aislada del Python general del equipo.
 2. Ejecuta `Instalar_NuRus.bat`. Si `.venv` ya es válido, no necesita `py`. Para una instalación nueva detecta Python 3.12 mediante `NURUS_PYTHON_EXE`, `py -3.12`, `python`, `python3.12` y rutas estándar.
 3. Después abre con doble clic `Abrir_NuRus.bat`.
 
+Al actualizar el código, vuelve a ejecutar `Instalar_NuRus.bat`: instala una copia del paquete, no una referencia editable al código fuente. La base de trabajo permanece en su ubicación local.
+
 El instalador crea `.venv` y usa ese Python para NuRus; no modifica políticas de Windows ni desactiva controles institucionales.
 Si existe una carpeta `paquetes`, instala desde ella sin Internet (`--no-index`). Esa carpeta debe contener todas las ruedas autorizadas y sus dependencias.
 
 ## Flujo operativo
 
-1. Analiza una copia del Excel en Espera, Cumplimiento o Informes.
+1. Analiza una copia del Excel en Espera, Cumplimiento o Informes. Si hay varias hojas candidatas, usa **Hojas y encabezado…** para indicar la principal y el cruce; no se elige una hoja ambigua por su nombre.
 2. Exporta propuestas; esto no acredita revisión.
 3. Revisa cada registro en RUS y deja en Excel la constancia, fecha y campos administrativos.
 4. Guarda y cierra el Excel exportado, pulsa **Usar revisión guardada** y confirma responsable/registro en RUS. NuRus recuerda la ruta por lote: no necesitas buscar otra vez el archivo. Para una copia movida o una devolución diferente, usa **Elegir otra copia…**.
@@ -57,11 +61,13 @@ Si existe una carpeta `paquetes`, instala desde ella sin Internet (`--no-index`)
 6. Si Cumplimiento no tiene cruce, documenta la excepción.
 7. **Usar revisión guardada** intenta congelar la constancia al completar todas las filas revisables. Si falta una excepción de cruce, documéntala y pulsa **Congelar constancia**. Después prepara todos los productos desde esa constancia sin recargar el Excel para cada uno.
 
+Para continuar otro día, usa **Retomar lote…**: recupera registros, copia guardada y constancia desde la base local, sin repetir el análisis.
+
 Instalación manual equivalente desde `cmd`:
 
 ```cmd
 python -m venv .venv
-.venv\Scripts\python.exe -m pip install -e ".[excel-legacy,excel-native,outlook]"
+.venv\Scripts\python.exe -m pip install ".[excel-legacy,excel-native,outlook]"
 .venv\Scripts\python.exe -m pip check
 .venv\Scripts\python.exe -m nurus.app
 ```

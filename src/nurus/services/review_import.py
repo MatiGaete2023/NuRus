@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import json
 from dataclasses import dataclass, field
 from io import BytesIO
 from datetime import date, datetime
@@ -54,6 +55,13 @@ def _blank(value: object) -> bool:
 
 def _text(value: object) -> str:
     return "" if _blank(value) else str(value).strip()
+
+
+def _identity_text(value: object) -> str:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if math.isfinite(value) and float(value).is_integer():
+            return str(int(value))
+    return _text(value)
 
 
 def _review_date(value: object) -> str:
@@ -171,6 +179,16 @@ def preview_reviewed_workbook(db: Database, batch_id: str, path: str | Path) -> 
         errors.append("El archivo no corresponde al libro de origen de este lote.")
 
     current = {row["record_id"]: row for row in db.list_review_records(batch_id)}
+    mapping = json.loads(batch["column_mapping"])
+    identity_columns = {}
+    for key in ("rit", "rut", "nombre", "tribunal", "programa"):
+        original_column = mapping.get(key)
+        if original_column:
+            matches = [i for i, title in enumerate(headers) if normalize(title) == normalize(original_column)]
+            if len(matches) != 1:
+                errors.append(f"Falta una columna única de identidad: {original_column}.")
+            else:
+                identity_columns[original_column] = matches[0]
     seen: set[str] = set()
     updates: list[dict[str, object]] = []
     warnings: list[str] = []
@@ -197,6 +215,12 @@ def preview_reviewed_workbook(db: Database, batch_id: str, path: str | Path) -> 
             if row is None:
                 errors.append(f"Fila {excel_row}: el identificador no pertenece a este lote.")
                 continue
+            original_values = json.loads(row["values_json"])
+            for column, position in identity_columns.items():
+                actual = values[position] if position < len(values) else None
+                if _identity_text(actual) != _identity_text(original_values.get(column)):
+                    errors.append(f"Fila {excel_row}: {column} no coincide con el ID de origen. "
+                                  "No cambies la identidad del registro en la constancia.")
             state = _text(values[positions["NURUS_ESTADO_REVISION"]]).upper()
             observation = _text(values[positions["OBSERVACION"]])
             if observation.startswith("=") or observation.startswith("#"):
@@ -207,6 +231,8 @@ def preview_reviewed_workbook(db: Database, batch_id: str, path: str | Path) -> 
                 if state != "EXCLUIDO":
                     errors.append(f"Fila {excel_row}: una fila excluida no puede cambiarse desde la constancia.")
             else:
+                if state not in {"PROPUESTA", "REQUIERE_REVISION", "REVISADO"}:
+                    errors.append(f"Fila {excel_row}: estado de revisión no admitido: {state!r}.")
                 reviewed += 1
                 if not observation:
                     errors.append(f"Fila {excel_row}: falta OBSERVACION.")
@@ -225,6 +251,9 @@ def preview_reviewed_workbook(db: Database, batch_id: str, path: str | Path) -> 
                 "workload": _text(values[positions["CC"]]),
                 "resolution": _text(values[positions["RES"]]),
             })
+
+    if not updates and not errors:
+        errors.append("La constancia no contiene registros identificables para incorporar.")
 
     missing = sorted(set(current) - seen)
     if missing and not any("Falta la columna" in item for item in errors):

@@ -14,6 +14,7 @@ from nurus.product_ui import communications_dialog, review_product
 from nurus.services.contacts import _valid_addresses, apply_contact_preview, preview_contact_import
 from nurus.services.exports import ExportError, export_preserved_workbook, export_proposal_workbook
 from nurus.rus import Mode
+from nurus.rus.reader import list_workbook_sheets
 from nurus.services.products import approve_product, persist_approved_product, prepare_from_snapshot
 from nurus.services.review_import import (
     ReviewImportError,
@@ -179,6 +180,9 @@ class NuRusApp(ttk.Frame):
         source = ttk.LabelFrame(self.rus_tab, text="Archivo de trabajo", padding=8)
         source.pack(fill="x")
         self.mode_var = tk.StringVar(value=Mode.ESPERA.value)
+        self.selected_sheet = ""
+        self.selected_cross_sheet = ""
+        self.selected_header_row = 1
         ttk.Label(source, text="Modalidad").grid(row=0, column=0, sticky="w")
         self.mode_combo = ttk.Combobox(
             source,
@@ -201,6 +205,10 @@ class NuRusApp(ttk.Frame):
         ttk.Label(source, textvariable=self.analysis_status, style="Subtitle.TLabel").grid(
             row=1, column=0, columnspan=5, sticky="w", pady=(6, 0)
         )
+        options = ttk.Frame(source)
+        options.grid(row=2, column=0, columnspan=5, sticky="w", pady=(4, 0))
+        ttk.Button(options, text="Hojas y encabezado…", command=self.choose_sheets).pack(side="left")
+        ttk.Button(options, text="Retomar lote…", command=self.choose_previous_batch).pack(side="left", padx=6)
 
         self.review_pane = ttk.Panedwindow(self.rus_tab, orient="vertical")
         self.review_pane.pack(fill="both", expand=True, pady=(8, 0))
@@ -265,8 +273,112 @@ class NuRusApp(ttk.Frame):
         if not path:
             return
         self.selected_path = Path(path)
+        self.selected_sheet, self.selected_cross_sheet, self.selected_header_row = "", "", 1
         self.file_var.set(f"{self.selected_path.name} · seleccionado, sin analizar")
         self._invalidate_analysis("Archivo seleccionado. Presiona «Analizar archivo».", keep_file=True)
+
+    def choose_sheets(self) -> None:
+        if self.selected_path is None:
+            messagebox.showwarning("Falta archivo", "Selecciona un Excel primero.")
+            return
+        source = self.selected_path
+        generation = self.analysis_generation
+
+        def display(names):
+            if generation != self.analysis_generation or self.selected_path != source:
+                return
+            dialog = tk.Toplevel(self.root)
+            dialog.title("Seleccionar hojas del libro")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            primary = ttk.Combobox(dialog, state="readonly", values=("Automática", *names), width=45)
+            cross = ttk.Combobox(dialog, state="readonly", values=("Automática", *names), width=45)
+            header = tk.StringVar(value=str(self.selected_header_row))
+            for label, field, value in (("Hoja principal", primary, self.selected_sheet),
+                                         ("Cruce (solo Cumplimiento)", cross, self.selected_cross_sheet)):
+                ttk.Label(dialog, text=label).pack(anchor="w", padx=12, pady=(8, 2))
+                field.pack(fill="x", padx=12)
+                field.set(value or "Automática")
+            ttk.Label(dialog, text="Fila de encabezado principal (1 permite detección automática)").pack(padx=12, pady=(8, 2))
+            ttk.Entry(dialog, textvariable=header).pack(fill="x", padx=12)
+
+            def accept():
+                try:
+                    row = int(header.get())
+                    if row < 1:
+                        raise ValueError()
+                except ValueError:
+                    messagebox.showerror("Encabezado", "Indica un número de fila positivo.", parent=dialog)
+                    return
+                self.selected_sheet = "" if primary.current() == 0 else primary.get()
+                self.selected_cross_sheet = "" if cross.current() == 0 else cross.get()
+                self.selected_header_row = row
+                self._invalidate_analysis("Selección de hojas guardada; presiona Analizar archivo.")
+                dialog.destroy()
+
+            ttk.Button(dialog, text="Usar selección", command=accept).pack(padx=12, pady=12)
+
+        self.run_io(lambda: list_workbook_sheets(source), display)
+
+    def choose_previous_batch(self) -> None:
+        if self.analysis_busy or self.io_busy:
+            messagebox.showwarning("Operación en curso", "Espera a que termine antes de retomar otro lote.")
+            return
+        batches = self.db.list_batches()
+        if not batches:
+            messagebox.showinfo("Sin lotes", "Todavía no hay análisis guardados.")
+            return
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Retomar análisis guardado")
+        dialog.geometry("820x380")
+        listing = ttk.Treeview(dialog, columns=("fecha", "archivo", "modo", "filas"), show="headings")
+        for key, title, width in (("fecha", "Fecha", 150), ("archivo", "Archivo", 360),
+                                  ("modo", "Modalidad", 140), ("filas", "Registros", 80)):
+            listing.heading(key, text=title)
+            listing.column(key, width=width)
+        listing.pack(fill="both", expand=True, padx=10, pady=10)
+        for batch in batches:
+            listing.insert("", "end", iid=batch["id"], values=(batch["created_at"], batch["source_name"],
+                                                                batch["mode"], batch["record_count"]))
+
+        def accept():
+            chosen = listing.selection()
+            if chosen and self.resume_batch(chosen[0]):
+                dialog.destroy()
+
+        ttk.Button(dialog, text="Retomar seleccionado", command=accept).pack(pady=10)
+
+    def resume_batch(self, batch_id: str) -> bool:
+        if self.analysis_busy or self.io_busy:
+            messagebox.showwarning("Operación en curso", "Espera a que termine la operación actual.")
+            return False
+        try:
+            batch = self.db.get_batch(batch_id)
+            if batch is None or batch["mode"] not in {mode.value for mode in Mode}:
+                raise ValueError("No existe un lote RUS recuperable.")
+            self.db.get_original_workbook(batch_id)  # comprueba bytes y hash almacenados
+            if batch["status"] == "approved":
+                self.db.get_snapshot(batch_id)
+            rows = self.controller.load_rows(batch_id)
+        except (KeyError, ValueError) as exc:
+            messagebox.showerror("No se pudo retomar", str(exc))
+            return False
+        self._invalidate_analysis("Recuperando lote guardado…")
+        self.current_batch_id = batch_id
+        self.selected_path = Path(batch["source_path"])
+        self.selected_sheet = batch["primary_sheet"]
+        self.selected_cross_sheet = batch["cross_sheet"]
+        self.selected_header_row = int(batch["header_row"])
+        self.mode_var.set(batch["mode"])
+        self.file_var.set(f"{batch['source_name']} · lote recuperado")
+        self._show_review_rows(rows)
+        copy = self.db.get_working_workbook(batch_id)
+        self.analysis_status.set(
+            "Lote recuperado sin recalcular las reglas. "
+            + (f"Copia de revisión: {copy}" if copy else "Aún no hay copia de revisión recordada.")
+        )
+        self.tabs.select(self.work)
+        return True
 
     def _invalidate_analysis(self, message: str, *, keep_file: bool = True) -> None:
         self.analysis_generation += 1
@@ -289,6 +401,9 @@ class NuRusApp(ttk.Frame):
             return
         path = self.selected_path
         mode = self.mode_var.get()
+        selected_sheet = self.selected_sheet or None
+        selected_cross = self.selected_cross_sheet or None
+        selected_header = self.selected_header_row
         self._invalidate_analysis("Analizando copia estable del archivo…", keep_file=True)
         generation = self.analysis_generation
         self.analysis_busy = True
@@ -297,7 +412,8 @@ class NuRusApp(ttk.Frame):
 
         def worker() -> None:
             try:
-                result = self.controller.analyze(path, mode)
+                result = self.controller.analyze(path, mode, sheet_name=selected_sheet,
+                                                 cross_sheet_name=selected_cross, header_row=selected_header)
                 self.analysis_queue.put((generation, result, None))
             except Exception as exc:
                 self.analysis_queue.put((generation, None, exc))

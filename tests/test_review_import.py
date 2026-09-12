@@ -105,6 +105,72 @@ def test_import_commits_the_bytes_actually_parsed(tmp_path, monkeypatch):
     assert db.get_batch(batch_id)["review_import_hash"] == result.sha256
 
 
+def test_ids_cannot_be_swapped_between_cases(tmp_path):
+    db, _, batch_id, proposal = _proposal(tmp_path)
+    _complete_review(proposal)
+    book = load_workbook(proposal)
+    sheet = book["Espera"]
+    column = next(cell.column for cell in sheet[1] if cell.value == "NURUS_ID_REGISTRO")
+    sheet.cell(2, column).value, sheet.cell(3, column).value = sheet.cell(3, column).value, sheet.cell(2, column).value
+    book.save(proposal)
+    preview = preview_reviewed_workbook(db, batch_id, proposal)
+    assert not preview.valid
+    assert any("no coincide con el ID" in issue for issue in preview.errors)
+
+
+def test_partial_import_cannot_bypass_completeness_by_default_argument(tmp_path):
+    db, controller, batch_id, proposal = _proposal(tmp_path)
+    _complete_review(proposal)
+    book = load_workbook(proposal)
+    book["Espera"].delete_rows(3)
+    book.save(proposal)
+    import_reviewed_workbook(db, batch_id, proposal, responsible="Prueba", confirmed_in_rus=True)
+    with pytest.raises(ValueError, match="sin constancia"):
+        controller.approve_batch(batch_id)
+
+
+@pytest.mark.parametrize("operation", ["edit", "restore"])
+def test_edit_or_restore_invalidates_record_evidence(tmp_path, operation):
+    db, controller, batch_id, proposal = _proposal(tmp_path)
+    _complete_review(proposal)
+    import_reviewed_workbook(db, batch_id, proposal, responsible="Prueba", confirmed_in_rus=True)
+    rows = db.list_review_records(batch_id)
+    if operation == "edit":
+        db.set_record_decision(batch_id, rows[0]["record_id"], "approved",
+                               observation="Nueva revisión", reason="Cambio")
+    else:
+        db.restore_record(batch_id, rows[0]["record_id"])
+    changed = db.list_review_records(batch_id)[0]
+    assert not changed["rus_recorded"]
+    assert not changed["review_import_hash"]
+    assert not changed["review_date"]
+    # Otra devolución no puede reciclar la confirmación antigua de esa fila.
+    book = load_workbook(proposal)
+    book["Espera"].delete_rows(2)
+    book.save(proposal)
+    import_reviewed_workbook(db, batch_id, proposal, responsible="Prueba", confirmed_in_rus=True)
+    with pytest.raises(ValueError, match="sin constancia"):
+        controller.approve_batch(batch_id)
+
+
+def test_final_export_contains_the_reviewed_fields(tmp_path):
+    from nurus.services.exports import export_preserved_workbook
+    db, controller, batch_id, proposal = _proposal(tmp_path)
+    _complete_review(proposal)
+    import_reviewed_workbook(db, batch_id, proposal, responsible="Prueba", confirmed_in_rus=True)
+    controller.approve_batch(batch_id, require_review_import=True)
+    row = db.list_review_records(batch_id)[0]
+    result = export_preserved_workbook(db, batch_id, tmp_path / "final.xlsx",
+                                       backend="portable", allow_reduced_fidelity=True)
+    book = load_workbook(result.path)
+    sheet = book["Espera"]
+    columns = {cell.value: cell.column for cell in sheet[1]}
+    for name, expected in {"OBSERVACION": row["edited_observation"], "FECHA_OBS": "2026-09-08",
+                            "TT": "Sí", "CC": "Con carga", "RES": "No"}.items():
+        assert sheet.cell(2, columns[name]).value == expected
+    book.close()
+
+
 def test_import_requires_explicit_rus_confirmation(tmp_path):
     db, _, batch_id, proposal = _proposal(tmp_path)
     _complete_review(proposal)

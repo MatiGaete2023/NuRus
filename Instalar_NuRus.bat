@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
 
 echo ========================================
@@ -29,7 +29,7 @@ if exist "paquetes\" (
   echo Usando paquetes institucionales locales desde .\paquetes
   set "NURUS_PIP_SOURCE=--no-index --find-links paquetes"
 )
-".venv\Scripts\python.exe" -m pip install %NURUS_PIP_SOURCE% -e ".[excel-legacy,excel-native,outlook]"
+".venv\Scripts\python.exe" -m pip install %NURUS_PIP_SOURCE% ".[excel-legacy,excel-native,outlook]"
 if errorlevel 1 goto :error
 
 ".venv\Scripts\python.exe" -m pip check

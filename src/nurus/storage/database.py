@@ -517,6 +517,16 @@ class Database:
         with self.connect() as conn:
             return conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
 
+    def list_batches(self, limit: int = 200) -> list[sqlite3.Row]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("Límite de lotes inválido.")
+        with self.connect() as conn:
+            return conn.execute(
+                """SELECT b.*, (SELECT COUNT(*) FROM review_records r WHERE r.batch_id=b.id) AS record_count
+                   FROM batches b WHERE b.mode IN ('ESPERA','CUMPLIMIENTO','INFORMES')
+                   ORDER BY b.created_at DESC,b.id DESC LIMIT ?""", (limit,),
+            ).fetchall()
+
     def remember_working_workbook(self, batch_id: str, path: str | Path) -> None:
         """Recuerda la copia editable; no la declara revisada ni cambia el snapshot."""
         target = Path(path).expanduser().resolve()
@@ -608,7 +618,8 @@ class Database:
             if (changed or decision == "excluded") and not reason.strip():
                 raise ValueError("La edición o exclusión requiere un motivo de revisión.")
             conn.execute(
-                """UPDATE review_records SET decision=?,edited_observation=?,edit_reason=?,updated_at=?
+                """UPDATE review_records SET decision=?,edited_observation=?,edit_reason=?,updated_at=?,
+                   rus_recorded=0,review_date='',review_import_name='',review_import_hash=''
                    WHERE batch_id=? AND record_id=?""",
                 (decision, new_observation, reason.strip(), utc_now(), batch_id, record_id),
             )
@@ -632,7 +643,8 @@ class Database:
             )
             conn.execute(
                 """UPDATE review_records SET decision=?,edited_observation=original_observation,
-                   edit_reason='',updated_at=? WHERE batch_id=? AND record_id=?""",
+                   edit_reason='',updated_at=?,rus_recorded=0,review_date='',
+                   review_import_name='',review_import_hash='' WHERE batch_id=? AND record_id=?""",
                 (decision, utc_now(), batch_id, record_id),
             )
             conn.execute(
@@ -750,6 +762,9 @@ class Database:
             ).fetchall()
             if not rows:
                 raise ValueError("El lote no contiene registros revisables.")
+            # Una devolución parcial nunca puede convertirse en cierre total por
+            # omitir el argumento que usa la interfaz.
+            require_review_import = require_review_import or bool(batch["review_import_hash"])
             if require_review_import and not batch["review_import_hash"]:
                 raise ValueError(
                     "Primero carga el Excel revisado y confirma que sus observaciones fueron registradas en RUS."

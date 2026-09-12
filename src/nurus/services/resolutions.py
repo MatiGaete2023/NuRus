@@ -10,6 +10,7 @@ from nurus.rus.columns import normalize
 from nurus.rus.rules import format_date, tribunal
 from nurus.services.products import _published_template
 from nurus.services.rendering import prepare
+from nurus.services.file_output import write_new_file
 
 
 def prepare_resolution(db, batch_id, record_id, template_id, *, confirmed_review=False, extra=None):
@@ -101,8 +102,7 @@ def export_resolution(db, product, destination):
     document.core_properties.identifier = product.id
     document.core_properties.comments = "Proyecto no firmado. Snapshot: " + product.source_snapshot_hash
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("xb") as output:
-        document.save(output)
+    write_new_file(path, document.save)
     digest = sha256(path.read_bytes()).hexdigest()
     db.record_artifact(product.batch_id, product.source_snapshot_hash, str(path), digest, "PROYECTO_DOCX")
     return path

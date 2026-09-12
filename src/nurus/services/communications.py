@@ -13,6 +13,7 @@ from nurus.rus.rules import format_date, is_dce
 from nurus.services.contacts import resolve_contact_exact
 from nurus.services.products import _published_template
 from nurus.services.rendering import prepare
+from nurus.services.file_output import excel_text, write_new_file
 
 
 def prepare_communications(
@@ -121,7 +122,7 @@ def attach_snapshot_table(db, product, directory):
     sheet.append(["RIT", "TRIBUNAL", "RUT", "NOMBRE", "PROGRAMA", "FECHA_VENCIMIENTO", "DIAS_ESPERA"])
     for row in records:
         values = json.loads(row["values_json"])
-        sheet.append([values.get(mapping.get(key, ""), "") for key in keys])
+        sheet.append([excel_text(values.get(mapping.get(key, ""), "")) for key in keys])
     sheet.freeze_panes = "A2"
     sheet.auto_filter.ref = sheet.dimensions
     for cell in sheet[1]:
@@ -129,8 +130,10 @@ def attach_snapshot_table(db, product, directory):
         cell.fill = PatternFill("solid", fgColor="1F4E78")
     for column, width in {"A":18,"B":32,"C":16,"D":40,"E":50,"F":24,"G":16}.items():
         sheet.column_dimensions[column].width = width
-    with path.open("xb") as output:
-        book.save(output)
+    try:
+        write_new_file(path, book.save)
+    finally:
+        book.close()
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     db.record_artifact(product.batch_id, product.source_snapshot_hash, str(path), digest, "ADJUNTO_NOMINA")
     product.attachments.append((str(path), digest))

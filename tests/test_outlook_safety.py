@@ -31,6 +31,27 @@ def test_create_draft_requires_explicit_confirmation():
         outlook_adapter.create_draft(product)
 
 
+def test_attachment_copy_keeps_exact_reviewed_bytes_and_original_name(tmp_path):
+    from hashlib import sha256
+    source = tmp_path / "nomina.xlsx"
+    source.write_bytes(b"reviewed bytes")
+    with outlook_adapter._reviewed_attachments([(str(source), sha256(source.read_bytes()).hexdigest())]) as copies:
+        source.write_bytes(b"changed after copying")
+        assert copies[0].read_bytes() == b"reviewed bytes"
+        assert copies[0].name == source.name
+        assert copies[0] != source
+    assert not copies[0].exists()
+    assert source.read_bytes() == b"changed after copying"
+
+
+def test_changed_attachment_is_rejected(tmp_path):
+    source = tmp_path / "nomina.xlsx"
+    source.write_bytes(b"changed")
+    with pytest.raises(ValueError, match="adjunto cambió"):
+        with outlook_adapter._reviewed_attachments([(str(source), "wrong hash")]):
+            pytest.fail("No debe entregar bytes no aprobados a Outlook")
+
+
 @pytest.mark.parametrize("missing_id", [None, "entry", "store"])
 def test_create_draft_allows_empty_recipient_and_never_sends(monkeypatch, missing_id):
     product = _product_without_recipient()
@@ -194,4 +215,3 @@ def test_resolution_cannot_create_mail():
     product.kind = ProductKind.RESOLUTION
     with pytest.raises(ValueError, match="Solo un producto"):
         outlook_adapter.save_draft(product, confirmed=True)
-

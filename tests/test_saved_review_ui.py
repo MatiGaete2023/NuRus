@@ -36,3 +36,31 @@ def test_cancelled_working_copy_confirmation_does_nothing(tmp_path, monkeypatch)
     monkeypatch.setattr("nurus.app.messagebox.askyesno", lambda *args, **kwargs: False)
     NuRusApp.use_saved_review(app)
     app.import_reviewed_excel.assert_not_called()
+
+
+def test_resume_restores_same_batch_without_original_or_reanalysis(tmp_path):
+    from test_review_import import _proposal
+    db, controller, batch_id, proposal = _proposal(tmp_path)
+    batch = db.get_batch(batch_id)
+    Path(batch["source_path"]).unlink()
+    original_evaluation = batch["evaluation_hash"]
+    app = SimpleNamespace(
+        analysis_busy=False, io_busy=False, db=db, controller=controller,
+        _invalidate_analysis=Mock(), mode_var=Mock(), file_var=Mock(),
+        _show_review_rows=Mock(), analysis_status=Mock(), tabs=Mock(), work=object(),
+    )
+    assert NuRusApp.resume_batch(app, batch_id)
+    assert app.current_batch_id == batch_id
+    assert app.selected_sheet == "Espera"
+    assert db.get_working_workbook(batch_id) == proposal
+    assert db.get_batch(batch_id)["evaluation_hash"] == original_evaluation
+    assert len(db.list_batches()) == 1
+    app._show_review_rows.assert_called_once()
+    app.tabs.select.assert_called_once_with(app.work)
+
+
+def test_resume_does_not_replace_current_work_while_io_busy(monkeypatch):
+    app = SimpleNamespace(analysis_busy=False, io_busy=True, db=Mock())
+    monkeypatch.setattr("nurus.app.messagebox.showwarning", Mock())
+    assert not NuRusApp.resume_batch(app, "batch")
+    app.db.get_batch.assert_not_called()

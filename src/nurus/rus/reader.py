@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from .columns import H2_COLUMNS, ColumnMappingError, has_full_cross_mapping, map_columns, map_cross_columns, normalize
+from .columns import H2_COLUMNS, ColumnMappingError, map_columns, map_cross_columns, normalize
 from .models import Mode, ReadBatch, SourceRecord, SourceReference
 
 _ALLOWED_SUFFIXES = {".xls", ".xlsx", ".xlsm"}
@@ -21,6 +21,20 @@ _HEADER_IDENTITY_KEYS = ("rit", "rut", "nombre")
 
 class WorkbookReadError(ValueError):
     pass
+
+
+def list_workbook_sheets(path: str | Path) -> tuple[str, ...]:
+    """Inspección de nombres para el selector; no ejecuta reglas ni macros."""
+    import pandas as pd
+
+    source = Path(path).expanduser().resolve()
+    if not source.is_file() or source.suffix.lower() not in _ALLOWED_SUFFIXES:
+        raise WorkbookReadError("Selecciona un libro .xls, .xlsx o .xlsm existente.")
+    try:
+        with pd.ExcelFile(BytesIO(source.read_bytes()), engine=_engine(source)) as book:
+            return tuple(book.sheet_names)
+    except Exception as exc:
+        raise WorkbookReadError(f"No se pudieron identificar las hojas: {exc}") from exc
 
 
 def _snapshot_file(path: Path, *, max_file_size_bytes: int | None = None) -> tuple[Path, str]:
@@ -277,6 +291,47 @@ def _excel_epoch(workbook) -> str:
     return "1900"
 
 
+def _select_cross(pd, workbook, names: list[str], requested: str | None, warnings: list[str]):
+    names = [name for name in names if normalize(name) not in {"ob", "medidas vencidas"}]
+    checked = [_sheet_by_name(names, requested)] if requested else names
+    candidates = []
+    ambiguous = False
+    for name in checked:
+        raw = pd.read_excel(workbook, sheet_name=name, header=None,
+                            nrows=_AUTO_DETECT_HEADER_SCAN_ROWS, dtype=object, keep_default_na=False)
+        for index in range(len(raw.index)):
+            try:
+                headers = _validate_headers(raw.iloc[index].tolist(), name)
+                mapping = map_cross_columns(headers)
+            except ColumnMappingError as exc:
+                ambiguous = True
+                warnings.append(f"CROSS_MAPPING_AMBIGUOUS: {name}: {exc}")
+                continue
+            except WorkbookReadError:
+                # Solo una fila con suficientes alias de cruce puede ser una
+                # cabecera duplicada; títulos repetidos en una portada no bastan.
+                mapping = {}
+                try:
+                    unique = list(dict.fromkeys(str(v).strip() for v in raw.iloc[index].tolist()))
+                    mapping = map_cross_columns(unique)
+                except ColumnMappingError:
+                    pass
+                if set(mapping) == set(H2_COLUMNS):
+                    ambiguous = True
+                    warnings.append(f"CROSS_MAPPING_AMBIGUOUS: encabezados duplicados en {name}.")
+                continue
+            if set(mapping) == set(H2_COLUMNS):
+                candidates.append((name, index + 1, mapping))
+    if len(candidates) > 1 or ambiguous:
+        warnings.append("CROSS_SHEET_AMBIGUOUS: selecciona o corrige la hoja de cruce explícitamente.")
+        return "", 1, {}
+    if candidates:
+        return candidates[0]
+    if requested or any(name.strip().casefold() == "hoja2" for name in checked):
+        warnings.append("CROSS_MAPPING_MISSING: no se encontró una cabecera de cruce completa; C-10 no se evaluará.")
+    return "", 1, {}
+
+
 def read_workbook(
     path: str | Path,
     mode: Mode | str,
@@ -370,53 +425,16 @@ def read_workbook(
             chosen = ""
             if selected_mode is Mode.CUMPLIMIENTO:
                 other_names = [name for name in names if name != primary_name]
-                if cross_sheet_name:
-                    chosen = _sheet_by_name(other_names, cross_sheet_name)
-                else:
-                    named = [
-                        name
-                        for name in other_names
-                        if name.strip().casefold() == "hoja2"
-                    ]
-                    if len(named) == 1:
-                        chosen = named[0]
-                    else:
-                        candidates: list[str] = []
-                        for name in other_names:
-                            try:
-                                headers = _headers(pd, workbook, name, header_row)
-                            except WorkbookReadError:
-                                continue
-                            if has_full_cross_mapping(headers):
-                                candidates.append(name)
-                        if len(candidates) == 1:
-                            chosen = candidates[0]
-                        elif len(candidates) > 1:
-                            warnings.append(
-                                "CROSS_SHEET_AMBIGUOUS: indique la hoja de cruce explícitamente."
-                            )
+                chosen, cross_header, cross_mapping = _select_cross(
+                    pd, workbook, other_names, cross_sheet_name, warnings
+                )
                 if chosen:
-                    cross_headers = _headers(pd, workbook, chosen, header_row)
-                    try:
-                        cross_mapping = map_cross_columns(cross_headers)
-                    except ColumnMappingError as exc:
-                        warnings.append(f"CROSS_MAPPING_AMBIGUOUS: {exc}")
-                        chosen = ""
-                    if chosen and set(cross_mapping) != set(H2_COLUMNS):
-                        missing = sorted(set(H2_COLUMNS) - set(cross_mapping))
-                        warnings.append(
-                            "CROSS_MAPPING_MISSING: faltan " + ", ".join(missing) + "; C-10 no se evaluará."
-                        )
-                        chosen = ""
-                    if chosen:
-                        cross = _records(
-                            _read_sheet(pd, workbook, chosen, header_row),
-                            source.name,
-                            digest,
-                            chosen,
-                            header_row,
-                            cross_mapping,
-                        )
+                    cross = _records(
+                        _read_sheet(pd, workbook, chosen, cross_header),
+                        source.name, digest, chosen, cross_header, cross_mapping,
+                    )
+                    if cross_header != 1:
+                        warnings.append(f"CROSS_HEADER_AUTODETECTED: {chosen}, fila {cross_header}.")
                 if not chosen:
                     warnings.append(
                         "CROSS_SHEET_NOT_SELECTED: C-10 no se evaluará sin una hoja de cruce identificable."

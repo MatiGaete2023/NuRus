@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
 
 if not exist ".venv\Scripts\python.exe" (
@@ -16,4 +16,3 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-

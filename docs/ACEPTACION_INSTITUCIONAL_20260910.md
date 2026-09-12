@@ -1,6 +1,6 @@
 # Protocolo de aceptación institucional NuRus
 
-Versión bajo prueba: `0.3.0.dev3`. No utilizar datos reales en GitHub.
+Versión bajo prueba: `0.3.0.dev4`. No utilizar datos reales en GitHub.
 
 Para esta actualización ejecutar además los casos de [reconocimiento, SaveAs y revisión guardada](CORRECCIONES_EXCEL_20260912.md). Los resultados simulados no acreditan Excel/Outlook institucionales.
 
@@ -26,6 +26,11 @@ Completar: ID; commit/paquete; Windows/Office/Python; archivo y SHA-256; fecha d
 | A11 | Preparar cada matriz Word autorizada | Datos de una sola fila; tribunal correcto; sin variables; archivo no firmado y no sobrescrito |
 | A12 | Contar un intervalo conocido de Enviados y exportar | Límites inclusivos; cuenta comparable; omitidos/errores/truncamiento visibles |
 | A13 | Ejecutar 100/1.000/10.000 filas y cerrar/reabrir | Interfaz responde; lote y constancia se recuperan; tiempos quedan registrados |
+
+| A14 | Guardar constancia y volver a exportar el libro final | OBSERVACION, FECHA_OBS, TT, CC y RES coinciden con la revisión congelada |
+| A15 | Cerrar NuRus y usar Retomar lote; mover la entrada original | Recupera el mismo ID, la copia de trabajo y el snapshot sin volver a analizar |
+| A16 | Dos hojas de cruce válidas; misma identidad con fechas futuras distintas | Selección explícita de hoja; conflicto por fila con referencias; no inventa C-10 |
+| A17 | Intercambiar solo los IDs de dos registros en Excel | Reimportación rechazada por identidad distinta |
 
 ## Cierre
 

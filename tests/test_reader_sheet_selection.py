@@ -199,3 +199,12 @@ def test_generic_espera_with_notes_detects_header_once_per_sheet(tmp_path):
     assert result.primary_sheet == "informe_1"
     assert result.records[0].source.row_number == 3
     assert reader.call_count == 3  # dos cabeceras y una tabla completa
+
+
+def test_sheet_inspection_lists_exact_names_without_analysis(tmp_path):
+    from nurus.rus.reader import list_workbook_sheets
+    path = tmp_path / "source.xlsx"
+    make_book(path, ["OB", "Primera", "Segunda"])
+    original = path.read_bytes()
+    assert list_workbook_sheets(path) == ("OB", "Primera", "Segunda")
+    assert path.read_bytes() == original
