@@ -1,6 +1,6 @@
 # NuRus — revisión y mejoras automatizables
 
-Fecha: 12 de septiembre de 2026. Versión de entrega: `0.3.0.dev4`. Base revisada: commit `0cb0fa0e10d94b8faf16108fe29832dc8f5a29ae`, rama `implementacion-plan-2026-09-08`.
+Fecha: 12 de septiembre de 2026. Versión de entrega: `0.3.0.dev5`. Base revisada: commit `0cb0fa0e10d94b8faf16108fe29832dc8f5a29ae`, rama `implementacion-plan-2026-09-08`.
 
 ## Resultado y alcance
 
@@ -142,10 +142,19 @@ La versión anterior ya contenía correcciones para hojas RUS genéricas, guarda
 
 Los resultados concretos de la ejecución se registran en la entrega y en GitHub Actions para el commit. Las simulaciones no equivalen a aceptación Office. La ausencia de fallos en estas pruebas no demuestra ausencia absoluta de errores.
 
+## Segunda revisión, posterior a la publicación
+
+La primera publicación de estas mejoras fue `391b5fef52dbb19cd92323b17472bfce461b6248` (dev4). Se contrastaron los hashes Git de los 31 archivos modificados: coincidieron con la copia local probada. La revisión posterior encontró y corrigió dos casos adicionales; se identifica esta corrección como `0.3.0.dev5` para distinguir los paquetes.
+
+- **P14 — Cambio de modalidad:** una selección explícita de hoja podía seguir activa al pasar de Espera a Cumplimiento. El evento ahora restablece selección automática y encabezado y elimina el análisis visible anterior. Prueba: `test_mode_change_discards_previous_modes_explicit_sheet`.
+- **P15 — Memoria de la devolución:** al invalidar una fila, eliminar también el hash de importación del lote permitía que la aprobación general olvidara que se encontraba en un flujo de constancia. Se conserva en el lote la referencia de la última devolución, se invalida la confirmación y se exige nuevamente evidencia válida de la fila. Se comprueba el rechazo antes de recibir otra devolución, tanto al editar como al restaurar.
+
+**Resultados locales:** 142 pruebas aprobadas; una prueba de `cmd.exe` se omite en Linux y debe ejecutarse en el trabajo Windows de CI. Compilación y construcción/instalación aislada del paquete comprobadas. El resultado final de CI se identifica por el commit y enlace de la entrega; incluye `pip check`, recursos instalados y wheel. No se publicó información de los registros institucionales.
+
 ## Actualización y próximos pasos humanos
 
 1. Cerrar NuRus y conservar respaldo de su carpeta de datos local. Descargar la rama actualizada en una carpeta estable.
-2. Ejecutar `Instalar_NuRus.bat`, después `Abrir_NuRus.bat`. Confirmar versión `0.3.0.dev4`; la base sigue en su ubicación local y no cambia de esquema.
+2. Ejecutar `Instalar_NuRus.bat`, después `Abrir_NuRus.bat`. Confirmar versión `0.3.0.dev5`; la base sigue en su ubicación local y no cambia de esquema.
 3. Retomar un lote o analizar una copia. Si la selección es ambigua, indicar hoja/encabezado. Exportar propuestas sin exigir una revisión previa.
 4. Revisar individualmente en RUS; completar y guardar Excel. Usar **Usar revisión guardada**, confirmar responsable y generar los productos sin recargar para cada uno.
 5. Ejecutar los casos del [protocolo institucional](ACEPTACION_INSTITUCIONAL_20260910.md), especialmente A01, A04–A10 y A14–A17. Registrar errores con versión, archivo autorizado/hash y mensaje completo.

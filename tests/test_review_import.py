@@ -144,6 +144,11 @@ def test_edit_or_restore_invalidates_record_evidence(tmp_path, operation):
     assert not changed["rus_recorded"]
     assert not changed["review_import_hash"]
     assert not changed["review_date"]
+    # La referencia de la última devolución sigue en el lote, aunque su
+    # confirmación ya no cubra el contenido modificado.
+    assert db.get_batch(batch_id)["review_import_hash"]
+    with pytest.raises(ValueError, match="sin constancia"):
+        controller.approve_batch(batch_id)
     # Otra devolución no puede reciclar la confirmación antigua de esa fila.
     book = load_workbook(proposal)
     book["Espera"].delete_rows(2)

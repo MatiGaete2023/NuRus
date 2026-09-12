@@ -1,6 +1,6 @@
 # Estado operativo de NuRus
 
-Actualizado: 12 de septiembre de 2026. Rama: `implementacion-plan-2026-09-08`. Aplicación: `0.3.0.dev4`; motor: `0.2.1`; esquema SQLite: 8. Evidencia y cambios: [revisión automatizada](REVISION_AUTOMATIZADA_20260912.md). Los informes anteriores describen sus versiones y no sustituyen este estado.
+Actualizado: 12 de septiembre de 2026. Rama: `implementacion-plan-2026-09-08`. Aplicación: `0.3.0.dev5`; motor: `0.2.1`; esquema SQLite: 8. Evidencia y cambios: [revisión automatizada](REVISION_AUTOMATIZADA_20260912.md). Los informes anteriores describen sus versiones y no sustituyen este estado.
 
 ## Objetivo e invariantes vigentes
 

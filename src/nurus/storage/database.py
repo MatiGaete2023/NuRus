@@ -625,7 +625,6 @@ class Database:
             )
             conn.execute(
                 """UPDATE batches SET status='review',snapshot_hash='',approved_at='',
-                   review_import_name='',review_import_hash='',review_responsible='',
                    review_confirmed_at='' WHERE id=?""",
                 (batch_id,),
             )
@@ -649,7 +648,6 @@ class Database:
             )
             conn.execute(
                 """UPDATE batches SET status='review',snapshot_hash='',approved_at='',
-                   review_import_name='',review_import_hash='',review_responsible='',
                    review_confirmed_at='' WHERE id=?""",
                 (batch_id,),
             )

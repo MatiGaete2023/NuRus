@@ -2,9 +2,9 @@
 
 Aplicación de escritorio local para analizar y revisar planillas del seguimiento de medidas de protección con trazabilidad y control humano.
 
-**Versión de esta rama:** `0.3.0.dev4`. Requiere aceptación institucional antes de uso productivo.
+**Versión de esta rama:** `0.3.0.dev5`. Requiere aceptación institucional antes de uso productivo.
 
-Revisión automática y mejoras de integridad: [informe dev4](docs/REVISION_AUTOMATIZADA_20260912.md).
+Revisión automática y mejoras de integridad: [informe dev5](docs/REVISION_AUTOMATIZADA_20260912.md).
 
 Correcciones de reconocimiento, guardado Excel y reutilización de la copia: [informe y prueba de actualización](docs/CORRECCIONES_EXCEL_20260912.md).
 

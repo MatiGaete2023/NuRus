@@ -64,3 +64,11 @@ def test_resume_does_not_replace_current_work_while_io_busy(monkeypatch):
     monkeypatch.setattr("nurus.app.messagebox.showwarning", Mock())
     assert not NuRusApp.resume_batch(app, "batch")
     app.db.get_batch.assert_not_called()
+
+
+def test_mode_change_discards_previous_modes_explicit_sheet():
+    app = SimpleNamespace(selected_sheet="Espera", selected_cross_sheet="Cruce",
+                          selected_header_row=5, _invalidate_analysis=Mock())
+    NuRusApp.change_mode(app)
+    assert (app.selected_sheet, app.selected_cross_sheet, app.selected_header_row) == ("", "", 1)
+    app._invalidate_analysis.assert_called_once()

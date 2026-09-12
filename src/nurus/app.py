@@ -192,7 +192,7 @@ class NuRusApp(ttk.Frame):
             width=18,
         )
         self.mode_combo.grid(row=0, column=1, sticky="w", padx=(6, 12))
-        self.mode_combo.bind("<<ComboboxSelected>>", lambda _event: self._invalidate_analysis("Modalidad cambiada; analiza nuevamente."))
+        self.mode_combo.bind("<<ComboboxSelected>>", self.change_mode)
 
         self.file_var = tk.StringVar(value="Sin archivo seleccionado.")
         ttk.Label(source, textvariable=self.file_var).grid(row=0, column=2, sticky="ew")
@@ -267,6 +267,10 @@ class NuRusApp(ttk.Frame):
         ttk.Button(outputs, text="Proyecto de la fila…", command=self.resolution_dialog).pack(side="left", padx=4)
         ttk.Button(outputs, text="Estadísticas…", command=self.export_statistics).pack(side="left")
         ttk.Button(outputs, text="Otro producto…", command=self.open_product_dialog).pack(side="left")
+
+    def change_mode(self, _event=None) -> None:
+        self.selected_sheet, self.selected_cross_sheet, self.selected_header_row = "", "", 1
+        self._invalidate_analysis("Modalidad cambiada; analiza nuevamente.")
 
     def choose_file(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("Excel", "*.xlsx *.xlsm *.xls"), ("Todos", "*.*")])
