@@ -1,0 +1,198 @@
+"""Un trabajo local compartido: analizar, exportar y recuperar cambios humanos."""
+from copy import deepcopy
+from dataclasses import dataclass, field, asdict
+from datetime import date
+from hashlib import sha256
+from pathlib import Path
+import json
+from uuid import uuid4
+
+from nurus.rus.reader import read_workbook
+from nurus.rus.rules import as_date, as_int, tribunal, historical_match
+from nurus.services.exports import _export_preserved_payload
+from .config import atomic_json
+from .motor.contexto import current
+from .motor.composicion import Incidencias
+from .motor.reglas_espera import generar_observacion_espera
+from .motor.reglas_cumplimiento import generar_observacion_cumplimiento
+from .motor.reglas_informes import generar_observacion_informes
+
+@dataclass
+class Row:
+    id: str
+    source_row: int
+    values: dict
+    observation: str
+    rules: list
+    actions: list
+    warnings: list
+    excluded: bool = False
+    review: dict = field(default_factory=dict)
+
+def actions_for(events):
+    """Selección por identificador de rama, nunca por palabras de la observación."""
+    actions=[]
+    if any(e.endswith(('E05_SOLO_CORREO','E05_PROYECTO_Y_CORREO')) for e in events):actions.append('programa_espera')
+    if 'ESPERA.E05_PROYECTO_Y_CORREO' in events:actions.append('PC_IE')
+    if any(e.startswith('INFORMES.I01_') for e in events):actions.extend(['programa_vencido','PC_INFO'])
+    if any(e.startswith('INFORMES.I02_') for e in events):actions.append('programa_por_vencer')
+    if any(e.startswith(('CUMPLIMIENTO.C04_','CUMPLIMIENTO.C05_')) for e in events):actions.append('medidas')
+    return actions
+
+class Work:
+    def __init__(self, config):
+        self.config=deepcopy(config)
+        self.rows=[]
+        self.path=''
+        self.output=''
+        self.warnings=[]
+        self.exception=''
+        self.output_hash=''
+        self.receipts={}
+
+    def analyze(self,path,mode,*,sheet=None,cross_sheet=None,as_of=None):
+        batch=read_workbook(path,mode,sheet_name=sheet,cross_sheet_name=cross_sheet)
+        self.path=batch.source_path
+        self.mode=str(batch.mode)
+        self.as_of=(as_of or date.today()).isoformat()
+        self.sheet=batch.primary_sheet
+        self.header=batch.header_row
+        self.mapping=dict(batch.column_mapping)
+        self.source_hash=batch.workbook_sha256
+        self.content=batch.source_bytes
+        self.warnings=list(batch.warnings)
+        self.needs_cross=self.mode=='CUMPLIMIENTO' and not batch.cross_records
+        self.rows=[]
+        index={}
+        key_fields=('rit','rut','nombre','tribunal','programa')
+        # Catálogo Asistente G-08: última fila futura para la identidad completa.
+        for row in batch.cross_records:
+            cm=batch.cross_mapping
+            due=as_date(row.values.get(cm.get('vencimiento','')),batch.excel_epoch)
+            if due and due>date.fromisoformat(self.as_of) and all(cm.get(k) for k in key_fields):
+                key=tuple(historical_match(row.values.get(cm[k],'')) for k in key_fields)
+                if key in index and index[key]!=due:self.warnings.append('Cruce duplicado: se usa la última fila según el perfil Asistente.')
+                index[key]=due
+        if self.mode=='CUMPLIMIENTO' and (not batch.cross_records or not all(batch.cross_mapping.get(k) for k in (*key_fields,'vencimiento'))):
+            self.needs_cross=True
+            self.warnings.append('Sin cruce utilizable: no se evalúa C-10. Puedes documentar la excepción y continuar.')
+        # La función de observación recibe alias propios del Asistente.
+        cols=dict(self.mapping)
+        fn={'ESPERA':generar_observacion_espera,'CUMPLIMIENTO':generar_observacion_cumplimiento,'INFORMES':generar_observacion_informes}[self.mode]
+        for record in batch.records:
+            values=dict(record.values)
+            # Fechas seriales se interpretan con el calendario del libro antes del motor.
+            for name in ('nacimiento','resolucion','ingreso','egreso_proy','oido','prox_aud','ficha_ind','ficha_fae','vencimiento'):
+                column=cols.get(name)
+                if column and isinstance(values.get(column),(int,float)):
+                    values[column]=as_date(values[column],batch.excel_epoch)
+            ctx={'config':self.config,'events':[],'date':date.fromisoformat(self.as_of),'invalid':[]}
+            token=current.set(ctx)
+            inc=Incidencias()
+            warnings=[]
+            try:
+                if self.mode=='CUMPLIMIENTO':
+                    end=as_date(values.get(cols.get('egreso_proy','')),batch.excel_epoch)
+                    counts=[as_int(values.get(cols.get(k,''))) for k in ('dias_cumpl','dias_egresar')]
+                    if end and end>ctx['date'] and any(n is not None and n<0 for n in counts):
+                        warnings.append('Días negativos y egreso futuro: verifica la contradicción; no se afirma que la medida esté vencida.')
+                        ctx['invalid'].append('CUMPLIMIENTO.C04_VENCIDA')
+                court=tribunal(values.get(cols.get('tribunal',''),'')) or ''
+                if not court:warnings.append('Tribunal no reconocido; verifica acciones sugeridas.')
+                key=tuple(historical_match(values.get(cols.get(k,''),'')) for k in key_fields)
+                args={'incidencias':inc,'fila_excel':record.source.row_number}
+                if self.mode=='CUMPLIMIENTO':args['fecha_hoja2']=index.get(key)
+                observation=fn(values,court,cols,**args)
+                warnings.extend(i['MOTIVO'] for i in inc._items)
+            except (ValueError,TypeError,KeyError) as exc:
+                observation=''
+                warnings.append('No se pudo evaluar esta fila: '+str(exc))
+            finally:current.reset(token)
+            events=[e for e in ctx['events'] if e not in self.config['desactivadas']]
+            excluded='COMUN.NO_SEGUIMIENTO' in events
+            self.rows.append(Row(record.record_id,record.source.row_number,dict(record.values),observation,list(dict.fromkeys(events)),[] if excluded else actions_for(events),warnings,excluded))
+        return self
+
+    def document_exception(self,reason):
+        if not reason.strip():raise ValueError('Indica el motivo de la excepción de cruce.')
+        self.exception=reason.strip()
+
+    def export(self,destination,*,backend='native',reduced_fidelity=False):
+        if self.needs_cross and not self.exception:raise ValueError('Documenta la excepción de cruce de Cumplimiento antes de exportar.')
+        batch={'source_name':Path(self.path).name,'source_path':self.path,'source_hash':self.source_hash,
+               'primary_sheet':self.sheet,'header_row':self.header,'mode':self.mode,'export_stage':'proposal'}
+        records=[{'record_id':r.id,'source_sheet':self.sheet,'source_row':r.source_row,'source_hash':self.source_hash,
+                  'decision':'excluded' if r.excluded else 'pending','evaluation_status':'blocked' if r.warnings else 'reviewed',
+                  'edit_reason':'; '.join(r.warnings),'edited_observation':r.observation,'rule_ids_json':json.dumps(r.rules)} for r in self.rows]
+        result=_export_preserved_payload(self.content,{'batch':batch,'records':records,'exceptions':[self.exception] if self.exception else []},destination,backend=backend,allow_reduced_fidelity=reduced_fidelity)
+        self.output=str(result.path)
+        self.output_hash=sha256(Path(self.output).read_bytes()).hexdigest()
+        return self.output
+
+    def refresh(self):
+        """Actualiza la copia conocida, asociando por ID incluso después de ordenar."""
+        if not self.output:raise ValueError('Primero procesa y exporta el trabajo.')
+        path=Path(self.output)
+        if not path.exists():raise ValueError('La copia fue movida. Usa Localizar copia para indicar su nueva ubicación.')
+        digest=sha256(path.read_bytes()).hexdigest()
+        if digest==self.output_hash:return False
+        import pandas as pd
+        frame=pd.read_excel(path,sheet_name=self.sheet,header=self.header-1,dtype=object,keep_default_na=False)
+        if 'NURUS_ID_REGISTRO' not in frame:raise ValueError('Falta la columna de identidad; no se pueden asociar las ediciones.')
+        by_id={r.id:r for r in self.rows}
+        incoming={}
+        for values in frame.to_dict('records'):
+            key=str(values.get('NURUS_ID_REGISTRO','')).strip()
+            if not key:continue
+            if key not in by_id or key in incoming:raise ValueError('Hay identidades ajenas o duplicadas en la copia; no se aplicaron cambios.')
+            # Un ID pegado en otra persona no basta para acreditar identidad.
+            old=by_id[key]
+            for field in ('rit','rut','nombre','tribunal','programa'):
+                column=self.mapping.get(field)
+                if column and historical_match(values.get(column,''))!=historical_match(old.values.get(column,'')):
+                    raise ValueError('Cambió la identidad de una fila. No se aplicaron cambios; verifica '+field+'.')
+            incoming[key]={k:values.get(k,'') for k in ('OBSERVACION','FECHA_OBS','TT','CC','RES')}
+        if set(incoming)!=set(by_id):raise ValueError('Faltan registros en la copia; no se aplicaron cambios.')
+        for key,review in incoming.items():by_id[key].review=review
+        self.output_hash=digest
+        return True
+
+    @classmethod
+    def external(cls,path,config,mode='ESPERA'):
+        """Preparación particular desde registros externos; no inventa análisis RUS."""
+        import pandas as pd
+        from nurus.rus.columns import map_columns
+        from nurus.rus.models import SourceRecord, SourceReference
+        path=Path(path).resolve();obj=cls(config)
+        with pd.ExcelFile(path) as excel:
+            sheet=excel.sheet_names[0]
+            frame=pd.read_excel(excel,sheet_name=sheet,dtype=object,keep_default_na=False)
+        obj.mapping=map_columns(frame.columns,mode)
+        if not all(obj.mapping.get(k) for k in ('rit','tribunal','nombre')):
+            raise ValueError('El archivo externo requiere al menos RIT, TRIBUNAL y NOMBRE en la primera fila.')
+        obj.path=str(path);obj.output=str(path);obj.mode=mode;obj.as_of=date.today().isoformat();obj.sheet=sheet;obj.header=1
+        obj.content=path.read_bytes();obj.source_hash=sha256(obj.content).hexdigest();obj.output_hash=obj.source_hash;obj.needs_cross=False
+        obj.warnings=['Archivo externo: no se ejecutaron reglas ni se acredita revisión en RUS.']
+        for i,row in enumerate(frame.to_dict('records'),2):
+            r=SourceRecord(row,SourceReference(path.name,obj.source_hash,sheet,i))
+            obj.rows.append(Row(r.record_id,i,row,str(row.get('OBSERVACION','')),[],[],[]))
+        return obj
+
+    def save(self,directory):
+        directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
+        self.storage_directory=str(directory)
+        source=directory/(self.source_hash+'.bin')
+        if not source.exists():source.write_bytes(self.content)
+        data={k:v for k,v in self.__dict__.items() if k not in ('rows','content')}
+        data['rows']=[asdict(r) for r in self.rows]
+        atomic_json(directory/'trabajo.json',data)
+
+    @classmethod
+    def load(cls,directory):
+        directory=Path(directory)
+        data=json.loads((directory/'trabajo.json').read_text(encoding='utf-8'))
+        obj=cls(data['config']);obj.__dict__.update(data)
+        obj.rows=[Row(**r) for r in data['rows']]
+        obj.content=(directory/(obj.source_hash+'.bin')).read_bytes()
+        if sha256(obj.content).hexdigest()!=obj.source_hash:raise ValueError('La copia de origen guardada no coincide con el trabajo.')
+        return obj

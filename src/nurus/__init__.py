@@ -1,3 +1,3 @@
 """NuRus: revisión local, trazable y con control humano."""
 
-__version__ = "0.3.0.dev7"
+__version__ = "0.4.0.dev1"

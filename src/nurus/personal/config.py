@@ -1,0 +1,115 @@
+"""Configuración de dominio por usuario; nunca altera la instalación."""
+from copy import deepcopy
+from pathlib import Path
+import json
+import os
+import re
+import shutil
+import tempfile
+from string import Formatter
+
+BASE = Path(__file__).parent
+CC = 'ucc_concepcion@pjud.cl'
+VARIABLES = {'TRIBUNAL','ALCANCE_MODALIDADES','PERIODO','FECHA','PROGRAMA','TABLA_REGISTROS'}
+UMBRALES = dict(espera_dce=30, espera_laja=30, espera_mulchen=30, espera_tome=30,
+               proyecto_tome=60, mayoria=60, oido=45, resolucion_reciente=30,
+               ingreso_reciente=30, medida=45, informe=30, ficha_antigua=180,
+               ficha_reciente=30, ficha_fae=120)
+
+def user_directory():
+    return Path(os.environ.get('LOCALAPPDATA') or Path.home()) / 'CSMP_Personal'
+
+def atomic_json(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(dir=path.parent, suffix='.tmp')
+    try:
+        with os.fdopen(fd,'w',encoding='utf-8') as stream:
+            json.dump(data,stream,ensure_ascii=False,indent=2,default=str)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name,path)
+    finally:
+        Path(name).unlink(missing_ok=True)
+
+def emails(value):
+    result=[]
+    for part in re.split(r'[;,\n]+', str(value or '')):
+        part=part.strip()
+        if part and part.lower() not in {s.lower() for s in result}:
+            if not re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+",part):
+                raise ValueError('Dirección inválida: '+part)
+            result.append(part)
+    return result
+
+def defaults():
+    text=json.loads((BASE/'textos_base.json').read_text(encoding='utf-8'))
+    # Adaptación de propuesta: no acredita actos aún no ejecutados.
+    for scope,entries in text.items():
+        if scope.startswith('_'):continue
+        for entry in entries.values():
+            entry['texto']=entry['texto'].replace('Se remite correo electrónico','Se sugiere remitir correo electrónico').replace('se remite correo electrónico','se sugiere remitir correo electrónico').replace('Se remite proyecto de resolución','Se sugiere preparar proyecto de resolución')
+    mail=json.loads((BASE/'correos_base.json').read_text(encoding='utf-8'))
+    mail['tribunales']['LAJA']['nombre']='Jgdo. L. y G. de Laja'
+    mail['tribunales']['MULCHEN']['nombre']='Jgdo. L. y G. de Mulchén'
+    mail['tribunales']['TOME']['nombre']='Juzgado de Familia de Tomé'
+    for kind,title in [('programa_espera','Lista de espera'),('programa_vencido','Informes pendientes'),('programa_por_vencer','Informes por vencer')]:
+        body={
+            'programa_espera':'Junto con saludar, se acompaña nómina de registros en lista de espera de {PROGRAMA}, correspondientes a {TRIBUNAL}. Se solicita informar la fecha estimada de ingreso efectivo y el estado de las gestiones realizadas.',
+            'programa_vencido':'Junto con saludar, se acompaña nómina de informes que figuran pendientes de entrega en RUS, correspondientes a {PROGRAMA} y {TRIBUNAL}. Se solicita informar su estado y remitir los antecedentes que correspondan, o precisar si ya fueron presentados.',
+            'programa_por_vencer':'Junto con saludar, se envía planilla de causas cuyos informes se encuentran próximos a vencer, correspondientes a {PROGRAMA} y {TRIBUNAL}. Se solicita tener presentes las fechas indicadas y acusar recibo de la información.'}[kind]
+        mail['plantillas'][kind]={'nombre':title+' · programa','asunto':title+' — {PROGRAMA} — {TRIBUNAL}', 'cuerpo':'Buen día:\n\n'+body+'\n\nAtentamente,','adjunto':'obligatorio','usa_modalidades':False,'fuente':'Manual CSMP: Espera, Informes e instrucciones generales, páginas 7, 13 y 14.'}
+    raw=(BASE/'contactos_base.json').read_text(encoding='utf-8').strip()
+    records=json.loads(raw if raw.startswith('[') else '['+raw.rstrip(',')+']')
+    contacts={};ambiguous=set()
+    for record in records:
+        name=record['Nombre'].strip();address=record.get('Mail','').strip()
+        try:emails(address)
+        except ValueError:continue
+        if name in contacts and contacts[name]!=address:ambiguous.add(name)
+        else:contacts[name]=address
+    for name in ambiguous:contacts.pop(name,None)
+    aliases={a['alias']:a['nombre_catastro'] for a in json.loads((BASE/'aliases_base.json').read_text(encoding='utf-8'))}
+    return {'version':1,'perfil':'Asistente v9.1; prioridad confirmada por usuario',
+            'umbrales':deepcopy(UMBRALES),'desactivadas':[], 'textos':text,
+            'correos':mail,'contactos':contacts,'aliases':aliases,'cuenta_outlook':'','firma':''}
+
+def validate(cfg):
+    if cfg.get('version')!=1:raise ValueError('Versión de configuración no admitida.')
+    for key in UMBRALES:
+        v=cfg['umbrales'].get(key)
+        if type(v) is not int or not 0<=v<=730:raise ValueError('Umbral inválido: '+key)
+    if cfg['umbrales']['proyecto_tome']<cfg['umbrales']['espera_tome']:
+        raise ValueError('El umbral de proyecto Tomé no puede anteceder al correo.')
+    base=defaults()['textos']
+    for scope,entries in base.items():
+        if scope.startswith('_'):continue
+        for key,value in entries.items():
+            actual=cfg['textos'][scope][key]['texto']
+            old_fields={f for _,f,_,_ in Formatter().parse(value['texto']) if f}
+            new_fields={f for _,f,_,_ in Formatter().parse(actual) if f}
+            if new_fields != old_fields or not actual.strip():raise ValueError('Variables de observación inválidas: '+scope+'.'+key)
+    allowed={'COMUN.CURADOR','COMUN.OIDO','COMUN.PROX_AUDIENCIA','COMUN.PROXIMA_MAYORIA'}
+    if not set(cfg['desactivadas'])<=allowed:raise ValueError('Solo pueden desactivarse advertencias complementarias.')
+    for tpl in cfg['correos']['plantillas'].values():
+        for key in ('asunto','cuerpo'):
+            fields={f for _,f,_,_ in Formatter().parse(tpl[key]) if f}
+            if not fields<=VARIABLES:raise ValueError('Variable de correo desconocida: '+str(fields-VARIABLES))
+        if tpl['adjunto'] not in ('obligatorio','opcional'):raise ValueError('Requisito de adjunto inválido.')
+    for contact in cfg['contactos'].values():emails(contact)
+    for court in cfg['correos']['tribunales'].values():emails(';'.join(court['para']))
+    emails(cfg['correos'].get('cc_adicional',''))
+
+class Configuration:
+    def __init__(self,directory=None):
+        self.directory=Path(directory) if directory else user_directory()
+        self.path=self.directory/'configuracion.json'
+        if not self.path.exists():self.save(defaults())
+        try:self.data=json.loads(self.path.read_text(encoding='utf-8'));validate(self.data)
+        except Exception as exc:raise ValueError(f'Configuración no utilizable: {self.path}. Conserva el archivo y recupera su copia .bak. Detalle: {exc}') from exc
+
+    def save(self,data):
+        validate(data)
+        if self.path.exists():shutil.copyfile(self.path,self.path.with_suffix('.bak'))
+        atomic_json(self.path,data)
+        self.data=deepcopy(data)

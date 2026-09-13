@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nurus"
-version = "0.3.0.dev7"
-description = "Flujo local de revisión y generación para CSMP"
+version = "0.4.0.dev1"
+description = "CSMP personal: Excel, proyectos Word y borradores desde un trabajo compartido"
 requires-python = ">=3.12,<3.15"
-dependencies = ["pandas>=2.2,<3", "openpyxl>=3.1,<4", "python-docx>=1.1,<2"]
+dependencies = ["pandas>=2.2,<3", "openpyxl>=3.1,<4", "python-docx>=1.1,<2", "lxml>=4.9,<7"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
@@ -17,6 +17,7 @@ outlook = ["pywin32>=306; platform_system == 'Windows'"]
 
 [project.scripts]
 nurus = "nurus.app:main"
+csmp-assistant = "nurus.personal.app:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -25,3 +26,4 @@ testpaths = ["tests"]
 [tool.setuptools.package-data]
 "nurus.rus" = ["*.json"]
 "nurus.services" = ["*.json"]
+"nurus.personal" = ["*.json", "plantillas_word/*/*.docx"]
