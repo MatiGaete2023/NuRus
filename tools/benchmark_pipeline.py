@@ -92,7 +92,9 @@ def main():
     report = dict(version=__version__, python=platform.python_version(), platform=platform.platform(),
                   input="sintético", office_tested=False, results=[])
     for size in args.sizes:
-        with tempfile.TemporaryDirectory(prefix="nurus-benchmark-") as root:
+        # En Windows, SQLite/antivirus puede mantener un handle unos milisegundos después
+        # de cerrar la última conexión. El benchmark no debe fallar por el cleanup del temp.
+        with tempfile.TemporaryDirectory(prefix="nurus-benchmark-", ignore_cleanup_errors=True) as root:
             result = measure(size, Path(root))
             report["results"].append(result)
             print(json.dumps(result), flush=True)
