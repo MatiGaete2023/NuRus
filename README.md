@@ -2,7 +2,7 @@
 
 Aplicación de escritorio local para analizar y revisar planillas del seguimiento de medidas de protección con trazabilidad y control humano.
 
-**Versión de esta rama:** `0.3.0.dev6`. Requiere aceptación institucional antes de uso productivo.
+**Versión de esta rama:** `0.3.0.dev7`. Requiere aceptación institucional antes de uso productivo.
 
 Rendimiento y seguimiento actual: [informe dev6](docs/RENDIMIENTO_Y_PENDIENTES_20260913.md).
 
@@ -42,10 +42,10 @@ Correcciones de reconocimiento, guardado Excel y reutilización de la copia: [in
 
 ## Instalación recomendada en Windows
 
-La instalación debe quedar aislada del Python general del equipo.
+La instalación debe quedar aislada del Python general del equipo. La rama `dev7` admite **Python 3.12, 3.13 y 3.14**; versiones posteriores no se consideran soportadas hasta ser verificadas.
 
 1. Descarga o clona el repositorio en una carpeta estable.
-2. Ejecuta `Instalar_NuRus.bat`. Si `.venv` ya es válido, no necesita `py`. Para una instalación nueva detecta Python 3.12 mediante `NURUS_PYTHON_EXE`, `py -3.12`, `python`, `python3.12` y rutas estándar.
+2. Ejecuta `Instalar_NuRus.bat`. Si `.venv` ya es válido, no necesita `py`. Para una instalación nueva detecta Python 3.12–3.14 mediante `NURUS_PYTHON_EXE`, el launcher `py`, rutas estándar y los comandos `python`/`python3.x`.
 3. Después abre con doble clic `Abrir_NuRus.bat`.
 
 Al actualizar el código, vuelve a ejecutar `Instalar_NuRus.bat`: instala una copia del paquete, no una referencia editable al código fuente. La base de trabajo permanece en su ubicación local.
