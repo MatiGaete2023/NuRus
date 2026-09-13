@@ -8,15 +8,15 @@ echo ========================================
 
 if not exist ".venv\Scripts\python.exe" goto :create_venv
 
-".venv\Scripts\python.exe" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >nul 2>&1
+".venv\Scripts\python.exe" -c "import sys; v=sys.version_info[:2]; raise SystemExit(0 if (3, 12) <= v <= (3, 14) else 1)" >nul 2>&1
 if errorlevel 1 goto :wrong_venv
-echo Entorno NuRus existente detectado. No se requiere el comando py.
+echo Entorno NuRus compatible existente detectado. No se requiere buscar otro Python.
 goto :install
 
 :create_venv
 call :find_python
 if not defined NURUS_PYTHON goto :no_python
-echo Python 3.12 detectado: %NURUS_PYTHON%
+echo Python compatible 3.12-3.14 detectado: %NURUS_PYTHON%
 echo Creando entorno virtual .venv...
 %NURUS_PYTHON% -m venv .venv
 if errorlevel 1 goto :error
@@ -46,31 +46,39 @@ exit /b 0
 :find_python
 set "NURUS_PYTHON="
 if defined NURUS_PYTHON_EXE call :try_python "%NURUS_PYTHON_EXE%"
+if not defined NURUS_PYTHON call :try_python py -3.14
+if not defined NURUS_PYTHON call :try_python py -3.13
 if not defined NURUS_PYTHON call :try_python py -3.12
-if not defined NURUS_PYTHON call :try_python python
-if not defined NURUS_PYTHON call :try_python python3.12
+if not defined NURUS_PYTHON if exist "%LOCALAPPDATA%\Programs\Python\Python314\python.exe" call :try_python "%LOCALAPPDATA%\Programs\Python\Python314\python.exe"
+if not defined NURUS_PYTHON if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" call :try_python "%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
 if not defined NURUS_PYTHON if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" call :try_python "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+if not defined NURUS_PYTHON if exist "%ProgramFiles%\Python314\python.exe" call :try_python "%ProgramFiles%\Python314\python.exe"
+if not defined NURUS_PYTHON if exist "%ProgramFiles%\Python313\python.exe" call :try_python "%ProgramFiles%\Python313\python.exe"
 if not defined NURUS_PYTHON if exist "%ProgramFiles%\Python312\python.exe" call :try_python "%ProgramFiles%\Python312\python.exe"
+if not defined NURUS_PYTHON call :try_python python
+if not defined NURUS_PYTHON call :try_python python3.14
+if not defined NURUS_PYTHON call :try_python python3.13
+if not defined NURUS_PYTHON call :try_python python3.12
 exit /b 0
 
 :try_python
-%* -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >nul 2>&1
+%* -c "import sys; v=sys.version_info[:2]; raise SystemExit(0 if (3, 12) <= v <= (3, 14) else 1)" >nul 2>&1
 if not errorlevel 1 set "NURUS_PYTHON=%*"
 exit /b 0
 
 :wrong_venv
 echo.
-echo ERROR: existe .venv, pero no usa Python 3.12.
+echo ERROR: existe .venv, pero no usa una version soportada de Python 3.12 a 3.14.
 echo Renombra o elimina esa carpeta solo si no contiene trabajo pendiente y vuelve a ejecutar el instalador.
 pause
 exit /b 1
 
 :no_python
 echo.
-echo ERROR: no se encontro un ejecutable de Python 3.12.
-echo Se probo NURUS_PYTHON_EXE, py -3.12, python, python3.12 y rutas estandar.
+echo ERROR: no se encontro un ejecutable compatible de Python 3.12, 3.13 o 3.14.
+echo Se probo NURUS_PYTHON_EXE, el launcher py, rutas estandar y los comandos python/python3.x.
 echo Si ya conoces la ruta, ejecuta antes: set "NURUS_PYTHON_EXE=C:\ruta\python.exe"
-echo Instala Python 3.12 para tu usuario o solicita soporte institucional antes de continuar.
+echo Instala una version compatible para tu usuario o solicita soporte institucional antes de continuar.
 pause
 exit /b 1
 
