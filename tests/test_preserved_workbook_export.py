@@ -168,9 +168,9 @@ def test_native_backend_requires_windows_excel_environment(tmp_path):
         export_preserved_workbook(db, batch.batch_id, tmp_path / "salida.xlsx")
 
 
-@pytest.mark.parametrize("suffix,file_format", [(".xls", 56), (".xlsx", 51), (".xlsm", 52)])
+@pytest.mark.parametrize("suffix", [".xls", ".xlsx", ".xlsm"])
 @pytest.mark.parametrize("failure", [False, True])
-def test_native_saveas_separates_input_output_and_closes_excel(tmp_path, monkeypatch, suffix, file_format, failure):
+def test_native_savecopyas_separates_input_output_and_closes_excel(tmp_path, monkeypatch, suffix, failure):
     """Contrato COM simulado; no sustituye la aceptación en Excel real."""
     import sys
     from pathlib import Path
@@ -180,8 +180,8 @@ def test_native_saveas_separates_input_output_and_closes_excel(tmp_path, monkeyp
     content = b"legacy xls fixture"
     if suffix != ".xls":
         buffer = BytesIO()
-        book = Workbook()
-        book.save(buffer)
+        source_book = Workbook()
+        source_book.save(buffer)
         content = buffer.getvalue()
     target = tmp_path / ("output" + suffix)
     target.touch()
@@ -201,27 +201,27 @@ def test_native_saveas_separates_input_output_and_closes_excel(tmp_path, monkeyp
     book = MagicMock()
     book.Worksheets.return_value = sheet
     book.Worksheets.Count = 1
+    placeholder = MagicMock()
     app = MagicMock()
+    app.Workbooks.Add.return_value = placeholder
     opened = []
 
-    def open_book(path, **kwargs):
+    def open_book(path, *args):
         opened.append(Path(path))
         assert Path(path).read_bytes() == content
         assert Path(path) != target
-        assert kwargs["AddToMru"] is False
+        assert args == (0, False)
         return book
 
-    def save_as(**kwargs):
-        assert kwargs["FileFormat"] == file_format
-        assert kwargs["Filename"] == str(target)
-        assert kwargs["AddToMru"] is False
+    def save_copy_as(path):
+        assert path == str(target)
         assert not target.exists()
         if failure:
-            raise RuntimeError("SaveAs refused")
+            raise RuntimeError("SaveCopyAs refused")
         target.write_bytes(b"output-created-by-fake-excel")
 
     app.Workbooks.Open.side_effect = open_book
-    book.SaveAs.side_effect = save_as
+    book.SaveCopyAs.side_effect = save_copy_as
     pythoncom = MagicMock()
     win32com = MagicMock()
     win32com.client.DispatchEx.return_value = app
@@ -238,14 +238,17 @@ def test_native_saveas_separates_input_output_and_closes_excel(tmp_path, monkeyp
                      "source_hash": "hash"}],
     }
     if failure:
-        with pytest.raises(ExportError, match="Excel no pudo completar"):
+        with pytest.raises(ExportError, match="guardar la copia"):
             _native_preserved(content, target, snapshot)
     else:
         _native_preserved(content, target, snapshot)
         assert target.read_bytes() == b"output-created-by-fake-excel"
     book.Save.assert_not_called()
-    assert sheet.Range.return_value.FormatConditions.Add.return_value.Interior.Color == 255 + 242 * 256 + 204 * 65536
-    book.Close.assert_called_once_with(SaveChanges=False)
+    book.SaveAs.assert_not_called()
+    book.SaveCopyAs.assert_called_once_with(str(target))
+    placeholder.Close.assert_called_once_with(False)
+    book.Close.assert_called_once_with(False)
     app.Quit.assert_called_once()
     pythoncom.CoUninitialize.assert_called_once()
+    assert sheet.Range.return_value.Interior.Color == 255 + 242 * 256 + 204 * 65536
     assert opened and not opened[0].exists()
