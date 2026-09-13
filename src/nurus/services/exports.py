@@ -397,30 +397,34 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
     source_path = Path(source_handle.name)
     with source_handle:
         source_handle.write(content)
-    # SaveAs crea un resultado separado con formato explícito. El error genérico
-    # 0x800A03EC no acredita por sí solo una causa específica en Excel.
+
+    # El destino conserva siempre la misma extensión que el origen. SaveCopyAs evita
+    # conversiones de formato y reduce la superficie COM a un único argumento posicional.
     target.unlink(missing_ok=True)
     initialized = False
     app = book = placeholder = None
+    operation = "inicializar Excel"
     try:
         pythoncom.CoInitialize()
         initialized = True
+        operation = "iniciar Excel"
         app = win32com.client.DispatchEx("Excel.Application")
         app.Visible = False
         app.DisplayAlerts = False
         app.EnableEvents = False
         app.AskToUpdateLinks = False
         app.AutomationSecurity = 3
+
+        operation = "abrir el libro de trabajo"
         placeholder = app.Workbooks.Add()
-        app.Calculation = -4135
-        app.CalculateBeforeSave = False
-        book = app.Workbooks.Open(str(source_path), UpdateLinks=0, ReadOnly=False, AddToMru=False)
-        placeholder.Close(SaveChanges=False)
+        book = app.Workbooks.Open(str(source_path), 0, False)
+        placeholder.Close(False)
         placeholder = None
 
         batch = snapshot["batch"]
         stage = str(batch.get("export_stage", "reviewed"))
         observation_title = "NURUS_PROPUESTA" if stage == "proposal" else "NURUS_OBSERVACION_FINAL"
+        operation = "preparar la hoja procesada"
         sheet = book.Worksheets(batch["primary_sheet"])
         header_row = int(batch["header_row"])
         used_last = sheet.UsedRange.Column + sheet.UsedRange.Columns.Count - 1
@@ -438,6 +442,7 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             if sheet.Cells(header_row, column).Value2 in (None, ""):
                 sheet.Cells(header_row, column).Value2 = title
 
+        operation = "escribir observaciones y estados"
         records = _review_records(snapshot)
         last_row = sheet.UsedRange.Row + sheet.UsedRange.Rows.Count - 1
         writes: dict[str, list[tuple[int, object]]] = {title: [] for title in columns}
@@ -458,20 +463,20 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             _native_write_column(sheet, columns[title], updates,
                                  keep_existing=stage == "proposal" and title == "OBSERVACION")
 
+        # Un relleno directo es más compatible que crear una regla de formato condicional
+        # mediante argumentos COM nominales. Solo afecta a la copia de salida.
+        operation = "marcar filas excluidas"
         last_column = max(used_last, *columns.values())
-        status_column_letter = _excel_column_name(state_column)
-        if any(record["decision"] == "excluded" for record in records):
-            first = min(int(record["source_row"]) for record in records)
-            last = max(int(record["source_row"]) for record in records)
-            region = sheet.Range(sheet.Cells(first, 1), sheet.Cells(last, last_column))
-            rule = region.FormatConditions.Add(
-                Type=2, Formula1="=$" + status_column_letter + str(first) + '="EXCLUIDO"'
-            )
-            rule.Interior.Color = 255 + 242 * 256 + 204 * 65536  # RGB FFF2CC, igual al portable
-            rule.SetFirstPriority()
-            rule.StopIfTrue = False
+        excluded_color = 255 + 242 * 256 + 204 * 65536  # RGB FFF2CC
+        for record in records:
+            if record["decision"] != "excluded":
+                continue
+            row = int(record["source_row"])
+            region = sheet.Range(sheet.Cells(row, 1), sheet.Cells(row, last_column))
+            region.Interior.Color = excluded_color
 
-        trace = book.Worksheets.Add(After=book.Worksheets(book.Worksheets.Count))
+        operation = "crear la trazabilidad"
+        trace = book.Worksheets.Add()
         trace.Name = _trace_name({book.Worksheets(index).Name for index in range(1, book.Worksheets.Count + 1)})
         trace.Visible = 0
         trace_rows = _trace_rows(snapshot)
@@ -482,38 +487,41 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             tuple(str(_safe_cell(value)) if value is not None else "" for value in values)
             + ("",) * (width - len(values)) for values in trace_rows
         )
-        formats = {".xls": 56, ".xlsx": 51, ".xlsm": 52}
-        book.SaveAs(
-            Filename=str(target), FileFormat=formats[target.suffix.lower()],
-            AddToMru=False, ConflictResolution=2, Local=True,
-        )
+
+        operation = "guardar la copia"
+        book.SaveCopyAs(str(target))
         if not target.is_file() or target.stat().st_size == 0:
             raise ExportError("Excel no produjo un archivo de salida verificable.")
     except ExportError:
         raise
     except Exception as exc:
         raise ExportError(
-            "Excel no pudo completar la copia. El original no fue modificado. "
-            "Prueba guardar en una carpeta local con ruta corta; si Excel solicita permisos "
-            "o muestra Vista protegida, consulta a soporte sin desactivar controles. "
+            f"Excel no pudo completar la copia durante «{operation}». "
+            "El original no fue modificado. NuRus cerró la instancia de automatización. "
             f"Detalle: {exc}"
         ) from exc
     finally:
-        try:
-            if book is not None:
-                book.Close(SaveChanges=False)
-        finally:
+        if book is not None:
             try:
-                if placeholder is not None:
-                    placeholder.Close(SaveChanges=False)
-                if app is not None:
-                    app.Quit()
-            finally:
-                try:
-                    if initialized:
-                        pythoncom.CoUninitialize()
-                finally:
-                    source_path.unlink(missing_ok=True)
+                book.Close(False)
+            except Exception:
+                pass
+        if placeholder is not None:
+            try:
+                placeholder.Close(False)
+            except Exception:
+                pass
+        if app is not None:
+            try:
+                app.Quit()
+            except Exception:
+                pass
+        if initialized:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
+        source_path.unlink(missing_ok=True)
 
 
 def _excel_column_name(column: int) -> str:
