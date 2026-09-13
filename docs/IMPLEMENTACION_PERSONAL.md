@@ -79,7 +79,7 @@ Pendientes externos: PC_INFO de Laja y matrices de Tomé no figuran entre las ci
 
 [G-ESTADO]
 Objetivo: herramienta personal CSMP con una carga, propuestas y preparación de salidas con control humano.
-Confirmado: implementación automática y regresiones locales; fuentes y decisiones trazadas.
+Confirmado: implementación y 174 pruebas locales; 6/6 trabajos CI aprobados en Windows/Linux 3.12–3.14; paquete y fuentes comprobados.
 Limitaciones: aceptación Office y matrices judiciales no suministradas.
 [L-SIGUIENTE]
 Ejecutar ACEP-01 a ACEP-10 del protocolo institucional y registrar los resultados.
