@@ -82,11 +82,10 @@ def _records(
     header_row: int,
     mapping: dict[str, str],
 ) -> tuple[SourceRecord, ...]:
-    frame = frame.copy()
-    frame.columns = [str(header).strip() for header in frame.columns]
+    headers = [str(header).strip() for header in frame.columns]
     records: list[SourceRecord] = []
-    for index, row in frame.iterrows():
-        values = {str(key): value for key, value in row.items()}
+    for index, row in zip(frame.index, frame.itertuples(index=False, name=None), strict=True):
+        values = dict(zip(headers, row, strict=True))
         if all(_is_empty(value) for value in values.values()):
             continue
         # Totales, pies y notas pertenecen a la estructura del libro. Solo se

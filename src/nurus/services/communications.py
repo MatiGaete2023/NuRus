@@ -35,6 +35,8 @@ def prepare_communications(
     if policy["filter"] == "manual":
         raise ValueError("Este correo requiere preparación particular y selección manual de adjuntos.")
     selected = set(selected_record_ids or ())
+    if selected_record_ids is not None and not selected:
+        return []
     mapping = json.loads(batch["column_mapping"])
     groups = defaultdict(list)
     known = {row["record_id"] for row in snapshot["records"]}
@@ -103,11 +105,12 @@ def attach_snapshot_table(db, product, directory):
     from openpyxl.styles import Font, PatternFill
 
     snapshot = db.get_snapshot(product.batch_id, product.source_snapshot_hash)
+    selected = set(product.record_ids)
     records = [
         row for row in snapshot["records"]
-        if row["record_id"] in product.record_ids and row["decision"] == "approved"
+        if row["record_id"] in selected and row["decision"] == "approved" and row.get("rus_recorded")
     ]
-    if not records or len(records) != len(set(product.record_ids)):
+    if not records or len(records) != len(selected):
         raise ValueError("Selección de adjunto vacía o ajena a la constancia.")
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)

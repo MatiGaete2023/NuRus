@@ -1,6 +1,6 @@
 # Estado operativo de NuRus
 
-Actualizado: 12 de septiembre de 2026. Rama: `implementacion-plan-2026-09-08`. Aplicación: `0.3.0.dev5`; motor: `0.2.1`; esquema SQLite: 8. Evidencia y cambios: [revisión automatizada](REVISION_AUTOMATIZADA_20260912.md). Los informes anteriores describen sus versiones y no sustituyen este estado.
+Actualizado: 13 de septiembre de 2026. Rama: `implementacion-plan-2026-09-08`. Aplicación: `0.3.0.dev6`; motor: `0.2.1`; esquema SQLite: 8. Evidencia y cambios: [rendimiento y pendientes](RENDIMIENTO_Y_PENDIENTES_20260913.md). Los informes anteriores describen sus versiones y no sustituyen este estado.
 
 ## Objetivo e invariantes vigentes
 
@@ -22,6 +22,10 @@ Cumplimiento sin hoja de cruce permite excepción documentada con responsable y 
 - Estadísticas por fecha con valores administrativos originales; separación entre exclusión, falta de confirmación, fecha inválida y fuera de período.
 - Productos nuevos protegidos contra sobrescritura y limpieza de archivos parciales ante errores capturados. Texto externo protegido contra fórmulas en las salidas nuevas.
 - Instalación aislada no editable, detección de Python 3.12 y CI Windows/Linux con paquete instalado, recursos, construcción de wheel, compilación y pruebas.
+
+- Exportación nativa por bloques contiguos de hasta 500 celdas, sin atravesar filas ajenas; ruta portable sin recalcular el tamaño de la hoja por cada registro.
+- Benchmark sintético de 100/1.000/10.000 registros con validación de procedencia, exportación y recuperación; resultados como artefacto de CI.
+- Selección vacía explícita de correos genera cero productos; adjuntos requieren confirmación individual en RUS.
 
 ## Límites y pendientes materiales
 

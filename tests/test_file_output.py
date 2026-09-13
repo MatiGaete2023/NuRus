@@ -51,7 +51,7 @@ def test_nomina_treats_user_strings_as_text_not_formulas(tmp_path):
     db = Mock()
     db.get_snapshot.return_value = {
         "batch": {"column_mapping": json.dumps({"rit": "RIT", "nombre": "NOMBRE"})},
-        "records": [{"record_id": "id", "decision": "approved",
+        "records": [{"record_id": "id", "decision": "approved", "rus_recorded": True,
                      "values_json": json.dumps({"RIT": "=1+1", "NOMBRE": "+command"})}],
     }
     product = Mock(id="test-product", batch_id="batch", source_snapshot_hash="hash", record_ids=("id",), attachments=[])

@@ -52,8 +52,13 @@ jobs:
       - name: Tests
         run: python -m pytest -q
 
+      - name: Synthetic pipeline benchmark
+        run: python tools/benchmark_pipeline.py --output dist/benchmark-${{ matrix.os }}.json
+
       - name: Wheel artifact
         uses: actions/upload-artifact@v4
         with:
           name: nurus-wheel-${{ matrix.os }}
-          path: dist/*.whl
+          path: |
+            dist/*.whl
+            dist/benchmark-*.json

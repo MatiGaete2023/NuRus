@@ -286,7 +286,8 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         stage = str(batch.get("export_stage", "reviewed"))
         observation_title = "NURUS_PROPUESTA" if stage == "proposal" else "NURUS_OBSERVACION_FINAL"
         header_row = int(batch["header_row"])
-        if header_row < 1 or header_row > sheet.max_row:
+        source_last_row = sheet.max_row
+        if header_row < 1 or header_row > source_last_row:
             raise ExportError("La fila de encabezado del snapshot no es válida en el libro conservado.")
         headers = [sheet.cell(header_row, col).value for col in range(1, sheet.max_column + 1)]
         titles = (
@@ -311,7 +312,7 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         records = _review_records(snapshot)
         for record in records:
             row = int(record["source_row"])
-            if row <= header_row or row > sheet.max_row:
+            if row <= header_row or row > source_last_row:
                 raise ExportError(f"La fila {row} no existe en la hoja procesada.")
             observation, state = _annotation_values(record, stage)
             sheet.cell(row, columns["NURUS_ID_REGISTRO"]).value = _safe_cell(record["record_id"])
@@ -341,6 +342,29 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         book.save(target)
     finally:
         book.close()
+
+
+def _native_write_column(sheet, column: int, updates: list[tuple[int, object]], *,
+                         keep_existing: bool = False, chunk_size: int = 500) -> None:
+    """Escribe tramos contiguos; nunca atraviesa filas ajenas al conjunto dado."""
+    from itertools import groupby
+
+    if chunk_size < 1:
+        raise ValueError("El tamaño del bloque debe ser positivo.")
+    ordered = sorted(updates, key=lambda item: item[0])
+    for _, group in groupby(enumerate(ordered), key=lambda item: item[1][0] - item[0]):
+        contiguous = [item for _, item in group]
+        for offset in range(0, len(contiguous), chunk_size):
+            block = contiguous[offset:offset + chunk_size]
+            region = sheet.Range(sheet.Cells(block[0][0], column), sheet.Cells(block[-1][0], column))
+            if keep_existing:
+                values = region.Value2
+                current = [values] if len(block) == 1 and not isinstance(values, tuple) else [row[0] for row in values]
+                empty = [item for item, value in zip(block, current, strict=True) if value in (None, "")]
+                _native_write_column(sheet, column, empty, chunk_size=chunk_size)
+            else:
+                region.NumberFormat = "@"
+                region.Value2 = tuple((value,) for _, value in block)
 
 
 def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
@@ -416,34 +440,32 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
 
         records = _review_records(snapshot)
         last_row = sheet.UsedRange.Row + sheet.UsedRange.Rows.Count - 1
+        writes: dict[str, list[tuple[int, object]]] = {title: [] for title in columns}
         for record in records:
             row = int(record["source_row"])
             if row <= header_row or row > last_row:
                 raise ExportError(f"La fila {row} no existe en la hoja procesada.")
             observation, state = _annotation_values(record, stage)
-            sheet.Cells(row, columns["NURUS_ID_REGISTRO"]).NumberFormat = "@"
-            sheet.Cells(row, columns["NURUS_ID_REGISTRO"]).Value2 = str(record["record_id"])
-            sheet.Cells(row, observation_column).NumberFormat = "@"
-            sheet.Cells(row, observation_column).Value2 = observation
-            sheet.Cells(row, state_column).NumberFormat = "@"
-            sheet.Cells(row, state_column).Value2 = state
-            if stage == "proposal" and sheet.Cells(row, columns["OBSERVACION"]).Value2 in (None, ""):
-                sheet.Cells(row, columns["OBSERVACION"]).NumberFormat = "@"
-                sheet.Cells(row, columns["OBSERVACION"]).Value2 = observation
+            writes["NURUS_ID_REGISTRO"].append((row, str(record["record_id"])))
+            writes[observation_title].append((row, observation))
+            writes["NURUS_ESTADO_REVISION"].append((row, state))
+            if stage == "proposal":
+                writes["OBSERVACION"].append((row, observation))
             if stage == "reviewed":
                 for title, value in _reviewed_fields(record).items():
-                    sheet.Cells(row, columns[title]).NumberFormat = "@"
-                    sheet.Cells(row, columns[title]).Value2 = _safe_cell(value)
+                    writes[title].append((row, _safe_cell(value)))
+        for title, updates in writes.items():
+            _native_write_column(sheet, columns[title], updates,
+                                 keep_existing=stage == "proposal" and title == "OBSERVACION")
 
-        last_column = max(used_last, state_column)
+        last_column = max(used_last, *columns.values())
         status_column_letter = _excel_column_name(state_column)
-        for record in records:
-            if record["decision"] != "excluded":
-                continue
-            row = int(record["source_row"])
-            region = sheet.Range(sheet.Cells(row, 1), sheet.Cells(row, last_column))
+        if any(record["decision"] == "excluded" for record in records):
+            first = min(int(record["source_row"]) for record in records)
+            last = max(int(record["source_row"]) for record in records)
+            region = sheet.Range(sheet.Cells(first, 1), sheet.Cells(last, last_column))
             rule = region.FormatConditions.Add(
-                Type=2, Formula1="=$" + status_column_letter + str(row) + '="EXCLUIDO"'
+                Type=2, Formula1="=$" + status_column_letter + str(first) + '="EXCLUIDO"'
             )
             rule.Interior.Color = 255 + 242 * 256 + 204 * 65536  # RGB FFF2CC, igual al portable
             rule.SetFirstPriority()

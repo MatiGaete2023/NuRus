@@ -60,6 +60,24 @@ def test_grouped_email_uses_constancy_mandatory_cc_and_limited_attachment(tmp_pa
     assert load_workbook(path).active.max_row == 2
 
 
+def test_explicit_empty_selection_does_not_prepare_entire_batch(tmp_path):
+    db, batch, _ = _reviewed(tmp_path)
+    assert prepare_communications(db, batch.batch_id, "programa-espera", modalities="PRM",
+                                  selected_record_ids=[]) == []
+    assert len(prepare_communications(db, batch.batch_id, "programa-espera", modalities="PRM",
+                                     selected_record_ids=None)) == 1
+
+
+def test_attachment_rejects_record_without_rus_constancy(tmp_path):
+    from types import SimpleNamespace
+    db = SimpleNamespace(get_snapshot=lambda *_: {"records": [
+        {"record_id": "id", "decision": "approved", "rus_recorded": False}]})
+    product = SimpleNamespace(batch_id="batch", source_snapshot_hash="hash", record_ids=("id",))
+    with pytest.raises(ValueError, match="Selección"):
+        attach_snapshot_table(db, product, tmp_path / "adjuntos")
+    assert not (tmp_path / "adjuntos").exists()
+
+
 def test_resolution_word_is_bound_to_approved_product_and_snapshot(tmp_path):
     db, batch, record = _reviewed(tmp_path)
     product = prepare_resolution(
