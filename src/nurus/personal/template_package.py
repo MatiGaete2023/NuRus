@@ -21,7 +21,12 @@ def _matrix_patches():
         raise ValueError('La revisión de matrices empaquetada no coincide con la esperada.')
     result={}
     for relative,item in data['templates'].items():
-        xml=zlib.decompress(base64.b64decode(item['data']))
+        patch_path=BASE/item['file']
+        try:
+            encoded=patch_path.read_text(encoding='ascii').strip()
+            xml=zlib.decompress(base64.b64decode(encoded,validate=True))
+        except Exception as exc:
+            raise ValueError('Parche de matriz no utilizable: '+relative) from exc
         digest=hashlib.sha256(xml).hexdigest()
         if digest!=item['sha256']:
             raise ValueError('Parche de matriz alterado: '+relative)
