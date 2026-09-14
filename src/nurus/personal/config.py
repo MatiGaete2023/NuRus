@@ -15,6 +15,14 @@ UMBRALES = dict(espera_dce=30, espera_laja=30, espera_mulchen=30, espera_tome=30
                proyecto_tome=60, mayoria=60, oido=45, resolucion_reciente=30,
                ingreso_reciente=30, medida=45, informe=30, ficha_antigua=180,
                ficha_reciente=30, ficha_fae=120)
+CORREO_REVISION = 1
+LEGACY_CORREO_BODIES = {
+    'espera': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Espera del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',
+    'cumplimiento': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Cumplimiento del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',
+    'informes': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Informes del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',
+    'medidas': 'Buen día:\n\nJunto con saludar, se remite archivo Excel adjunto con nómina de medidas sin vigencia y por vencer al día {FECHA}, correspondiente a {ALCANCE_MODALIDADES}.\n\nAtte. a Ud.,',
+    'programa_por_vencer': 'Buen día:\n\nJunto con saludar, se envía planilla de causas cuyos informes se encuentran próximos a vencer, correspondientes a {PROGRAMA} y {TRIBUNAL}. Se solicita tener presentes las fechas indicadas y acusar recibo de la información.\n\nAtentamente,',
+}
 
 def user_directory():
     return Path(os.environ.get('LOCALAPPDATA') or Path.home()) / 'CSMP_Personal'
@@ -52,8 +60,9 @@ def defaults():
         body={
             'programa_espera':'Junto con saludar, se acompaña nómina de registros en lista de espera de {PROGRAMA}, correspondientes a {TRIBUNAL}. Se solicita informar la fecha estimada de ingreso efectivo y el estado de las gestiones realizadas.',
             'programa_vencido':'Junto con saludar, se acompaña nómina de informes que figuran pendientes de entrega en RUS, correspondientes a {PROGRAMA} y {TRIBUNAL}. Se solicita informar su estado y remitir los antecedentes que correspondan, o precisar si ya fueron presentados.',
-            'programa_por_vencer':'Junto con saludar, se envía planilla de causas cuyos informes se encuentran próximos a vencer, correspondientes a {PROGRAMA} y {TRIBUNAL}. Se solicita tener presentes las fechas indicadas y acusar recibo de la información.'}[kind]
-        mail['plantillas'][kind]={'nombre':title+' · programa','asunto':title+' — {PROGRAMA} — {TRIBUNAL}', 'cuerpo':'Buen día:\n\n'+body+'\n\nAtentamente,','adjunto':'obligatorio','usa_modalidades':False,'fuente':'Manual CSMP: Espera, Informes e instrucciones generales, páginas 7, 13 y 14.'}
+            'programa_por_vencer':'Junto con saludar, se envía planilla con RIT de causas en las cuales, informes de avances se encuentran pronto a vencer. Se ruega acusar recibo de la información.'}[kind]
+        closing='Atte. a Ud.,' if kind=='programa_por_vencer' else 'Atentamente,'
+        mail['plantillas'][kind]={'nombre':title+' · programa','asunto':title+' — {PROGRAMA} — {TRIBUNAL}', 'cuerpo':'Buen día:\n\n'+body+'\n\n'+closing,'adjunto':'obligatorio','usa_modalidades':False,'fuente':'Manual CSMP: Espera, Informes e instrucciones generales, páginas 7, 13 y 14.'}
     raw=(BASE/'contactos_base.json').read_text(encoding='utf-8').strip()
     records=json.loads(raw if raw.startswith('[') else '['+raw.rstrip(',')+']')
     contacts={};ambiguous=set()
@@ -65,7 +74,7 @@ def defaults():
         else:contacts[name]=address
     for name in ambiguous:contacts.pop(name,None)
     aliases={a['alias']:a['nombre_catastro'] for a in json.loads((BASE/'aliases_base.json').read_text(encoding='utf-8'))}
-    return {'version':1,'revision_textos':2,'perfil':'Asistente v9.1; prioridad confirmada por usuario',
+    return {'version':1,'revision_textos':2,'revision_correos':CORREO_REVISION,'perfil':'Asistente v9.1; prioridad confirmada por usuario',
             'umbrales':deepcopy(UMBRALES),'desactivadas':[], 'textos':text,
             'correos':mail,'contactos':contacts,'aliases':aliases,'cuenta_outlook':'','firma':''}
 
@@ -114,6 +123,16 @@ class Configuration:
                     if updated['textos'][scope][key]['texto']==previous:
                         updated['textos'][scope][key]['texto']=original
             updated['revision_textos']=2
+            self.save(updated)
+
+        if self.data.get('revision_correos',0)<CORREO_REVISION:
+            updated=deepcopy(self.data)
+            canonical=defaults()['correos']['plantillas']
+            for key,previous_body in LEGACY_CORREO_BODIES.items():
+                actual=updated.get('correos',{}).get('plantillas',{}).get(key)
+                if actual and actual.get('cuerpo')==previous_body and key in canonical:
+                    actual['cuerpo']=canonical[key]['cuerpo']
+            updated['revision_correos']=CORREO_REVISION
             self.save(updated)
 
         # Actualiza matrices empaquetadas una sola vez por revisión. Si existían
