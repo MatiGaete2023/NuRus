@@ -116,6 +116,11 @@ class Configuration:
             updated['revision_textos']=2
             self.save(updated)
 
+        # Actualiza matrices empaquetadas una sola vez por revisión. Si existían
+        # versiones distintas, conserva respaldo antes de instalar la nueva.
+        from .template_package import install_bundled_templates
+        install_bundled_templates(BASE/'plantillas_word',self.directory/'plantillas_word')
+
     def save(self,data):
         validate(data)
         if self.path.exists():shutil.copyfile(self.path,self.path.with_suffix('.bak'))
