@@ -11,7 +11,7 @@ from nurus.personal.work import Work
 from nurus.personal.importing import SheetChoice
 from nurus.personal.outputs import prepare_drafts,create_drafts,Draft
 from nurus.personal.resolutions import prepare_projects,generate_projects,replace_paragraph
-from nurus.personal.template_package import import_templates
+from nurus.personal.template_package import import_templates,install_bundled_templates
 
 def external(tmp_path,rows=None):
     book=Workbook();book.active.title='Portada';book.active['A1']='REPORTE'
@@ -72,6 +72,17 @@ def test_migration_restores_old_defaults_and_preserves_customizations(tmp_path):
     assert updated.data['textos']['ESPERA']['E05_PROYECTO_Y_CORREO']['texto']==original
     assert updated.data['textos']['ESPERA']['E05_SOLO_CORREO']['texto']=='Mi texto personalizado.'
     assert updated.path.with_suffix('.bak').exists()
+
+def test_bundled_template_revision_replaces_once_with_backup_then_preserves_user_edit(tmp_path):
+    source=tmp_path/'source';target=tmp_path/'target';(source/'LAJA').mkdir(parents=True);(target/'LAJA').mkdir(parents=True)
+    bundled=source/'LAJA/PC_IE.docx';old=target/'LAJA/PC_IE.docx'
+    Document().save(bundled);old.write_bytes(b'previous-template')
+    result=install_bundled_templates(source,target,revision='r1')
+    assert old.read_bytes()==bundled.read_bytes() and result['backups']
+    backup=Path(result['backups'][0]);assert backup.read_bytes()==b'previous-template'
+    old.write_bytes(b'user-edited-after-migration')
+    result=install_bundled_templates(source,target,revision='r1')
+    assert old.read_bytes()==b'user-edited-after-migration' and not result['installed']
 
 def test_single_word_groups_people_and_starts_next_project_on_new_page(tmp_path):
     work=external(tmp_path)
