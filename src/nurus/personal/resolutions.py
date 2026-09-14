@@ -79,11 +79,12 @@ def automatic_project_selections(work,fallback_kind='PC_IE'):
             for kind in (kind for kind in row.actions if kind in KINDS):result.append((row.id,kind))
         return result
 
-    by_id={row.id:row for row in work.rows}
+    # Recorre el orden humano de la planilla, no el orden no determinista de un set.
+    # Esto estabiliza el orden de tipos cuando una misma causa contiene más de una
+    # indicación explícita en RES.
     case_kinds=OrderedDict()
-    for rid in reviewed:
-        row=by_id.get(rid)
-        if not row or row.excluded:continue
+    for row in work.rows:
+        if row.id not in reviewed or row.excluded:continue
         explicit=resolution_kind(row.review.get('RES'))
         kinds=[explicit] if explicit else [kind for kind in row.actions if kind in KINDS]
         if not kinds:kinds=[fallback_kind]
