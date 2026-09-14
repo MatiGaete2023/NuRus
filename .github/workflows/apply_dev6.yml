@@ -5,7 +5,7 @@ on:
     branches:
       - csmp-personal-2026-09-13
     paths:
-      - tools/dev6.patch
+      - tools/apply_dev6.py
       - .github/workflows/apply_dev6.yml
 
 permissions:
@@ -25,9 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sed -i 's/\r$//' tools/dev6.patch
-          git apply --check --whitespace=nowarn tools/dev6.patch
-          git apply --whitespace=nowarn tools/dev6.patch
+          python tools/apply_dev6.py
           python -m compileall -q src tests tools
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
