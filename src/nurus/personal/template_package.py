@@ -42,33 +42,41 @@ def _replace_document_xml(path,xml,expected):
                 if info.filename=='word/document.xml':content=xml;found=True
                 target.writestr(info,content)
             if not found:raise ValueError('La matriz no contiene word/document.xml: '+str(path))
-        Document(temp)  # valida que el DOCX reconstruido siga siendo utilizable.
+        Document(temp)
         if _document_hash(temp)!=expected:raise ValueError('No se pudo verificar la matriz reconstruida: '+str(path))
         temp.replace(path)
     finally:
         temp.unlink(missing_ok=True)
 
+def _backup(target,revision):
+    suffix=revision.replace('-','_')
+    backup=target.with_name(target.stem+'.pre_'+suffix+'.bak.docx')
+    if not backup.exists():shutil.copyfile(target,backup)
+    return backup
+
 def install_bundled_templates(source,directory,revision=BUNDLED_REVISION):
-    """Instala la revisión de matrices una sola vez y respalda lo reemplazado.
+    """Instala una revisión una sola vez y respalda las matrices reemplazadas.
 
     La revisión 2026-09-14 sustituye únicamente el cuerpo XML de las cinco matrices
-    entregadas por el usuario. El resto del DOCX se conserva. Tras registrar la
-    revisión, una edición manual posterior no se sobrescribe automáticamente.
+    entregadas por el usuario. Tras registrar la revisión, una edición manual
+    posterior se conserva. Revisiones genéricas mantienen el comportamiento previo.
     """
     source=Path(source);root=Path(directory);root.mkdir(parents=True,exist_ok=True)
     marker=root/'.bundled_revision'
     previous=marker.read_text(encoding='utf-8').strip() if marker.exists() else ''
     migrating=previous!=revision
     patches=_matrix_patches() if revision==BUNDLED_REVISION else {}
-    installed=[];backups=[];preserved=[];patched=[];missing=[]
-    existed={}
+    installed=[];backups=[];preserved=[];patched=[];missing=[];existed={}
     if source.exists():
         for path in sorted(source.rglob('*.docx')):
             relative=path.relative_to(source);target=root/relative;target.parent.mkdir(parents=True,exist_ok=True)
             existed[relative]=target.exists()
             if not target.exists():
-                shutil.copyfile(path,target);installed.append(str(target))
-            else:preserved.append(str(target))
+                shutil.copyfile(path,target);installed.append(str(target));continue
+            if revision!=BUNDLED_REVISION and migrating and target.read_bytes()!=path.read_bytes():
+                backup=_backup(target,revision);backups.append(str(backup))
+                shutil.copyfile(path,target);installed.append(str(target));continue
+            preserved.append(str(target))
     for relative,(xml,digest) in patches.items():
         target=root/relative
         if not target.exists():
@@ -77,14 +85,9 @@ def install_bundled_templates(source,directory,revision=BUNDLED_REVISION):
             target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(baseline,target);installed.append(str(target));existed[relative]=False
         current=_document_hash(target)
         if current==digest:continue
-        # Con la misma revisión, una modificación humana posterior se conserva.
-        # Solo se repone un archivo ausente, caso tratado arriba.
         if not migrating:continue
         if existed.get(relative,True):
-            suffix=revision.replace('-','_')
-            backup=target.with_name(target.stem+'.pre_'+suffix+'.bak.docx')
-            if not backup.exists():shutil.copyfile(target,backup)
-            backups.append(str(backup))
+            backup=_backup(target,revision);backups.append(str(backup))
         _replace_document_xml(target,xml,digest);patched.append(str(target))
     if missing:raise ValueError('Faltan matrices base para aplicar la revisión: '+', '.join(missing))
     if migrating:
