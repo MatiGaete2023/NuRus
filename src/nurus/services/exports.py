@@ -291,9 +291,9 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             raise ExportError("La fila de encabezado del snapshot no es válida en el libro conservado.")
         headers = [sheet.cell(header_row, col).value for col in range(1, sheet.max_column + 1)]
         titles = (
-            ("NURUS_ID_REGISTRO", "NURUS_PROPUESTA", "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES", "NURUS_ESTADO_REVISION")
+            ("NURUS_ID_REGISTRO", "NURUS_REGLAS", "NURUS_PROPUESTA", "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES", "NURUS_ESTADO_REVISION")
             if stage == "proposal"
-            else ("NURUS_ID_REGISTRO", observation_title, "NURUS_ESTADO_REVISION",
+            else ("NURUS_ID_REGISTRO", "NURUS_REGLAS", observation_title, "NURUS_ESTADO_REVISION",
                   "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES")
         )
         columns = _column_plan(headers, titles)
@@ -316,6 +316,7 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
                 raise ExportError(f"La fila {row} no existe en la hoja procesada.")
             observation, state = _annotation_values(record, stage)
             sheet.cell(row, columns["NURUS_ID_REGISTRO"]).value = _safe_cell(record["record_id"])
+            sheet.cell(row, columns["NURUS_REGLAS"]).value = _safe_cell(record["rule_ids_json"])
             sheet.cell(row, observation_column).value = observation
             sheet.cell(row, state_column).value = state
             if stage == "proposal" and _is_blank_excel_value(sheet.cell(row, columns["OBSERVACION"]).value):
@@ -324,6 +325,7 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
                 for title, value in _reviewed_fields(record).items():
                     sheet.cell(row, columns[title]).value = _safe_cell(value)
 
+        sheet.column_dimensions[get_column_letter(columns["NURUS_REGLAS"])].hidden = True
         first_data_row = header_row + 1
         last_column = max(sheet.max_column, state_column)
         status_letter = get_column_letter(state_column)
@@ -430,9 +432,9 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         used_last = sheet.UsedRange.Column + sheet.UsedRange.Columns.Count - 1
         headers = [sheet.Cells(header_row, column).Value2 for column in range(1, used_last + 1)]
         titles = (
-            ("NURUS_ID_REGISTRO", "NURUS_PROPUESTA", "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES", "NURUS_ESTADO_REVISION")
+            ("NURUS_ID_REGISTRO", "NURUS_REGLAS", "NURUS_PROPUESTA", "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES", "NURUS_ESTADO_REVISION")
             if stage == "proposal"
-            else ("NURUS_ID_REGISTRO", observation_title, "NURUS_ESTADO_REVISION",
+            else ("NURUS_ID_REGISTRO", "NURUS_REGLAS", observation_title, "NURUS_ESTADO_REVISION",
                   "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES")
         )
         columns = _column_plan(headers, titles)
@@ -452,6 +454,7 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
                 raise ExportError(f"La fila {row} no existe en la hoja procesada.")
             observation, state = _annotation_values(record, stage)
             writes["NURUS_ID_REGISTRO"].append((row, str(record["record_id"])))
+            writes["NURUS_REGLAS"].append((row, str(record["rule_ids_json"])))
             writes[observation_title].append((row, observation))
             writes["NURUS_ESTADO_REVISION"].append((row, state))
             if stage == "proposal":
@@ -462,6 +465,7 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         for title, updates in writes.items():
             _native_write_column(sheet, columns[title], updates,
                                  keep_existing=stage == "proposal" and title == "OBSERVACION")
+        sheet.Columns(columns["NURUS_REGLAS"]).Hidden = True
 
         # Un relleno directo es más compatible que crear una regla de formato condicional
         # mediante argumentos COM nominales. Solo afecta a la copia de salida.

@@ -1,6 +1,6 @@
 # Ajustes de uso — 14 de septiembre de 2026
 
-Versión consolidada: **0.4.0.dev3**. Objetivo: preparar Excel, Word y borradores con menos pasos, manteniendo revisión humana y sin escribir en RUS/SATURNO ni enviar correos.
+Versión consolidada: **0.4.0.dev4**. Objetivo: preparar Excel, Word y borradores con menos pasos, manteniendo revisión humana y sin escribir en RUS/SATURNO ni enviar correos.
 
 ## Cambios consolidados
 
@@ -9,8 +9,9 @@ Versión consolidada: **0.4.0.dev3**. Objetivo: preparar Excel, Word y borradore
 - FAS se clasifica como Familia de acogida.
 - La planilla revisada respeta el modo elegido cuando contiene columnas de otros modos.
 - Cumplimiento sin cruce utilizable deja advertencia y no evalúa C-10; ya no bloquea ni muestra diálogo de excepción en CSMP Assistant personal.
-- Correos: selección de modalidades, editor ampliado, carga de planilla modificada/externa, guardado de todo el lote y adjuntos automáticos con nombre del programa.
-- Resoluciones: tipo manual independiente, agrupación tribunal + RIT + tipo, una resolución por grupo y un único Word con salto de página entre proyectos.
+- Correos: selección de modalidades, editor ampliado, carga de planilla modificada/externa, guardado de todo el lote y adjuntos automáticos con nombre del programa. Se agrega **Preparar TODOS los correos necesarios**, que incluye el informativo general de la pestaña y los correos específicos derivados de reglas en una sola preparación.
+- Las planillas exportadas conservan `NURUS_REGLAS` en columna técnica oculta; al reabrirlas se reconstruyen acciones/correos. Para copias anteriores se usa `NURUS_TRAZABILIDAD` como respaldo cuando es posible.
+- Resoluciones: tipo manual independiente, agrupación tribunal + RIT + tipo, una resolución por grupo y un único Word con salto de página entre proyectos. Las fechas generadas se expresan completamente en palabras.
 - Matrices: seis bases disponibles (Laja y Mulchén). Cinco cuerpos revisados se verifican por SHA-256; PC_INFO Laja se incorporó desde Word antiguo. Tomé sigue pendiente por falta de fuente.
 - La revisión de matrices repone correctamente un archivo eliminado aun cuando la revisión ya estaba marcada como aplicada.
 - Recursos de matrices divididos en cinco payloads pequeños independientes para evitar corrupción/truncamiento del archivo monolítico anterior.
@@ -24,5 +25,5 @@ La CI comprueba instalación aislada, wheel, dependencias, compilación, suite, 
 
 No hay matrices de Tomé. La CI no acredita comportamiento real de Excel 2010/Outlook clásico ni calidad jurídica de una resolución concreta; esas verificaciones siguen siendo humanas/institucionales.
 
-[G-ESTADO] Código y documentación alineados para 0.4.0.dev3.
+[G-ESTADO] Código y documentación alineados para 0.4.0.dev4.
 [L-SIGUIENTE] Ejecutar aceptación Office institucional con copias autorizadas.

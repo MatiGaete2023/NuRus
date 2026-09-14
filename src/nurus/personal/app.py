@@ -13,7 +13,7 @@ from tkinter.scrolledtext import ScrolledText
 
 from .config import Configuration, UMBRALES, atomic_json, validate
 from .work import Work
-from .outputs import prepare_drafts, create_draft, create_drafts, import_contacts, value
+from .outputs import prepare_drafts, prepare_required_drafts, create_draft, create_drafts, import_contacts, value
 from .resolutions import KINDS, prepare_projects, generate_projects
 from .modalities import MODALITIES
 from .importing import SheetChoice
@@ -259,9 +259,10 @@ class App(tk.Tk):
         page=self.pages['Correos'];top=ttk.Frame(page);top.pack(fill='x')
         self.mail_kind=tk.StringVar(value='programa_espera');self.period=tk.StringVar(value=date.today().strftime('%m/%Y'))
         self.kind_box=ttk.Combobox(top,textvariable=self.mail_kind,values=list(self.cfg.data['correos']['plantillas']),state='readonly',width=27);self.kind_box.grid(row=0,column=0)
-        ttk.Button(top,text='Preparar borradores',command=lambda:self._guard(self._prepare_mail)).grid(row=0,column=1,sticky='w',padx=6)
-        ttk.Button(top,text='Cargar planilla modificada / externa',command=lambda:self._guard(self._external)).grid(row=0,column=2)
-        options=ttk.Frame(top);options.grid(row=1,column=0,columnspan=3,sticky='w',pady=5)
+        ttk.Button(top,text='Preparar tipo seleccionado',command=lambda:self._guard(self._prepare_mail)).grid(row=0,column=1,sticky='w',padx=6)
+        ttk.Button(top,text='Preparar TODOS los correos necesarios',command=lambda:self._guard(self._prepare_all_mail)).grid(row=0,column=2,sticky='w',padx=6)
+        ttk.Button(top,text='Cargar planilla modificada / externa',command=lambda:self._guard(self._external)).grid(row=0,column=3)
+        options=ttk.Frame(top);options.grid(row=1,column=0,columnspan=4,sticky='w',pady=5)
         ttk.Label(options,text='Modalidades:').pack(side='left')
         self.modality_vars={}
         for key,label in [('RES','Residencial'),('AMB','Ambulatorio'),('FAE','Familia de acogida'),('DCE','DCE')]:
@@ -269,7 +270,7 @@ class App(tk.Tk):
             ttk.Checkbutton(options,text=label,variable=var).pack(side='left',padx=7)
         self._field(top,'Período',self.period,2)
         self.manual_mail=tk.BooleanVar()
-        ttk.Checkbutton(top,text='Usar solo la selección de Trabajo (opcional)',variable=self.manual_mail).grid(row=3,column=0,columnspan=3,sticky='w')
+        ttk.Checkbutton(top,text='Usar solo la selección de Trabajo (opcional; aplica al tipo seleccionado)',variable=self.manual_mail).grid(row=3,column=0,columnspan=4,sticky='w')
         split=ttk.Panedwindow(page,orient='horizontal');split.pack(fill='both',expand=True,pady=6)
         left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=1);split.add(right,weight=4)
         self.mail_list=tk.Listbox(left,exportselection=False,width=24);self.mail_list.pack(fill='both',expand=True);self.mail_list.bind('<<ListboxSelect>>',self._select_mail)
@@ -299,6 +300,21 @@ class App(tk.Tk):
             if drafts:self.mail_list.selection_set(0);self._select_mail()
             self.status.set(f'{len(drafts)} borradores preparados para revisión; todavía no se guardaron en Outlook.')
         self._run('Preparando textos y adjuntos…',lambda:prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,manual_selection=manual,modality_keys=keys),done)
+
+    def _prepare_all_mail(self):
+        work=self._require_work()
+        from copy import deepcopy
+        for key in ('correos','contactos','aliases','cuenta_outlook','firma'):
+            work.config[key]=deepcopy(self.cfg.data[key])
+        keys=[k for k,v in self.modality_vars.items() if v.get()]
+        if not keys:raise ValueError('Selecciona al menos una modalidad.')
+        modalities=', '.join(MODALITIES[k] for k in keys);period=self.period.get()
+        def done(drafts):
+            self.drafts=drafts;self.mail_list.delete(0,'end');self.draft_index=None
+            for d in drafts:self.mail_list.insert('end',d.subject)
+            if drafts:self.mail_list.selection_set(0);self._select_mail()
+            self.status.set(f'{len(drafts)} correos necesarios preparados: informativo general y gestiones específicas detectadas. Todavía no se guardaron en Outlook.')
+        self._run('Preparando todos los correos necesarios del trabajo…',lambda:prepare_required_drafts(work,modalities=modalities,period=period,modality_keys=keys),done)
 
     def _external(self):
         path=filedialog.askopenfilename(filetypes=[('Excel','*.xlsx *.xls *.xlsm')])

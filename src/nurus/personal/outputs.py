@@ -26,6 +26,33 @@ class Draft:
     required: bool = False
     key: str = ''
 
+_MONTHS = ('', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre')
+_UNITS = ('cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve')
+_SPECIAL = {10:'diez',11:'once',12:'doce',13:'trece',14:'catorce',15:'quince',16:'dieciséis',17:'diecisiete',18:'dieciocho',19:'diecinueve',20:'veinte',21:'veintiuno',22:'veintidós',23:'veintitrés',24:'veinticuatro',25:'veinticinco',26:'veintiséis',27:'veintisiete',28:'veintiocho',29:'veintinueve'}
+_TENS = {30:'treinta',40:'cuarenta',50:'cincuenta',60:'sesenta',70:'setenta',80:'ochenta',90:'noventa'}
+_HUNDREDS = {100:'cien',200:'doscientos',300:'trescientos',400:'cuatrocientos',500:'quinientos',600:'seiscientos',700:'setecientos',800:'ochocientos',900:'novecientos'}
+
+def number_in_words(number):
+    """Cardinal español suficiente para días y años de proyectos judiciales."""
+    number=int(number)
+    if number<0 or number>9999:raise ValueError('Número fuera del rango admitido para fecha.')
+    if number<10:return _UNITS[number]
+    if number in _SPECIAL:return _SPECIAL[number]
+    if number<100:
+        tens=(number//10)*10;unit=number%10
+        return _TENS[tens]+(' y '+_UNITS[unit] if unit else '')
+    if number<1000:
+        hundreds=(number//100)*100;rest=number%100
+        head='ciento' if hundreds==100 and rest else _HUNDREDS[hundreds]
+        return head+(' '+number_in_words(rest) if rest else '')
+    thousands=number//1000;rest=number%1000
+    head='mil' if thousands==1 else number_in_words(thousands)+' mil'
+    return head+(' '+number_in_words(rest) if rest else '')
+
+def date_in_words(value):
+    """Fecha completamente en palabras: «catorce de septiembre de dos mil veintiséis»."""
+    return f"{number_in_words(value.day)} de {_MONTHS[value.month]} de {number_in_words(value.year)}"
+
 def value(work,row,key):
     return str(row.values.get(work.mapping.get(key,''),'') or '')
 
@@ -108,6 +135,36 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
         draft.key=sha256((kind+'|'+','.join(r.id for r in rows)+'|'+draft.subject).encode()).hexdigest()
         output.append(draft)
     return output
+
+def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None):
+    """Prepara en una sola operación todas las comunicaciones que surgen del trabajo.
+
+    Incluye el informativo general de la pestaña y todos los correos derivados de
+    acciones del motor. No incluye «especial» ni «proyectos», que son productos
+    manuales y no se infieren automáticamente.
+    """
+    work.refresh()
+    cfg=work.config
+    templates=cfg['correos']['plantillas']
+    mode=str(getattr(work,'mode','')).lower()
+    kinds=[]
+    if mode in {'espera','cumplimiento','informes'} and mode in templates:
+        kinds.append(mode)
+    selected_ids=set(selected) if selected is not None else None
+    from .modalities import selected_row
+    action_kinds=set()
+    for row in work.rows:
+        if row.excluded or (selected_ids is not None and row.id not in selected_ids) or not selected_row(work,row,modality_keys):continue
+        action_kinds.update(action for action in row.actions if action in templates)
+    for kind in ('programa_espera','programa_vencido','programa_por_vencer','medidas'):
+        if kind in action_kinds:kinds.append(kind)
+    drafts=[]
+    seen=set()
+    for kind in kinds:
+        for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys):
+            if draft.key not in seen:
+                drafts.append(draft);seen.add(draft.key)
+    return drafts
 
 def program_filename(name):
     result=re.sub(r'[<>:"/\\|?*\x00-\x1f]','_',str(name)).strip().rstrip('. ')
@@ -196,11 +253,11 @@ def fill_docx(template,destination,values):
     return str(destination)
 
 def word_values(work,row):
-    from nurus.rus.rules import format_date, as_date
+    from nurus.rus.rules import as_date
     durations=[str(v) for k,v in row.values.items() if normalize(k) in ('duracion','plazo','vigencia')]
     vals={key.upper():value(work,row,key) for key in ('rit','rut','nombre','programa')}
     resolution=as_date(row.values.get(work.mapping.get('resolucion','')))
-    vals.update(FECHA=format_date(date.today()),FECHA_RESOLUCION=resolution.strftime('%d/%m/%Y') if resolution else '',DURACION=durations[0] if len(durations)==1 else '')
+    vals.update(FECHA=date_in_words(date.today()),FECHA_RESOLUCION=date_in_words(resolution) if resolution else '',DURACION=durations[0] if len(durations)==1 else '')
     return vals
 
 def template_variables(path):

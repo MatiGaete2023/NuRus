@@ -179,13 +179,15 @@ class Work:
         obj.sheet=data['sheet'];obj.header=data['header'];obj.mapping=data['mapping']
         obj.content=data['content'];obj.source_hash=data['digest'];obj.output_hash=data['digest'];obj.needs_cross=False;obj.cross_missing=False
         obj.external_input=True;obj.warnings=[];seen={}
-        for number,values,review in data['records']:
+        for number,values,review,rules in data['records']:
             identity='|'.join(historical_match(values.get(obj.mapping.get(k,''),'')) for k in ('rit','rut','nombre','tribunal','programa'))
             ordinal=seen.get(identity,0);seen[identity]=ordinal+1
             rid=str(values.get('NURUS_ID_REGISTRO','')).strip() or sha256((obj.sheet+'|'+identity+'|'+str(ordinal)).encode()).hexdigest()
             if any(r.id==rid for r in obj.rows):raise ValueError('El identificador de registro está duplicado en la planilla.')
             excluded=es_derivacion_sin_seg(str(values.get(obj.mapping.get('programa',''),'')))
-            obj.rows.append(Row(rid,number,values,str(review.get('OBSERVACION','')),[],[],[],excluded,review))
+            events=list(dict.fromkeys(rules))
+            actions=[] if excluded else actions_for(events)
+            obj.rows.append(Row(rid,number,values,str(review.get('OBSERVACION','')),events,actions,[],excluded,review))
         return obj
 
     def save(self,directory):

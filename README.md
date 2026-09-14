@@ -1,6 +1,6 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev3**, actualizada el 14 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos.
+Versión **0.4.0.dev4**, actualizada el 14 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos.
 
 ## Instalación y actualización
 
@@ -21,13 +21,15 @@ Puedes editar la observación en pantalla o cargar una planilla modificada/exter
 
 Las modalidades se seleccionan con casillas: Residencial, Ambulatorio, Familia de acogida y DCE. FAS se clasifica como Familia de acogida. Los campos Para, CC, asunto, cuerpo y adjuntos son editables antes de guardar.
 
-**Guardar TODOS los borradores** guarda el lote con una sola acción. No existe envío automático. Si no se conoce el destinatario, Para queda vacío. Siempre se incorpora la copia institucional configurada. Las nóminas automáticas se nombran con el programa; si un correo reúne varios programas se crea una nómina por programa.
+**Preparar TODOS los correos necesarios** reúne en una sola operación el correo informativo general correspondiente a la pestaña revisada y todos los correos específicos detectados por las reglas (espera, informes vencidos/por vencer y medidas vencidas/por vencer). `especial` y `proyectos` siguen siendo productos manuales. **Guardar TODOS los borradores** guarda el lote preparado con una sola acción. No existe envío automático. Si no se conoce el destinatario, Para queda vacío. Siempre se incorpora la copia institucional configurada. Las nóminas automáticas se nombran con el programa; si un correo reúne varios programas se crea una nómina por programa.
+
+Las copias nuevas incorporan una columna técnica oculta `NURUS_REGLAS`; al cargar una planilla modificada se recuperan esas reglas y, con ellas, los correos específicos que correspondan. Las copias de versiones anteriores intentan recuperar la misma información desde la hoja oculta `NURUS_TRAZABILIDAD`.
 
 ## Resoluciones
 
 El tipo `PC_IE`, `PC_INFO` o `NOMENCL` se puede asignar de forma independiente de la sugerencia del motor. Los proyectos se agrupan por **tribunal + RIT + tipo**. Si hay varias personas en el mismo grupo, se genera un solo proyecto con la individualización correspondiente.
 
-**Generar UN Word** produce un único archivo y cada proyecto comienza en página nueva. Los datos ausentes se marcan como `[COMPLETAR ...]`.
+**Generar UN Word** produce un único archivo y cada proyecto comienza en página nueva. Los datos ausentes se marcan como `[COMPLETAR ...]`. Todas las fechas insertadas por el generador de proyectos se escriben íntegramente en palabras, por ejemplo: `catorce de septiembre de dos mil veintiséis`.
 
 ### Matrices vigentes
 

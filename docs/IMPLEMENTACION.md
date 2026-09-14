@@ -1,6 +1,6 @@
 # Estado operativo del repositorio NuRus
 
-Actualizado: 14 de septiembre de 2026. Rama auditada: `csmp-personal-2026-09-13`. Versión del paquete: **0.4.0.dev3**.
+Actualizado: 14 de septiembre de 2026. Rama auditada: `csmp-personal-2026-09-13`. Versión del paquete: **0.4.0.dev4**.
 
 ## Alcance actual
 

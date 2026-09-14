@@ -2,6 +2,7 @@
 from io import BytesIO
 from pathlib import Path
 from hashlib import sha256
+import json
 from nurus.rus.columns import map_columns, normalize, ColumnMappingError
 
 class SheetChoice(ValueError):
@@ -45,7 +46,8 @@ def read_external(path,mode='ESPERA',sheet=None):
                 for key,aliases in {'OBSERVACION':('observacion','observaciones'),'FECHA_OBS':('fecha_obs','fecha obs','fecha observacion'),'TT':('tt',),'CC':('cc',),'RES':('res','resolucion generada')}.items():
                     found=[h for h in headers if normalize(h) in {normalize(a) for a in aliases}]
                     if len(found)==1:human[key]=found[0]
-                candidates.append((name,i+1,headers,mapping,detected,human))
+                rules_col=next((h for h in headers if normalize(h)==normalize('NURUS_REGLAS')),None)
+                candidates.append((name,i+1,headers,mapping,detected,human,rules_col))
                 break
         if not candidates:raise ValueError('No se encontró una tabla con RIT, TRIBUNAL y NOMBRE en las primeras 60 filas. Revisa la hoja y sus encabezados.')
         if len(candidates)>1:
@@ -53,12 +55,43 @@ def read_external(path,mode='ESPERA',sheet=None):
             if len(preferred)!=1:raise SheetChoice(c[0] for c in candidates)
             chosen=preferred[0]
         else:chosen=candidates[0]
-        name,header,headers,mapping,detected,human=chosen
+        name,header,headers,mapping,detected,human,rules_col=chosen
+        trace_rules={}
+        for trace_name in book.sheet_names:
+            if not normalize(trace_name).startswith(normalize('NURUS_TRAZABILIDAD')):continue
+            trace=pd.read_excel(book,sheet_name=trace_name,header=None,dtype=object,keep_default_na=False)
+            header_index=None;trace_headers=None
+            for idx,values in enumerate(trace.itertuples(index=False,name=None)):
+                normalized=[normalize(v) for v in values]
+                if all(normalize(key) in normalized for key in ('HOJA','FILA','REGLAS')):
+                    header_index=idx;trace_headers=list(values);break
+            if header_index is None:continue
+            positions={normalize(value):pos for pos,value in enumerate(trace_headers)}
+            for values in list(trace.itertuples(index=False,name=None))[header_index+1:]:
+                try:
+                    source_sheet=str(values[positions[normalize('HOJA')]] or '').strip()
+                    source_row=int(float(values[positions[normalize('FILA')]]))
+                    raw=str(values[positions[normalize('REGLAS')]] or '').strip()
+                    parsed=json.loads(raw) if raw else []
+                except (ValueError,TypeError,json.JSONDecodeError,IndexError):
+                    continue
+                if source_sheet and isinstance(parsed,list):
+                    trace_rules[(normalize(source_sheet),source_row)]=[str(item) for item in parsed if str(item).strip()]
         frame=pd.read_excel(book,sheet_name=name,header=None,skiprows=header,dtype=object,keep_default_na=False)
         records=[]
         for offset,vals in enumerate(frame.itertuples(index=False,name=None),header+1):
             row={h:vals[j] if j<len(vals) else '' for j,h in enumerate(headers)}
             if not str(row.get(mapping['rit'],'')).strip() or not str(row.get(mapping['nombre'],'')).strip():continue
             review={key:row.get(col,'') for key,col in human.items()}
-            records.append((offset,row,review))
+            rules=[]
+            if rules_col:
+                raw=str(row.get(rules_col,'') or '').strip()
+                if raw:
+                    try:
+                        parsed=json.loads(raw)
+                        if isinstance(parsed,list):rules=[str(item) for item in parsed if str(item).strip()]
+                    except (json.JSONDecodeError,TypeError):
+                        pass
+            if not rules:rules=list(trace_rules.get((normalize(name),offset),[]))
+            records.append((offset,row,review,rules))
     return dict(path=str(path),content=content,digest=sha256(content).hexdigest(),sheet=name,header=header,mapping=mapping,mode=detected,records=records)

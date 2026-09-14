@@ -7,7 +7,7 @@ from openpyxl import Workbook, load_workbook
 from docx import Document
 from nurus.personal.config import defaults, Configuration, CC
 from nurus.personal.work import Work
-from nurus.personal.outputs import prepare_drafts, fill_docx, resolve_contact, create_draft, Draft
+from nurus.personal.outputs import prepare_drafts, prepare_required_drafts, date_in_words, fill_docx, resolve_contact, create_draft, Draft
 
 def source(tmp_path,mode='ESPERA',program='AFT EJEMPLO',days=30):
     b=Workbook();s=b.active;s.title='informe_1'
@@ -151,3 +151,55 @@ def test_statistics_do_not_count_proposals_as_completed_reviews(tmp_path):
     w=exported(tmp_path);assert summarize(w)['constancias']==0
     w.rows[0].review={'OBSERVACION':'Revisado','FECHA_OBS':'2026-09-13','TT':1,'CC':0}
     totals=summarize(w);assert totals['constancias']==1 and totals['sin_carga']==1
+
+
+def test_resolution_dates_are_fully_written_in_words():
+    assert date_in_words(date(2026,9,14))=='catorce de septiembre de dos mil veintiséis'
+    assert date_in_words(date(2024,1,1))=='uno de enero de dos mil veinticuatro'
+    assert date_in_words(date(2000,12,31))=='treinta y uno de diciembre de dos mil'
+
+@pytest.mark.parametrize('mode,expected_specific',[('ESPERA','Lista de espera'),('CUMPLIMIENTO','Medidas sin vigencia'),('INFORMES','Informes pendientes')])
+def test_prepare_required_drafts_includes_general_and_specific_mail(tmp_path,mode,expected_specific):
+    w=exported(tmp_path,mode)
+    drafts=prepare_required_drafts(w,modalities='Intervención ambulatoria de reparación',modality_keys=['AMB'])
+    subjects=[d.subject for d in drafts]
+    assert any('Revisión pestaña' in subject for subject in subjects)
+    assert any(expected_specific in subject for subject in subjects)
+    assert len(drafts)>=2
+
+def test_exported_review_recovers_rule_actions_when_reloaded(tmp_path):
+    w=exported(tmp_path,'ESPERA')
+    book=load_workbook(w.output)
+    headers={cell.value:cell.column for cell in book[w.sheet][w.header]}
+    assert 'NURUS_REGLAS' in headers
+    assert book[w.sheet].column_dimensions[book[w.sheet].cell(w.header,headers['NURUS_REGLAS']).column_letter].hidden
+    reloaded=Work.external(w.output,defaults(),mode='ESPERA')
+    assert reloaded.rows[0].rules==w.rows[0].rules
+    assert reloaded.rows[0].actions==w.rows[0].actions
+    drafts=prepare_required_drafts(reloaded,modalities='Intervención ambulatoria de reparación',modality_keys=['AMB'])
+    assert len(drafts)>=2
+
+def test_previous_export_without_hidden_rules_uses_trace_fallback(tmp_path):
+    w=exported(tmp_path,'ESPERA')
+    book=load_workbook(w.output)
+    sheet=book[w.sheet]
+    headers={cell.value:cell.column for cell in sheet[w.header]}
+    sheet.delete_cols(headers['NURUS_REGLAS'])
+    book.save(w.output)
+    reloaded=Work.external(w.output,defaults(),mode='ESPERA')
+    assert reloaded.rows[0].actions==w.rows[0].actions
+
+
+def test_prepare_required_drafts_creates_each_program_mail(tmp_path):
+    path=source(tmp_path,'ESPERA',program='AFT UNO',days=30)
+    book=load_workbook(path);sheet=book.active
+    values=[cell.value for cell in sheet[4]]
+    values[0]='X-2-2026';values[2]='Persona Dos';values[3]='22222222-2';values[4]='AFT DOS'
+    sheet.append(values);book.save(path)
+    work=Work(defaults()).analyze(path,'ESPERA',as_of=date(2026,9,13))
+    work.export(tmp_path/'salida_multi.xlsx',backend='portable',reduced_fidelity=True)
+    drafts=prepare_required_drafts(work,modalities='Intervención ambulatoria de reparación',modality_keys=['AMB'])
+    program_subjects=[d.subject for d in drafts if d.required]
+    assert len(drafts)==3
+    assert any('AFT UNO' in subject for subject in program_subjects)
+    assert any('AFT DOS' in subject for subject in program_subjects)
