@@ -1,0 +1,38 @@
+name: Apply CSMP dev4 correction
+
+on:
+  push:
+    branches:
+      - csmp-personal-2026-09-13
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'Bootstrap CSMP dev4 correction'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: csmp-personal-2026-09-13
+          fetch-depth: 0
+
+      - name: Apply reviewed correction
+        shell: bash
+        run: |
+          gzip -dc tools/dev4.patch.gz > /tmp/dev4.patch
+          git apply --check /tmp/dev4.patch
+          git apply --whitespace=nowarn /tmp/dev4.patch
+          python -m compileall -q src tests tools
+
+      - name: Publish correction
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md pyproject.toml src tests docs
+          git diff --cached --check
+          git commit -m 'Fix resolution dates and prepare all required emails'
+          git push origin HEAD:csmp-personal-2026-09-13
