@@ -85,7 +85,10 @@ def install_bundled_templates(source,directory,revision=BUNDLED_REVISION):
             target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(baseline,target);installed.append(str(target));existed[relative]=False
         current=_document_hash(target)
         if current==digest:continue
-        if not migrating:continue
+        # Una edición manual se preserva cuando la misma revisión ya fue aplicada.
+        # Si el archivo faltaba y acaba de reponerse desde la base, sí debe recibir
+        # nuevamente el cuerpo de la revisión vigente.
+        if not migrating and existed.get(relative,True):continue
         if existed.get(relative,True):
             backup=_backup(target,revision);backups.append(str(backup))
         _replace_document_xml(target,xml,digest);patched.append(str(target))
