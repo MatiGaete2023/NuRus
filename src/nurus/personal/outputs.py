@@ -1,7 +1,7 @@
 """Salidas desde el trabajo compartido. No modifica RUS ni envía correos."""
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from hashlib import sha256
 from pathlib import Path
 from string import Formatter
@@ -54,7 +54,11 @@ def date_in_words(value):
     return f"{number_in_words(value.day)} de {_MONTHS[value.month]} de {number_in_words(value.year)}"
 
 def value(work,row,key):
-    return str(row.values.get(work.mapping.get(key,''),'') or '')
+    """Texto operativo de una celda sin perder ceros ni exponer horas de Excel."""
+    raw=row.values.get(work.mapping.get(key,''),'')
+    if raw is None:return ''
+    if isinstance(raw,(datetime,date)):return raw.strftime('%d/%m/%Y')
+    return str(raw)
 
 def resolve_contact(cfg,name):
     key=normalize(name)
