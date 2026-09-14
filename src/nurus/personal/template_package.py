@@ -1,4 +1,4 @@
-"""Importación local de matrices proporcionadas por el usuario."""
+"""Importación y actualización local de matrices proporcionadas por el usuario."""
 from pathlib import Path
 from zipfile import ZipFile
 from io import BytesIO
@@ -6,6 +6,36 @@ from docx import Document
 import re
 import shutil
 from nurus.rus.columns import normalize
+
+BUNDLED_REVISION='2026-09-14-matrices-1'
+
+def install_bundled_templates(source,directory,revision=BUNDLED_REVISION):
+    """Instala una revisión de matrices una sola vez y respalda las anteriores.
+
+    Tras registrar la revisión, los inicios posteriores solo reponen archivos ausentes;
+    por ello una edición manual posterior no se sobrescribe automáticamente.
+    """
+    source=Path(source);root=Path(directory);root.mkdir(parents=True,exist_ok=True)
+    marker=root/'.bundled_revision'
+    previous=marker.read_text(encoding='utf-8').strip() if marker.exists() else ''
+    migrating=previous!=revision
+    installed=[];backups=[];preserved=[]
+    if source.exists():
+        for path in sorted(source.rglob('*.docx')):
+            relative=path.relative_to(source);target=root/relative;target.parent.mkdir(parents=True,exist_ok=True)
+            if not target.exists():
+                shutil.copyfile(path,target);installed.append(str(target));continue
+            if not migrating:
+                preserved.append(str(target));continue
+            if target.read_bytes()==path.read_bytes():
+                preserved.append(str(target));continue
+            backup=target.with_name(target.stem+'.pre_'+revision.replace('-','_')+'.bak.docx')
+            if not backup.exists():shutil.copyfile(target,backup)
+            backups.append(str(backup));shutil.copyfile(path,target);installed.append(str(target))
+    if migrating:
+        temp=marker.with_suffix('.tmp');temp.write_text(revision,encoding='utf-8');temp.replace(marker)
+    return {'revision':revision,'installed':installed,'backups':backups,'preserved':preserved}
+
 def import_templates(path,directory):
     root=Path(directory);pending={};unmatched=[]
     with ZipFile(path) as archive:
