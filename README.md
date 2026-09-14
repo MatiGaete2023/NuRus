@@ -19,11 +19,11 @@ Las observaciones vuelven a usar la redacción de gestión realizada del Asisten
 
 Puedes editar la observación del registro en el área inferior de Trabajo. Esa edición se usa en los productos de la sesión; no escribe automáticamente en el original. También puedes cargar una planilla modificada desde Trabajo, Correos o Resoluciones, sin pasar otra vez por el motor. Se buscan encabezados en todas las hojas, hasta la fila 60; solo se solicita elegir hoja si hay más de una tabla reconocida y no se distingue la correspondiente.
 
-Los excluidos siguen presentes y coloreados en el Excel del motor. La excepción documentada de Cumplimiento se mantiene si falta la hoja cruzada.
+Los excluidos siguen presentes y coloreados en el Excel del motor. Si falta la hoja cruzada de Cumplimiento, C-10 no se evalúa y la revisión continúa con una advertencia; esa ausencia ya no bloquea la preparación del producto.
 
 ## Correos
 
-Marca las modalidades con casillas: Residencial, Ambulatorio, Familia de acogida y DCE. Prepara los borradores y edita Para, CC, asunto, cuerpo o adjuntos en el panel ampliable.
+Marca las modalidades con casillas: Residencial, Ambulatorio, Familia de acogida y DCE. FAS se clasifica junto con Familia de acogida. Prepara los borradores y edita Para, CC, asunto, cuerpo o adjuntos en el panel ampliable.
 
 **Guardar TODOS los borradores** guarda el lote con una sola acción. Puedes guardar solo el correo visible si lo prefieres. No hay aprobación por correo ni envío automático. Para desconocido queda vacío; siempre se agrega copia a ucc_concepcion@pjud.cl.
 
@@ -39,7 +39,13 @@ Preparar / actualizar proyectos agrupa por **tribunal + RIT + tipo**. Personas c
 
 Edita el texto en el panel derecho y pulsa **Generar UN Word**. El archivo reúne el lote y cada proyecto comienza en página nueva. Si un proyecto es demasiado largo, puede ocupar más de una página; no se recorta información para forzarlo. Los datos que falten se marcan [COMPLETAR ...] para editarlos sin un interrogatorio previo.
 
-Las matrices se editan desde Configuración. Puedes incorporar un DOCX indicando tribunal/tipo o importar un ZIP organizado como LAJA/PC_IE.docx, MULCHEN/PC_INFO.docx, etc. Se respalda cada matriz reemplazada. Los archivos sin identificación inequívoca se informan para asignarlos; no se asume una matriz judicial.
+### Matrices vigentes
+
+El paquete proporcionado por el usuario el 14 de septiembre de 2026 fue inspeccionado. Se incorporó la revisión visual de cinco matrices: LAJA/NOMENCL, LAJA/PC_IE, MULCHEN/NOMENCL, MULCHEN/PC_IE y MULCHEN/PC_INFO. Además, LAJA/PC_INFO fue convertida desde el archivo Word antiguo entregado y permanece incorporada. El paquete no contiene matrices de Tomé; por ello Tomé sigue pendiente y el programa no inventa sustitutos.
+
+Para las cinco matrices revisadas, la aplicación conserva la estructura DOCX estable y sustituye el cuerpo XML por la versión proporcionada. La equivalencia visual fue comprobada contra los archivos entregados: las cinco salidas renderizadas coincidieron píxel por píxel. Cada cuerpo se valida además mediante SHA-256 al instalarse.
+
+La revisión se aplica una sola vez. Si ya existe una matriz distinta, se crea un respaldo antes de actualizarla. Las ediciones manuales realizadas después de esa migración no se sobrescriben en los siguientes inicios. Las matrices también pueden editarse o importarse posteriormente desde Configuración.
 
 ## Enviados y estadísticas
 
@@ -48,5 +54,3 @@ Enviados consulta Outlook en modo de solo lectura y exporta el resultado. El res
 ## Estado y verificación
 
 Consulta [Cambios del 14 de septiembre](docs/CAMBIOS_USO_20260914.md) y GitHub Actions sobre el commit instalado. Las pruebas de compatibilidad se ejecutan únicamente en Windows con Python 3.12–3.14. La prueba con Excel/Outlook institucionales sigue siendo necesaria.
-
-El ZIP de nuevas matrices adjuntado en la conversación aún no pudo inspeccionarse por indisponibilidad del entorno de archivos. Por ello esta actualización conserva las cinco matrices previamente incorporadas y añade el importador de paquetes. No se afirma haber integrado las nuevas ni las de Tomé.
