@@ -13,6 +13,8 @@ def read_external(path,mode='ESPERA',sheet=None):
     import pandas as pd
     path=Path(path).resolve()
     content=path.read_bytes()
+    requested=str(mode).upper()
+    distinctive={'ESPERA':'espera','CUMPLIMIENTO':'dias_cumpl','INFORMES':'vencimiento'}
     candidates=[]
     with pd.ExcelFile(BytesIO(content),engine='xlrd' if path.suffix.lower()=='.xls' else 'openpyxl') as book:
         for name in book.sheet_names:
@@ -21,16 +23,23 @@ def read_external(path,mode='ESPERA',sheet=None):
             for i,values in enumerate(preview.itertuples(index=False,name=None)):
                 headers=[str(v).strip() if str(v).strip() else '__col_'+str(j) for j,v in enumerate(values)]
                 if len({normalize(h) for h in headers})!=len(headers):continue
-                try:
-                    mappings={m:map_columns(headers,m) for m in ('ESPERA','CUMPLIMIENTO','INFORMES')}
+                try:requested_mapping=map_columns(headers,requested)
                 except ColumnMappingError:continue
-                mapping=dict(mappings[mode])
-                if not all(mapping.get(k) for k in ('rit','tribunal','nombre')):continue
-                detected=mode
-                if 'vencimiento' in mappings['INFORMES'] and 'dias_cumpl' not in mappings['CUMPLIMIENTO']:detected='INFORMES'
-                elif 'dias_cumpl' in mappings['CUMPLIMIENTO']:detected='CUMPLIMIENTO'
-                elif 'espera' in mappings['ESPERA']:detected='ESPERA'
-                mapping=mappings[detected]
+                if not all(requested_mapping.get(k) for k in ('rit','tribunal','nombre')):continue
+                detected=requested
+                mapping=requested_mapping
+                # La modalidad elegida por el usuario manda. Solo inferimos otra cuando
+                # el libro carece de la columna distintiva solicitada y hay una única
+                # modalidad inequívoca en los encabezados.
+                if distinctive[requested] not in requested_mapping:
+                    inferred=[]
+                    for candidate in ('ESPERA','CUMPLIMIENTO','INFORMES'):
+                        try:candidate_mapping=map_columns(headers,candidate)
+                        except ColumnMappingError:continue
+                        if distinctive[candidate] in candidate_mapping:
+                            inferred.append((candidate,candidate_mapping))
+                    if len(inferred)==1:
+                        detected,mapping=inferred[0]
                 # Los campos humanos usan el mismo nombre interno cualquiera sea su alias.
                 human={}
                 for key,aliases in {'OBSERVACION':('observacion','observaciones'),'FECHA_OBS':('fecha_obs','fecha obs','fecha observacion'),'TT':('tt',),'CC':('cc',),'RES':('res','resolucion generada')}.items():
@@ -40,7 +49,7 @@ def read_external(path,mode='ESPERA',sheet=None):
                 break
         if not candidates:raise ValueError('No se encontró una tabla con RIT, TRIBUNAL y NOMBRE en las primeras 60 filas. Revisa la hoja y sus encabezados.')
         if len(candidates)>1:
-            preferred=[c for c in candidates if normalize(c[0])==normalize(mode)]
+            preferred=[c for c in candidates if normalize(c[0])==normalize(requested)]
             if len(preferred)!=1:raise SheetChoice(c[0] for c in candidates)
             chosen=preferred[0]
         else:chosen=candidates[0]
