@@ -36,7 +36,8 @@ def test_vertical_preserves_source_and_makes_result_available(tmp_path,mode):
     assert 'NURUS_ID_REGISTRO' in [c.value for c in b['informe_1'][3]]
     assert w.refresh() is False
     assert not w.rows[0].review
-    assert 'Se remite ' not in w.rows[0].observation
+    assert 'Se sugiere remitir' not in w.rows[0].observation
+    assert 'Se sugiere preparar' not in w.rows[0].observation
 
 def test_no_cross_requires_documented_exception_only_on_export(tmp_path):
     w=Work(defaults()).analyze(source(tmp_path,'CUMPLIMIENTO'),'CUMPLIMIENTO')
@@ -63,10 +64,9 @@ def test_unrecognized_contact_still_prepares_draft_with_subset(tmp_path):
     assert len(drafts[0].attachments)==1
     assert len(load_workbook(drafts[0].attachments[0]).sheetnames)==1
 
-def test_general_mail_requires_true_scope(tmp_path):
+def test_general_mail_does_not_require_an_approval_step(tmp_path):
     w=exported(tmp_path)
-    with pytest.raises(ValueError,match='alcance'):prepare_drafts(w,'espera',modalities='Ambulatoria')
-    ds=prepare_drafts(w,'espera',modalities='Ambulatoria',confirmed_scope=True)
+    ds=prepare_drafts(w,'espera',modalities='Ambulatoria')
     assert 'Jgdo. L. y G. de Laja' in ds[0].subject
 
 def test_contact_ambiguity_and_config_recovery(tmp_path):

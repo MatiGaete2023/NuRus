@@ -15,7 +15,8 @@ def summarize(work):
         if day and review.get('OBSERVACION') and total==1 and charge in (0,1):
             counts['constancias']+=1;counts['con_carga']+=charge;counts['sin_carga']+=1-charge
         elif any(review.get(k) not in ('',None) for k in ('FECHA_OBS','TT','CC','RES')):counts['datos_incompletos']+=1
-    counts['word_generados']=sum(r.get('kind')=='word' for r in work.receipts.values())
+    counts['word_generados']=len({r.get('path') for r in work.receipts.values() if r.get('kind')=='word'})
+    counts['proyectos_generados']=sum(r.get('kind')=='word' for r in work.receipts.values())
     counts['borradores_creados']=sum(r.get('kind')=='draft' and r.get('state')=='created' for r in work.receipts.values())
     return dict(counts)
 

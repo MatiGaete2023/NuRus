@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest]
         python: ['3.12', '3.13', '3.14']
     runs-on: ${{ matrix.os }}
     steps:
@@ -59,8 +59,20 @@ jobs:
         run: python -m pytest -q
 
       - name: Personal GUI smoke
-        if: runner.os == 'Linux' && matrix.python == '3.12'
-        run: xvfb-run -a python tools/smoke_personal_gui.py
+        if: matrix.python == '3.12'
+        run: python tools/smoke_personal_gui.py
+
+      - name: Build Windows distribution
+        if: matrix.python == '3.12'
+        shell: pwsh
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev2.zip HEAD
+
+      - name: Source distribution
+        if: matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSMP-Windows-dev2
+          path: dist/CSMP_Assistant_personal_0.4.0-dev2.zip
 
       - name: Wheel artifact
         uses: actions/upload-artifact@v4

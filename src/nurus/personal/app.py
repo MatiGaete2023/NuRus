@@ -2,16 +2,21 @@
 from pathlib import Path
 from datetime import date, datetime
 from dataclasses import replace
+from copy import deepcopy
 import os
 import queue
 import shutil
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
+from tkinter.scrolledtext import ScrolledText
 
 from .config import Configuration, UMBRALES, atomic_json, validate
 from .work import Work
-from .outputs import prepare_drafts, create_draft, generate_word, import_contacts, value
+from .outputs import prepare_drafts, create_draft, create_drafts, import_contacts, value
+from .resolutions import KINDS, prepare_projects, generate_projects
+from .modalities import MODALITIES
+from .importing import SheetChoice
 from nurus.rus.reader import list_workbook_sheets
 from nurus.adapters.sent_mail import count_sent_mail, export_sent_report, SentMailReport
 
@@ -21,6 +26,7 @@ class App(tk.Tk):
         self.title('CSMP Assistant personal');self.geometry('1120x720');self.minsize(820,560)
         self.cfg=configuration or Configuration()
         self.work=None;self.drafts=[];self.draft_index=None;self.report=None;self.busy=False
+        self.projects=[];self.project_index=None;self.last_word='';self.observation_id=None
         self.events=queue.Queue()
         self.template_dir=self.cfg.directory/'plantillas_word'
         self.template_dir.mkdir(parents=True,exist_ok=True)
@@ -53,7 +59,7 @@ class App(tk.Tk):
         self.busy=True;self.status.set(label)
         def worker():
             try:self.events.put((True,action(),done))
-            except Exception as exc:self.events.put((False,str(exc),None))
+            except Exception as exc:self.events.put((False,exc,None))
         threading.Thread(target=worker,daemon=True).start()
 
     def _poll(self):
@@ -62,14 +68,21 @@ class App(tk.Tk):
                 ok,result,done=self.events.get_nowait();self.busy=False
                 if ok:
                     self.status.set('Operación terminada.')
-                    if done:done(result)
+                    if done:
+                        try:done(result)
+                        except Exception as exc:
+                            self.status.set(str(exc));messagebox.showerror('No se completó la operación',str(exc))
                 else:
-                    self.status.set(result);messagebox.showerror('No se completó la operación',result)
+                    if isinstance(result,SheetChoice):
+                        self._choose_external_sheet(result.names)
+                    else:
+                        self.status.set(str(result));messagebox.showerror('No se completó la operación',str(result))
                     self._save_session()
         except queue.Empty:pass
         self.after(100,self._poll)
 
     def _save_session(self):
+        self._capture_observation()
         if self.work and not self.busy:
             try:self.work.save(self.cfg.directory/'sesion')
             except OSError as exc:self.status.set('No se pudo guardar la recuperación: '+str(exc))
@@ -80,6 +93,7 @@ class App(tk.Tk):
 
     def _require_work(self):
         if self.busy:raise ValueError('Hay una operación en curso.')
+        self._capture_observation()
         if not self.work or not self.work.output:raise ValueError('Procesa primero el Excel; se compartirá automáticamente con esta pestaña.')
         return self.work
 
@@ -129,10 +143,16 @@ class App(tk.Tk):
         ttk.Button(buttons,text='Reintentar exportación',command=lambda:self._guard(lambda:self._export_current())).pack(side='left',padx=3)
         self.summary=tk.StringVar();ttk.Label(page,textvariable=self.summary).pack(anchor='w')
         ttk.Button(page,text='Exportar resumen de constancias',command=lambda:self._guard(self._export_statistics)).pack(anchor='w')
-        self.records=self._tree(page,('Estado','RIT','Tribunal','Programa','Observación'))
+        split=ttk.Panedwindow(page,orient='vertical');split.pack(fill='both',expand=True)
+        table=ttk.Frame(split);edit=ttk.Frame(split);split.add(table,weight=3);split.add(edit,weight=2)
+        self.records=self._tree(table,('Estado','RIT','Tribunal','Programa','Observación'))
         self.records.column('Observación',width=520);self.records.tag_configure('excluded',background='#fff2cc');self.records.tag_configure('warning',background='#fde9d9')
         self.records.bind('<<TreeviewSelect>>',self._detail)
-        self.detail=tk.StringVar();ttk.Label(page,textvariable=self.detail,wraplength=1000).pack(fill='x')
+        self.detail=tk.StringVar();ttk.Label(edit,textvariable=self.detail,wraplength=1000).pack(fill='x')
+        ttk.Label(edit,text='Observación editable del registro seleccionado (se incorpora a los productos)').pack(anchor='w')
+        self.observation_editor=ScrolledText(edit,wrap='word',height=5,font=('Segoe UI',10));self.observation_editor.pack(fill='both',expand=True)
+        ttk.Button(edit,text='Aplicar edición',command=lambda:self._guard(self._apply_observation)).pack(anchor='e')
+        ttk.Button(buttons,text='Cargar planilla modificada',command=lambda:self._guard(self._external)).pack(side='left')
 
     def _select_folder(self,var):
         path=filedialog.askdirectory()
@@ -151,7 +171,7 @@ class App(tk.Tk):
         if not Path(path).is_file():raise ValueError('Selecciona un archivo Excel existente.')
         cfg=self.cfg.data
         def done(work):
-            self.work=work;self._clear_drafts();self._show_work()
+            self.work=work;self._clear_drafts();self.observation_id=None;self._show_work()
             if work.needs_cross:
                 reason=simpledialog.askstring('Excepción de cruce','Falta una hoja de cruce utilizable. Indica el motivo para continuar con Cumplimiento sin C-10:')
                 if not reason:self.status.set('Análisis conservado. Falta documentar excepción para exportar.');return
@@ -175,10 +195,11 @@ class App(tk.Tk):
     def _show_work(self):
         if not self.work:return
         self.mode.set(self.work.mode);self.file.set(self.work.path)
+        self.observation_id=None
         self.records.delete(*self.records.get_children());self.words.delete(*self.words.get_children())
         for row in self.work.rows:
             state='Excluido' if row.excluded else 'Revisar aviso' if row.warnings else 'Propuesta'
-            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION') or row.observation),tags=('excluded' if row.excluded else 'warning' if row.warnings else '',))
+            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=('excluded' if row.excluded else 'warning' if row.warnings else '',))
             for kind in row.actions:
                 if kind in ('PC_IE','PC_INFO'):self.words.insert('','end',iid=row.id+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,'Verificar procedencia'))
         n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)
@@ -189,14 +210,33 @@ class App(tk.Tk):
             self.summary.set(self.summary.get()+f" · {totals['constancias']} constancias con fecha · {totals['con_carga']} con carga")
         self.detail.set('\n'.join(dict.fromkeys(self.work.warnings)))
 
+    def _capture_observation(self):
+        if self.observation_id and self.work:
+            row=next((r for r in self.work.rows if r.id==self.observation_id),None)
+            if row:
+                text=self.observation_editor.get('1.0','end-1c')
+                if text!=row.review.get('OBSERVACION',row.observation):
+                    row.review['OBSERVACION']=text
+                    if self.records.exists(row.id):self.records.set(row.id,'Observación',text)
+
+    def _apply_observation(self):
+        self._capture_observation();self._save_session()
+        self.status.set('Edición incorporada a esta sesión y a sus productos.')
+
     def _detail(self,event=None):
+        self._capture_observation()
         if self.work and self.records.selection():
             row=next(r for r in self.work.rows if r.id==self.records.selection()[0])
-            self.detail.set('; '.join(row.warnings) or row.observation)
+            self.observation_id=row.id
+            self.detail.set('; '.join(row.warnings))
+            self.observation_editor.delete('1.0','end');self.observation_editor.insert('1.0',row.review.get('OBSERVACION',row.observation))
 
     def _refresh(self):
         work=self._require_work()
-        self._run('Incorporando cambios de la copia…',work.refresh,lambda result:(self._show_work(),self._save_session(),self.status.set('Cambios incorporados.' if result else 'La copia no ha cambiado.')))
+        def done(result):
+            if result:self._clear_drafts()
+            self._show_work();self._save_session();self.status.set('Cambios incorporados. Prepara los correos y proyectos con los datos actualizados.' if result else 'La copia no ha cambiado.')
+        self._run('Incorporando cambios de la copia…',work.refresh,done)
 
     def _export_statistics(self):
         from .statistics import export_summary
@@ -217,23 +257,30 @@ class App(tk.Tk):
 
     def _mail_page(self):
         page=self.pages['Correos'];top=ttk.Frame(page);top.pack(fill='x')
-        self.mail_kind=tk.StringVar(value='programa_espera');self.modalities=tk.StringVar();self.period=tk.StringVar(value=date.today().strftime('%m/%Y'));self.scope=tk.BooleanVar()
+        self.mail_kind=tk.StringVar(value='programa_espera');self.period=tk.StringVar(value=date.today().strftime('%m/%Y'))
         self.kind_box=ttk.Combobox(top,textvariable=self.mail_kind,values=list(self.cfg.data['correos']['plantillas']),state='readonly',width=27);self.kind_box.grid(row=0,column=0)
-        self._field(top,'Modalidades revisadas',self.modalities,1);self._field(top,'Período',self.period,2)
-        ttk.Checkbutton(top,text='Confirmo que el alcance indicado fue revisado en RUS (correo informativo)',variable=self.scope).grid(row=3,column=0,columnspan=3,sticky='w')
-        ttk.Button(top,text='Preparar vista previa',command=lambda:self._guard(self._prepare_mail)).grid(row=0,column=1,sticky='w',padx=6)
-        ttk.Button(top,text='Cargar registros externos',command=lambda:self._guard(self._external)).grid(row=0,column=2)
+        ttk.Button(top,text='Preparar borradores',command=lambda:self._guard(self._prepare_mail)).grid(row=0,column=1,sticky='w',padx=6)
+        ttk.Button(top,text='Cargar planilla modificada / externa',command=lambda:self._guard(self._external)).grid(row=0,column=2)
+        options=ttk.Frame(top);options.grid(row=1,column=0,columnspan=3,sticky='w',pady=5)
+        ttk.Label(options,text='Modalidades:').pack(side='left')
+        self.modality_vars={}
+        for key,label in [('RES','Residencial'),('AMB','Ambulatorio'),('FAE','Familia de acogida'),('DCE','DCE')]:
+            var=tk.BooleanVar(value=True);self.modality_vars[key]=var
+            ttk.Checkbutton(options,text=label,variable=var).pack(side='left',padx=7)
+        self._field(top,'Período',self.period,2)
         self.manual_mail=tk.BooleanVar()
-        ttk.Checkbutton(top,text='Gestión particular: usar solo registros seleccionados en Trabajo',variable=self.manual_mail).grid(row=4,column=0,columnspan=3,sticky='w')
+        ttk.Checkbutton(top,text='Usar solo la selección de Trabajo (opcional)',variable=self.manual_mail).grid(row=3,column=0,columnspan=3,sticky='w')
         split=ttk.Panedwindow(page,orient='horizontal');split.pack(fill='both',expand=True,pady=6)
-        left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=1);split.add(right,weight=3)
-        self.mail_list=tk.Listbox(left,exportselection=False,width=28);self.mail_list.pack(fill='both',expand=True);self.mail_list.bind('<<ListboxSelect>>',self._select_mail)
+        left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=1);split.add(right,weight=4)
+        self.mail_list=tk.Listbox(left,exportselection=False,width=24);self.mail_list.pack(fill='both',expand=True);self.mail_list.bind('<<ListboxSelect>>',self._select_mail)
         self.to=tk.StringVar();self.cc=tk.StringVar();self.subject=tk.StringVar();self.attach=tk.StringVar()
         self._field(right,'Para',self.to,0);self._field(right,'CC',self.cc,1);self._field(right,'Asunto',self.subject,2)
-        self.body=tk.Text(right,height=10,wrap='word');self.body.grid(row=3,column=0,columnspan=2,sticky='nsew');right.rowconfigure(3,weight=1)
-        self._field(right,'Adjuntos (uno por línea)',self.attach,4)
+        self.body=ScrolledText(right,height=14,wrap='word',font=('Segoe UI',11));self.body.grid(row=3,column=0,columnspan=2,sticky='nsew');right.rowconfigure(3,weight=1)
+        self._field(right,'Adjuntos',self.attach,4)
         ttk.Button(right,text='Agregar adjunto',command=self._attachment).grid(row=5,column=0,sticky='w')
-        ttk.Button(right,text='Guardar borrador revisado',command=lambda:self._guard(self._send_draft)).grid(row=5,column=1,sticky='e')
+        actions=ttk.Frame(right);actions.grid(row=5,column=1,sticky='e')
+        ttk.Button(actions,text='Guardar este borrador',command=lambda:self._guard(self._send_draft)).pack(side='left')
+        ttk.Button(actions,text='Guardar TODOS los borradores',command=lambda:self._guard(self._send_all)).pack(side='left',padx=5)
 
     def _prepare_mail(self):
         work=self._require_work()
@@ -242,7 +289,8 @@ class App(tk.Tk):
         from copy import deepcopy
         for key in ('correos','contactos','aliases','cuenta_outlook','firma'):
             work.config[key]=deepcopy(self.cfg.data[key])
-        kind=self.mail_kind.get();modalities=self.modalities.get();period=self.period.get();scope=self.scope.get()
+        kind=self.mail_kind.get();keys=[k for k,v in self.modality_vars.items() if v.get()];modalities=', '.join(MODALITIES[k] for k in keys);period=self.period.get()
+        if not keys:raise ValueError('Selecciona al menos una modalidad.')
         manual=self.manual_mail.get();selected=list(self.records.selection()) if manual else None
         if manual and not selected:raise ValueError('Selecciona los registros de esta gestión en la pestaña Trabajo.')
         def done(drafts):
@@ -250,17 +298,35 @@ class App(tk.Tk):
             for d in drafts:self.mail_list.insert('end',d.subject)
             if drafts:self.mail_list.selection_set(0);self._select_mail()
             self.status.set(f'{len(drafts)} borradores preparados para revisión; todavía no se guardaron en Outlook.')
-        self._run('Preparando textos y adjuntos…',lambda:prepare_drafts(work,kind,modalities=modalities,period=period,confirmed_scope=scope,selected=selected,manual_selection=manual),done)
+        self._run('Preparando textos y adjuntos…',lambda:prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,manual_selection=manual,modality_keys=keys),done)
 
     def _external(self):
         path=filedialog.askopenfilename(filetypes=[('Excel','*.xlsx *.xls *.xlsm')])
-        if not path:return
+        if path:self._load_external(path)
+
+    def _load_external(self,path,sheet=None):
+        self.pending_external=path
         cfg=self.cfg.data;mode=self.mode.get()
-        def done(work):self.work=work;self._clear_drafts();self._show_work();self._save_session();self.manual_mail.set(True);self.status.set('Registros externos disponibles. Selecciona en Trabajo los que incluirá la gestión particular.')
-        self._run('Cargando registros externos…',lambda:Work.external(path,cfg,mode),done)
+        def done(work):
+            self.work=work;self._clear_drafts();self.observation_id=None
+            self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
+            self._show_work();self._save_session();self.manual_mail.set(False)
+            self.status.set(f'{len(work.rows)} registros incorporados desde {work.sheet}, fila {work.header}. Ya disponibles para todos los productos.')
+        self._run('Reconociendo hojas, encabezados y observaciones…',lambda:Work.external(path,cfg,mode,sheet=sheet),done)
+
+    def _choose_external_sheet(self,names):
+        window=tk.Toplevel(self);window.title('Elegir tabla del libro');window.transient(self)
+        ttk.Label(window,text='Hay varias tablas reconocidas. Elige la que necesitas:').pack(padx=15,pady=10)
+        selected=tk.StringVar(value=names[0])
+        ttk.Combobox(window,textvariable=selected,values=names,state='readonly',width=45).pack(padx=15)
+        def apply():
+            name=selected.get();window.destroy();self._load_external(self.pending_external,name)
+        ttk.Button(window,text='Usar hoja',command=apply).pack(pady=15)
 
     def _clear_drafts(self):
         self.drafts=[];self.draft_index=None;self.mail_list.delete(0,'end')
+        self.projects=[];self.project_index=None
+        if hasattr(self,'project_list'):self.project_list.delete(0,'end')
 
     def _capture_mail(self):
         if self.draft_index is not None:
@@ -282,59 +348,94 @@ class App(tk.Tk):
         draft=replace(self.drafts[self.draft_index])
         self._run('Guardando únicamente un borrador en Outlook…',lambda:create_draft(work,draft,confirmed=True),lambda r:(self._save_session(),self.status.set('Borrador guardado en Outlook. No se envió ningún correo.')))
 
+    def _send_all(self):
+        work=self._require_work();self._capture_mail()
+        if not self.drafts:raise ValueError('Primero prepara los borradores.')
+        drafts=[replace(d) for d in self.drafts]
+        def done(result):
+            self._save_session()
+            self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya procesados; {len(result['errors'])} incidencias.")
+            if result['errors']:messagebox.showwarning('Lote guardado con incidencias','\n'.join(result['errors']))
+        self._run('Guardando el lote de borradores en Outlook…',lambda:create_drafts(work,drafts),done)
+
     def _word_page(self):
         page=self.pages['Resoluciones']
-        ttk.Label(page,text='Selecciona proyectos y verifica si corresponde el primer pide cuenta. Las plantillas se editan en Word.').pack(anchor='w')
-        actions=ttk.Frame(page);actions.pack(fill='x',pady=5)
-        ttk.Button(actions,text='Seleccionar todos',command=lambda:self.words.selection_set(self.words.get_children())).pack(side='left')
-        self.proceed=tk.BooleanVar();ttk.Checkbutton(actions,text='Verifiqué procedencia y antecedentes de los proyectos seleccionados',variable=self.proceed).pack(side='left',padx=8)
-        ttk.Button(actions,text='Generar Word',command=lambda:self._guard(self._generate_words)).pack(side='right')
-        more=ttk.Frame(page);more.pack(fill='x')
-        self.manual_word=tk.StringVar(value='PC_IE');ttk.Combobox(more,textvariable=self.manual_word,values=['PC_IE','PC_INFO','NOMENCL'],state='readonly',width=15).pack(side='left')
-        ttk.Button(more,text='Agregar registros seleccionados en Trabajo',command=lambda:self._guard(self._add_words)).pack(side='left',padx=8)
-        self.words=self._tree(page,('RIT','Tribunal','Tipo','Revisión'))
+        actions=ttk.Frame(page);actions.pack(fill='x')
+        self.manual_word=tk.StringVar(value='PC_IE')
+        ttk.Label(actions,text='Tipo:').pack(side='left')
+        ttk.Combobox(actions,textvariable=self.manual_word,values=list(KINDS),state='readonly',width=14).pack(side='left',padx=6)
+        ttk.Button(actions,text='Aplicar tipo a la selección',command=lambda:self._guard(self._assign_word_type)).pack(side='left')
+        ttk.Button(actions,text='Agregar desde Trabajo',command=lambda:self._guard(self._add_words)).pack(side='left',padx=4)
+        ttk.Button(actions,text='Cargar planilla modificada',command=lambda:self._guard(self._external)).pack(side='right')
+        actions2=ttk.Frame(page);actions2.pack(fill='x',pady=5)
+        ttk.Button(actions2,text='Seleccionar todos',command=lambda:self.words.selection_set(self.words.get_children())).pack(side='left')
+        ttk.Button(actions2,text='Preparar / actualizar proyectos',command=lambda:self._guard(self._prepare_words)).pack(side='left',padx=5)
+        ttk.Button(actions2,text='Generar UN Word',command=lambda:self._guard(self._generate_words)).pack(side='right')
+        ttk.Button(actions2,text='Abrir Word generado',command=lambda:self._guard(lambda:self._open(self.last_word))).pack(side='right',padx=5)
+        split=ttk.Panedwindow(page,orient='horizontal');split.pack(fill='both',expand=True)
+        left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=2);split.add(right,weight=3)
+        self.words=self._tree(left,('RIT','Tribunal','Tipo','Revisión'))
+        self.project_list=tk.Listbox(left,height=5,exportselection=False);self.project_list.pack(fill='x')
+        self.project_list.bind('<<ListboxSelect>>',self._select_project)
+        ttk.Label(right,text='Proyecto editable. Los datos ausentes quedan como [COMPLETAR ...].').pack(anchor='w')
+        self.project_editor=ScrolledText(right,wrap='word',height=18,font=('Segoe UI',11));self.project_editor.pack(fill='both',expand=True)
+
+    def _assign_word_type(self):
+        selected=list(self.words.selection()) or list(self.words.get_children())
+        kind=self.manual_word.get();new=[]
+        for iid in selected:
+            rid=iid.split('|')[0];values=list(self.words.item(iid,'values'));values[2]=kind
+            self.words.delete(iid);target=rid+'|'+kind
+            if not self.words.exists(target):self.words.insert('','end',iid=target,values=values)
+            new.append(target)
+        self.words.selection_set(new)
+        self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
 
     def _add_words(self):
         work=self._require_work();kind=self.manual_word.get()
-        for rid in self.records.selection():
+        self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
+        for rid in (self.records.selection() or tuple(r.id for r in work.rows)):
             row=next(r for r in work.rows if r.id==rid)
             if row.excluded:continue
             iid=rid+'|'+kind
             if not self.words.exists(iid):self.words.insert('','end',iid=iid,values=(value(work,row,'rit'),value(work,row,'tribunal'),kind,'Gestión particular: verificar'))
 
+    def _capture_project(self):
+        if self.project_index is not None and self.project_index<len(self.projects):
+            self.projects[self.project_index].text=self.project_editor.get('1.0','end-1c')
+
+    def _select_project(self,event=None):
+        self._capture_project()
+        if self.project_list.curselection():
+            self.project_index=self.project_list.curselection()[0]
+            self.project_editor.delete('1.0','end');self.project_editor.insert('1.0',self.projects[self.project_index].text)
+
+    def _prepare_words(self,then_generate=False):
+        work=self._require_work()
+        selected=list(self.words.selection()) or list(self.words.get_children())
+        if not selected:
+            # En una planilla externa el usuario elige el tipo; no necesita un análisis del motor.
+            kind=self.manual_word.get()
+            selected=[r.id+'|'+kind for r in work.rows if not r.excluded]
+        selections=[item.split('|') for item in selected]
+        def done(result):
+            self.projects,errors=result;self.project_index=None;self.project_list.delete(0,'end')
+            for p in self.projects:self.project_list.insert('end',p.rit+' · '+p.kind+' · '+str(len(p.record_ids))+' registros')
+            if self.projects:self.project_list.selection_set(0);self._select_project()
+            self.status.set(f'{len(self.projects)} proyectos agrupados; {len(errors)} matrices pendientes.')
+            if errors:messagebox.showwarning('Matrices pendientes','\n'.join(errors))
+            if then_generate and self.projects:self._generate_words()
+        self._run('Agrupando proyectos por tribunal, RIT y tipo…',lambda:prepare_projects(work,selections,self.template_dir),done)
+
     def _generate_words(self):
         work=self._require_work()
-        if not self.proceed.get():raise ValueError('Confirma la verificación de procedencia de los proyectos seleccionados.')
-        selected=list(self.words.selection())
-        if not selected:raise ValueError('Selecciona al menos un proyecto.')
-        folder=Path(work.output).parent
-        from .outputs import template_variables,word_values
-        from nurus.rus.rules import tribunal
-        extras={}
-        for item in selected:
-            rid,kind=item.split('|');row=next(r for r in work.rows if r.id==rid)
-            court=tribunal(value(work,row,'tribunal')) or ''
-            path=self.template_dir/court/(kind+'.docx')
-            extra={}
-            if path.exists():
-                context=word_values(work,row)
-                for name in sorted(template_variables(path)):
-                    if not context.get(name):
-                        answer=simpledialog.askstring('Dato necesario para Word',value(work,row,'rit')+' · '+name.replace('_',' ').capitalize()+':')
-                        if answer:extra[name]=answer
-            extras[item]=extra
-        def action():
-            results=[];errors=[]
-            for item in selected:
-                rid,kind=item.split('|');row=next(r for r in work.rows if r.id==rid)
-                path=folder/('Proyecto_'+rid[:12]+'_'+kind+'_'+datetime.now().strftime('%H%M%S_%f')+'.docx')
-                try:results.append(generate_word(work,row,kind,self.template_dir,path,confirmed=True,extra=extras[item]))
-                except Exception as exc:errors.append(value(work,row,'rit')+': '+str(exc))
-            return results,errors
+        if not self.projects:self._prepare_words(then_generate=True);return
+        self._capture_project()
+        path=Path(work.output).parent/('Resoluciones_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+'.docx')
+        projects=deepcopy(self.projects)
         def done(result):
-            self._save_session();files,errors=result;self.status.set(f'{len(files)} Word generados; {len(errors)} pendientes.')
-            messagebox.showinfo('Resultado',f'{len(files)} proyectos generados en {folder}'+('\n\nPendientes:\n'+'\n'.join(errors) if errors else ''))
-        self._run('Generando proyectos Word…',action,done)
+            self.last_word=result;self._save_session();self.status.set('Word conjunto generado: '+result)
+        self._run('Generando un Word con los proyectos…',lambda:generate_projects(work,projects,path),done)
 
     def _config_page(self):
         page=self.pages['Configuración'];nb=ttk.Notebook(page);nb.pack(fill='both',expand=True)
@@ -380,6 +481,7 @@ class App(tk.Tk):
         ttk.Button(office,text='Guardar Outlook',command=lambda:self._guard(self._save_office)).grid(row=4,column=0)
         ttk.Button(office,text='Abrir plantillas Word',command=lambda:self._guard(lambda:self._open(self.template_dir))).grid(row=5,column=0,pady=12)
         ttk.Button(office,text='Incorporar plantilla Word',command=lambda:self._guard(self._import_word)).grid(row=5,column=1)
+        ttk.Button(office,text='Importar paquete de plantillas ZIP',command=lambda:self._guard(self._import_templates_zip)).grid(row=7,column=0,pady=8)
         ttk.Label(office,text='Carpetas LAJA, MULCHEN y TOME; tipos PC_IE.docx, PC_INFO.docx y NOMENCL.docx.',wraplength=640).grid(row=6,column=0,columnspan=2,sticky='w')
 
     def _save_params(self):
@@ -449,6 +551,14 @@ class App(tk.Tk):
     def _save_office(self):
         from copy import deepcopy
         cfg=deepcopy(self.cfg.data);cfg['cuenta_outlook']=self.account.get().strip();cfg['firma']=self.signature.get();cfg['correos']['cc_adicional']=self.additional.get();self.cfg.save(cfg);self.status.set('Configuración de Outlook guardada.')
+
+    def _import_templates_zip(self):
+        from .template_package import import_templates
+        path=filedialog.askopenfilename(filetypes=[('Paquete Word','*.zip')])
+        if not path:return
+        result=import_templates(path,self.template_dir)
+        self.status.set(f"{len(result['imported'])} matrices importadas; {len(result['unmatched'])} archivos sin identificación automática.")
+        if result['unmatched']:messagebox.showinfo('Asignación pendiente','Estos archivos deben incorporarse indicando tribunal y tipo:\n'+'\n'.join(result['unmatched']))
 
     def _import_word(self):
         court=simpledialog.askstring('Tribunal','LAJA, MULCHEN o TOME:');kind=simpledialog.askstring('Tipo','PC_IE, PC_INFO o NOMENCL:')

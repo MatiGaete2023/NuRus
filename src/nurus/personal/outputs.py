@@ -59,7 +59,7 @@ def _table(work,rows,path):
     headers=['RIT','TRIBUNAL','RUT','NOMBRE','PROGRAMA','VENCIMIENTO / ESPERA','OBSERVACION']
     sheet.append(headers)
     for row in rows:
-        sheet.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[value(work,row,'vencimiento') or value(work,row,'espera'),str(row.review.get('OBSERVACION') or row.observation)])
+        sheet.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[value(work,row,'vencimiento') or value(work,row,'espera'),str(row.review.get('OBSERVACION',row.observation))])
         for cell in sheet[sheet.max_row]:cell.data_type='s'
     sheet.freeze_panes='A2';sheet.auto_filter.ref=sheet.dimensions
     for cell in sheet[1]:cell.font=Font(bold=True)
@@ -67,19 +67,18 @@ def _table(work,rows,path):
     write_new_file(Path(path),book.save)
     return str(path)
 
-def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,selected=None,directory=None,manual_selection=False):
+def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,selected=None,directory=None,manual_selection=False,modality_keys=None):
     work.refresh()
     cfg=work.config
     tpl=cfg['correos']['plantillas'][kind]
     general=kind in {'espera','cumplimiento','informes'}
-    if general and not confirmed_scope:raise ValueError('Confirma el alcance efectivamente revisado en RUS antes del correo informativo.')
-    if general and kind.upper()!=work.mode:raise ValueError('La pestaña del correo no corresponde al trabajo actual.')
     if tpl.get('usa_modalidades') and not modalities.strip():raise ValueError('Indica las modalidades efectivamente comprendidas.')
+    from .modalities import selected_row
     groups=defaultdict(list)
     for row in work.rows:
-        if row.excluded or (selected is not None and row.id not in selected):continue
-        if not general and kind not in {'especial','proyectos'} and kind not in row.actions and not (manual_selection and selected is not None):continue
-        if kind=='proyectos' and row.id not in {r.get('record_id') for r in work.receipts.values() if r.get('kind')=='word'}:continue
+        if row.excluded or (selected is not None and row.id not in selected) or not selected_row(work,row,modality_keys):continue
+        if not general and kind not in {'especial','proyectos'} and kind not in row.actions and not (manual_selection or getattr(work,'external_input',False)):continue
+        if kind=='proyectos' and not manual_selection and not getattr(work,'external_input',False) and row.id not in {rid for r in work.receipts.values() if r.get('kind')=='word' for rid in r.get('record_ids',[r.get('record_id')])}:continue
         court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
         program=value(work,row,'programa') if kind.startswith('programa_') else ''
         groups[(court,normalize(program))].append(row)
@@ -98,10 +97,36 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
         if cfg.get('firma'):draft.body+='\n\n'+cfg['firma']
         if draft.required:
             folder=Path(directory or Path(work.output).parent);folder.mkdir(parents=True,exist_ok=True)
-            draft.attachments=[_table(work,rows,folder/('Nomina_'+uuid4().hex[:10]+'.xlsx'))]
+            by_program=defaultdict(list)
+            for row in rows:by_program[value(work,row,'programa')].append(row)
+            # Carpetas únicas permiten conservar el nombre real del programa en cada adjunto.
+            draft.attachments=[]
+            for name,subset in by_program.items():
+                target=folder/'adjuntos'/uuid4().hex
+                target.mkdir(parents=True,exist_ok=True)
+                draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx')))
         draft.key=sha256((kind+'|'+','.join(r.id for r in rows)+'|'+draft.subject).encode()).hexdigest()
         output.append(draft)
     return output
+
+def program_filename(name):
+    result=re.sub(r'[<>:"/\\|?*\x00-\x1f]','_',str(name)).strip().rstrip('. ')
+    if not result:result='Programa no informado'
+    if re.fullmatch(r'(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])',result.split('.')[0]):result='_'+result
+    return result[:120].rstrip('. ')
+
+def create_drafts(work,drafts):
+    """Un clic guarda el lote. Los resultados parciales se conservan sin repetir Save."""
+    result={'created':0,'skipped':0,'errors':[]}
+    for draft in drafts:
+        if draft.key and draft.key in work.receipts:
+            state=work.receipts[draft.key].get('state')
+            result['skipped']+=1
+            if state!='created':result['errors'].append(draft.subject+': guardado previo incierto; revisa Borradores.')
+            continue
+        try:create_draft(work,draft,confirmed=True);result['created']+=1
+        except Exception as exc:result['errors'].append(draft.subject+': '+str(exc))
+    return result
 
 def create_draft(work,draft,*,confirmed=False):
     if not confirmed:raise ValueError('Revisa destinatarios, texto y adjuntos antes de crear el borrador.')

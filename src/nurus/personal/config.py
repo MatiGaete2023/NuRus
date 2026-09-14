@@ -44,11 +44,6 @@ def emails(value):
 
 def defaults():
     text=json.loads((BASE/'textos_base.json').read_text(encoding='utf-8'))
-    # Adaptación de propuesta: no acredita actos aún no ejecutados.
-    for scope,entries in text.items():
-        if scope.startswith('_'):continue
-        for entry in entries.values():
-            entry['texto']=entry['texto'].replace('Se remite correo electrónico','Se sugiere remitir correo electrónico').replace('se remite correo electrónico','se sugiere remitir correo electrónico').replace('Se remite proyecto de resolución','Se sugiere preparar proyecto de resolución')
     mail=json.loads((BASE/'correos_base.json').read_text(encoding='utf-8'))
     mail['tribunales']['LAJA']['nombre']='Jgdo. L. y G. de Laja'
     mail['tribunales']['MULCHEN']['nombre']='Jgdo. L. y G. de Mulchén'
@@ -70,7 +65,7 @@ def defaults():
         else:contacts[name]=address
     for name in ambiguous:contacts.pop(name,None)
     aliases={a['alias']:a['nombre_catastro'] for a in json.loads((BASE/'aliases_base.json').read_text(encoding='utf-8'))}
-    return {'version':1,'perfil':'Asistente v9.1; prioridad confirmada por usuario',
+    return {'version':1,'revision_textos':2,'perfil':'Asistente v9.1; prioridad confirmada por usuario',
             'umbrales':deepcopy(UMBRALES),'desactivadas':[], 'textos':text,
             'correos':mail,'contactos':contacts,'aliases':aliases,'cuenta_outlook':'','firma':''}
 
@@ -107,6 +102,19 @@ class Configuration:
         if not self.path.exists():self.save(defaults())
         try:self.data=json.loads(self.path.read_text(encoding='utf-8'));validate(self.data)
         except Exception as exc:raise ValueError(f'Configuración no utilizable: {self.path}. Conserva el archivo y recupera su copia .bak. Detalle: {exc}') from exc
+
+        if self.data.get('revision_textos',1)<2:
+            updated=deepcopy(self.data)
+            base=defaults()['textos']
+            for scope,entries in base.items():
+                if scope.startswith('_'):continue
+                for key,entry in entries.items():
+                    original=entry['texto']
+                    previous=original.replace('Se remite correo electrónico','Se sugiere remitir correo electrónico').replace('se remite correo electrónico','se sugiere remitir correo electrónico').replace('Se remite proyecto de resolución','Se sugiere preparar proyecto de resolución')
+                    if updated['textos'][scope][key]['texto']==previous:
+                        updated['textos'][scope][key]['texto']=original
+            updated['revision_textos']=2
+            self.save(updated)
 
     def save(self,data):
         validate(data)

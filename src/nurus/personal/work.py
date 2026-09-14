@@ -123,7 +123,7 @@ class Work:
                'primary_sheet':self.sheet,'header_row':self.header,'mode':self.mode,'export_stage':'proposal'}
         records=[{'record_id':r.id,'source_sheet':self.sheet,'source_row':r.source_row,'source_hash':self.source_hash,
                   'decision':'excluded' if r.excluded else 'pending','evaluation_status':'blocked' if r.warnings else 'reviewed',
-                  'edit_reason':'; '.join(r.warnings),'edited_observation':r.observation,'rule_ids_json':json.dumps(r.rules)} for r in self.rows]
+                  'edit_reason':'; '.join(r.warnings),'edited_observation':r.review.get('OBSERVACION',r.observation),'rule_ids_json':json.dumps(r.rules)} for r in self.rows]
         result=_export_preserved_payload(self.content,{'batch':batch,'records':records,'exceptions':[self.exception] if self.exception else []},destination,backend=backend,allow_reduced_fidelity=reduced_fidelity)
         self.output=str(result.path)
         self.output_hash=sha256(Path(self.output).read_bytes()).hexdigest()
@@ -136,6 +136,13 @@ class Work:
         if not path.exists():raise ValueError('La copia fue movida. Usa Localizar copia para indicar su nueva ubicación.')
         digest=sha256(path.read_bytes()).hexdigest()
         if digest==self.output_hash:return False
+        if getattr(self,'external_input',False):
+            fresh=type(self).external(path,self.config,self.mode,sheet=self.sheet)
+            if {r.id for r in fresh.rows}!={r.id for r in self.rows}:
+                raise ValueError('Cambió el conjunto de personas de la planilla; usa Cargar planilla modificada para incorporar el nuevo conjunto.')
+            self.rows=fresh.rows;self.header=fresh.header;self.mapping=fresh.mapping
+            self.output_hash=digest
+            return True
         import pandas as pd
         frame=pd.read_excel(path,sheet_name=self.sheet,header=self.header-1,dtype=object,keep_default_na=False)
         if 'NURUS_ID_REGISTRO' not in frame:raise ValueError('Falta la columna de identidad; no se pueden asociar las ediciones.')
@@ -158,24 +165,23 @@ class Work:
         return True
 
     @classmethod
-    def external(cls,path,config,mode='ESPERA'):
-        """Preparación particular desde registros externos; no inventa análisis RUS."""
-        import pandas as pd
-        from nurus.rus.columns import map_columns
-        from nurus.rus.models import SourceRecord, SourceReference
-        path=Path(path).resolve();obj=cls(config)
-        with pd.ExcelFile(path) as excel:
-            sheet=excel.sheet_names[0]
-            frame=pd.read_excel(excel,sheet_name=sheet,dtype=object,keep_default_na=False)
-        obj.mapping=map_columns(frame.columns,mode)
-        if not all(obj.mapping.get(k) for k in ('rit','tribunal','nombre')):
-            raise ValueError('El archivo externo requiere al menos RIT, TRIBUNAL y NOMBRE en la primera fila.')
-        obj.path=str(path);obj.output=str(path);obj.mode=mode;obj.as_of=date.today().isoformat();obj.sheet=sheet;obj.header=1
-        obj.content=path.read_bytes();obj.source_hash=sha256(obj.content).hexdigest();obj.output_hash=obj.source_hash;obj.needs_cross=False
-        obj.warnings=['Archivo externo: no se ejecutaron reglas ni se acredita revisión en RUS.']
-        for i,row in enumerate(frame.to_dict('records'),2):
-            r=SourceRecord(row,SourceReference(path.name,obj.source_hash,sheet,i))
-            obj.rows.append(Row(r.record_id,i,row,str(row.get('OBSERVACION','')),[],[],[]))
+    def external(cls,path,config,mode='ESPERA',*,sheet=None):
+        """Importa constancias tal como están, sin exigir un paso previo por el motor."""
+        from .importing import read_external
+        from .motor.utilidades import es_derivacion_sin_seg
+        data=read_external(path,mode,sheet)
+        obj=cls(config)
+        obj.path=data['path'];obj.output=obj.path;obj.mode=data['mode'];obj.as_of=date.today().isoformat()
+        obj.sheet=data['sheet'];obj.header=data['header'];obj.mapping=data['mapping']
+        obj.content=data['content'];obj.source_hash=data['digest'];obj.output_hash=data['digest'];obj.needs_cross=False
+        obj.external_input=True;obj.warnings=[];seen={}
+        for number,values,review in data['records']:
+            identity='|'.join(historical_match(values.get(obj.mapping.get(k,''),'')) for k in ('rit','rut','nombre','tribunal','programa'))
+            ordinal=seen.get(identity,0);seen[identity]=ordinal+1
+            rid=str(values.get('NURUS_ID_REGISTRO','')).strip() or sha256((obj.sheet+'|'+identity+'|'+str(ordinal)).encode()).hexdigest()
+            if any(r.id==rid for r in obj.rows):raise ValueError('El identificador de registro está duplicado en la planilla.')
+            excluded=es_derivacion_sin_seg(str(values.get(obj.mapping.get('programa',''),'')))
+            obj.rows.append(Row(rid,number,values,str(review.get('OBSERVACION','')),[],[],[],excluded,review))
         return obj
 
     def save(self,directory):
