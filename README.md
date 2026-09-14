@@ -1,6 +1,6 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev4**, actualizada el 14 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos.
+Versión **0.4.0.dev5**, actualizada el 14 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos.
 
 ## Instalación y actualización
 
@@ -27,7 +27,9 @@ Las copias nuevas incorporan una columna técnica oculta `NURUS_REGLAS`; al carg
 
 ## Resoluciones
 
-El tipo `PC_IE`, `PC_INFO` o `NOMENCL` se puede asignar de forma independiente de la sugerencia del motor. Los proyectos se agrupan por **tribunal + RIT + tipo**. Si hay varias personas en el mismo grupo, se genera un solo proyecto con la individualización correspondiente.
+El tipo `PC_IE`, `PC_INFO` o `NOMENCL` se puede asignar de forma independiente de la sugerencia del motor. Los proyectos se agrupan por **tribunal + RIT + tipo**. Si la planilla revisada utiliza la columna `RES`, esa selección humana es autoritativa: solo los registros marcados afirmativamente se incorporan automáticamente; el motor no vuelve a agregar proyectos descartados en el Excel. Si `RES` no fue utilizado, se conservan las sugerencias automáticas. Un caso adicional puede agregarse manualmente seleccionándolo primero en Trabajo.
+
+Si hay varias personas en el mismo RIT y tipo, se genera un solo proyecto. Cada NNA queda individualizado junto a su propia cédula —por ejemplo, `NOMBRE 1, cédula de identidad N° RUT 1 y NOMBRE 2, cédula de identidad N° RUT 2`— en vez de construir por separado una lista de nombres y otra de RUT.
 
 **Generar UN Word** produce un único archivo y cada proyecto comienza en página nueva. Los datos ausentes se marcan como `[COMPLETAR ...]`. Todas las fechas insertadas por el generador de proyectos se escriben íntegramente en palabras, por ejemplo: `catorce de septiembre de dos mil veintiséis`.
 

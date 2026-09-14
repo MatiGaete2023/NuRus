@@ -14,7 +14,7 @@ from tkinter.scrolledtext import ScrolledText
 from .config import Configuration, UMBRALES, atomic_json, validate
 from .work import Work
 from .outputs import prepare_drafts, prepare_required_drafts, create_draft, create_drafts, import_contacts, value
-from .resolutions import KINDS, prepare_projects, generate_projects
+from .resolutions import KINDS, prepare_projects, generate_projects, automatic_project_selections, reviewed_resolution_ids
 from .modalities import MODALITIES
 from .importing import SheetChoice
 from nurus.rus.reader import list_workbook_sheets
@@ -197,11 +197,16 @@ class App(tk.Tk):
         self.mode.set(self.work.mode);self.file.set(self.work.path)
         self.observation_id=None
         self.records.delete(*self.records.get_children());self.words.delete(*self.words.get_children())
+        reviewed_res=reviewed_resolution_ids(self.work)
+        automatic=dict();fallback_kind=self.manual_word.get() if hasattr(self,'manual_word') else 'PC_IE'
+        for rid,kind in automatic_project_selections(self.work,fallback_kind):
+            automatic.setdefault(rid,[]).append(kind)
         for row in self.work.rows:
             state='Excluido' if row.excluded else 'Revisar aviso' if row.warnings else 'Propuesta'
             self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=('excluded' if row.excluded else 'warning' if row.warnings else '',))
-            for kind in row.actions:
-                if kind in ('PC_IE','PC_INFO'):self.words.insert('','end',iid=row.id+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,'Verificar procedencia'))
+            for kind in automatic.get(row.id,[]):
+                source='Indicado en archivo (RES)' if reviewed_res is not None else 'Verificar procedencia'
+                self.words.insert('','end',iid=row.id+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,source))
         n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)
         self.summary.set(f'{n} registros · {obs} propuestas · {exc} excluidos · {len(self.words.get_children())} proyectos posibles')
         from .statistics import summarize
@@ -409,12 +414,14 @@ class App(tk.Tk):
 
     def _add_words(self):
         work=self._require_work();kind=self.manual_word.get()
+        selected=list(self.records.selection())
+        if not selected:raise ValueError('Selecciona en Trabajo los registros que quieres agregar manualmente como proyecto.')
         self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
-        for rid in (self.records.selection() or tuple(r.id for r in work.rows)):
+        for rid in selected:
             row=next(r for r in work.rows if r.id==rid)
             if row.excluded:continue
             iid=rid+'|'+kind
-            if not self.words.exists(iid):self.words.insert('','end',iid=iid,values=(value(work,row,'rit'),value(work,row,'tribunal'),kind,'Gestión particular: verificar'))
+            if not self.words.exists(iid):self.words.insert('','end',iid=iid,values=(value(work,row,'rit'),value(work,row,'tribunal'),kind,'Agregado manualmente'))
 
     def _capture_project(self):
         if self.project_index is not None and self.project_index<len(self.projects):
@@ -430,10 +437,11 @@ class App(tk.Tk):
         work=self._require_work()
         selected=list(self.words.selection()) or list(self.words.get_children())
         if not selected:
-            # En una planilla externa el usuario elige el tipo; no necesita un análisis del motor.
-            kind=self.manual_word.get()
-            selected=[r.id+'|'+kind for r in work.rows if not r.excluded]
-        selections=[item.split('|') for item in selected]
+            selections=automatic_project_selections(work,self.manual_word.get())
+            if not selections:
+                raise ValueError('No hay proyectos indicados. Si la planilla usa RES, solo se generan los marcados allí; para agregar otro caso, selecciónalo en Trabajo y usa Agregar desde Trabajo.')
+        else:
+            selections=[item.split('|') for item in selected]
         def done(result):
             self.projects,errors=result;self.project_index=None;self.project_list.delete(0,'end')
             for p in self.projects:self.project_list.insert('end',p.rit+' · '+p.kind+' · '+str(len(p.record_ids))+' registros')

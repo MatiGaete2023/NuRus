@@ -10,7 +10,7 @@ from nurus.personal.config import defaults,Configuration,BASE,CC
 from nurus.personal.work import Work
 from nurus.personal.importing import SheetChoice
 from nurus.personal.outputs import prepare_drafts,create_drafts,Draft
-from nurus.personal.resolutions import prepare_projects,generate_projects,replace_paragraph
+from nurus.personal.resolutions import prepare_projects,generate_projects,replace_paragraph,automatic_project_selections,reviewed_resolution_ids
 from nurus.personal.template_package import import_templates,install_bundled_templates
 
 def external(tmp_path,rows=None):
@@ -132,3 +132,31 @@ def test_summary_counts_one_document_and_two_projects(tmp_path):
     generate_projects(work,projects,tmp_path/'lote.docx')
     counts=summarize(work)
     assert counts['word_generados']==1 and counts['proyectos_generados']==2
+
+
+def test_reviewed_res_column_is_authoritative_for_automatic_projects(tmp_path):
+    book=Workbook();sheet=book.active;sheet.title='Registros'
+    sheet.append(['RIT','TRIBUNAL','NOMBRE','RUT','DERIVACION','OBSERVACION','RES'])
+    sheet.append(['X-1-2026','LAJA','Persona Uno','11111111-1','AFT EJEMPLO','Texto','1.0'])
+    sheet.append(['X-2-2026','LAJA','Persona Dos','22222222-2','AFT EJEMPLO','Texto','No'])
+    sheet.append(['X-3-2026','LAJA','Persona Tres','33333333-3','AFT EJEMPLO','Texto',''])
+    path=tmp_path/'seleccion_res.xlsx';book.save(path)
+    work=Work.external(path,defaults())
+    assert reviewed_resolution_ids(work)=={work.rows[0].id}
+    assert automatic_project_selections(work,'PC_INFO')==[(work.rows[0].id,'PC_INFO')]
+
+
+def test_grouped_people_keep_each_identity_number_next_to_its_name(tmp_path):
+    rows=[
+        ['X-149-2025','MULCHEN','SOFÍA IGNACIA DAROCH VERDUGO','24010461-K','AFT  MULCHEN','Texto','2026-09-14',1,0],
+        ['X-149-2025','MULCHEN','MIA VALENTINA DAROCH VERDUGO','24624826-5','AFT  MULCHEN','Texto','2026-09-14',1,0],
+    ]
+    work=external(tmp_path,rows)
+    projects,errors=prepare_projects(work,[(r.id,'PC_IE') for r in work.rows],BASE/'plantillas_word')
+    assert not errors and len(projects)==1
+    text=projects[0].text
+    expected=('SOFÍA IGNACIA DAROCH VERDUGO, cédula de identidad N° 24010461-K y '
+              'MIA VALENTINA DAROCH VERDUGO, cédula de identidad N° 24624826-5')
+    assert expected in text
+    assert 'SOFÍA IGNACIA DAROCH VERDUGO y MIA VALENTINA DAROCH VERDUGO, cédula' not in text
+    assert 'cédulas de identidad' not in text

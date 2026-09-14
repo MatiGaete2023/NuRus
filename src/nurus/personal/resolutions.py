@@ -33,6 +33,45 @@ def join_names(values):
     values=list(dict.fromkeys(str(v).strip() for v in values if str(v).strip()))
     return values[0] if len(values)==1 else ', '.join(values[:-1])+' y '+values[-1] if values else ''
 
+def _has_explicit_value(value):
+    if value is None:return False
+    if isinstance(value,str):return bool(value.strip())
+    return True
+
+def resolution_marked(value):
+    """Interpreta la columna humana RES sin convertir valores dudosos en proyectos."""
+    if isinstance(value,bool):return value
+    if isinstance(value,(int,float)):
+        try:return float(value)!=0
+        except (TypeError,ValueError):return False
+    raw=str(value or '').strip().lower().replace(',','.')
+    if raw in {'1','1.0'}:return True
+    if raw in {'0','0.0'}:return False
+    text=normalize(value)
+    if text in {'si','s','x','true','verdadero','res','resolucion','con resolucion'}:return True
+    return False
+
+def reviewed_resolution_ids(work):
+    """Devuelve None si RES no fue usado; si fue usado, la selección humana es autoritativa."""
+    explicit=False;selected=set()
+    for row in work.rows:
+        if 'RES' not in row.review or not _has_explicit_value(row.review.get('RES')):continue
+        explicit=True
+        if resolution_marked(row.review.get('RES')):selected.add(row.id)
+    return selected if explicit else None
+
+def automatic_project_selections(work,fallback_kind='PC_IE'):
+    """Proyectos automáticos respetando RES cuando la planilla revisada lo utiliza."""
+    reviewed=reviewed_resolution_ids(work);result=[]
+    for row in work.rows:
+        if row.excluded:continue
+        kinds=[kind for kind in row.actions if kind in KINDS]
+        if reviewed is not None:
+            if row.id not in reviewed:continue
+            if not kinds:kinds=[fallback_kind]
+        for kind in kinds:result.append((row.id,kind))
+    return result
+
 def replace_paragraph(paragraph,text):
     """Modifica solo tramos cambiados conservando los runs del resto de la matriz."""
     original=paragraph.text
@@ -69,8 +108,8 @@ def grouped_values(work,rows):
     for r in rows:
         name=value(work,r,'nombre');rut=value(work,r,'rut');program=value(work,r,'programa')
         persons.setdefault((normalize(name),normalize(rut)),[name,rut,[]])[2].append(program)
-    vals['PERSONAS']=join_names(name+', RUT '+(rut or '[COMPLETAR RUT]') for name,rut,_ in persons.values())
-    vals['DETALLE_PERSONAS']='; '.join(name+', RUT '+(rut or '[COMPLETAR RUT]')+', programa '+join_names(programs) for name,rut,programs in persons.values())
+    vals['PERSONAS']=join_names(name+', cédula de identidad N° '+(rut or '[COMPLETAR RUT]') for name,rut,_ in persons.values())
+    vals['DETALLE_PERSONAS']='; '.join(name+', cédula de identidad N° '+(rut or '[COMPLETAR RUT]')+', programa '+join_names(programs) for name,rut,programs in persons.values())
     vals['_PLURAL']=len(persons)>1
     vals['_VARIOS_PROGRAMAS']=len({normalize(value(work,r,'programa')) for r in rows})>1
     vals['_VARIAS_FECHAS']=len({word_values(work,r).get('FECHA_RESOLUCION') for r in rows if word_values(work,r).get('FECHA_RESOLUCION')})>1
@@ -86,21 +125,30 @@ def render_project(project,target):
             ('la persona aludida','las personas individualizadas'),
             ('del niño sujeto de protección','de los niños, niñas o adolescentes individualizados'),
             ('del niño, niña o adolescente','de los niños, niñas o adolescentes'),
-            ('cédula de identidad N°','cédulas de identidad N°'),
-            ('cédula de identidad N.º','cédulas de identidad N.º'),
         ]
         if project.values.get('_VARIOS_PROGRAMAS'):
             replacements.extend([('al organismo interventor','a los organismos interventores'),('al programa interventor','a los programas intervinientes'),('a la institución','a las instituciones correspondientes'),('de dicho programa','de dichos programas')])
         if project.values.get('_VARIAS_FECHAS'):replacements.append(('con fecha ','con fechas '))
         for p in paragraphs(doc):
             text=p.text
+            # Las matrices históricas separan {{NOMBRE}} y {{RUT}}. En grupos de
+            # varios NNA se reemplaza ese bloque completo para conservar la
+            # correspondencia jurídica persona/cédula en el propio considerando.
+            for marker in ('cédula de identidad N°','cédula de identidad N.º'):
+                old_pair=project.values['NOMBRE']+', '+marker+' '+project.values['RUT']
+                if old_pair in text:
+                    people=project.values['PERSONAS'].replace('cédula de identidad N°',marker)
+                    text=text.replace(old_pair,people)
             for old,new in replacements:text=text.replace(old,new)
             replace_paragraph(p,text)
-        # Deja explícita la correspondencia persona/RUT/programa, incluso si son distintos.
-        detail='Personas comprendidas: '+project.values['DETALLE_PERSONAS']+'.'
-        anchor=next((p for p in doc.paragraphs if '{{' not in p.text and p.text.strip().startswith('RIT')),None)
-        if anchor:anchor.insert_paragraph_before(detail)
-        else:doc.add_paragraph(detail)
+        # Si excepcionalmente existen programas distintos para el mismo RIT, se
+        # conserva un detalle explícito; con un solo programa no se agrega texto
+        # ajeno a la matriz judicial.
+        if project.values.get('_VARIOS_PROGRAMAS'):
+            detail='Personas comprendidas: '+project.values['DETALLE_PERSONAS']+'.'
+            anchor=next((p for p in doc.paragraphs if '{{' not in p.text and p.text.strip().startswith('RIT')),None)
+            if anchor:anchor.insert_paragraph_before(detail)
+            else:doc.add_paragraph(detail)
     doc.save(target)
     return doc
 
