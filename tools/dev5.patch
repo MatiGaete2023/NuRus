@@ -1,0 +1,287 @@
+--- a/src/nurus/personal/resolutions.py
++++ b/src/nurus/personal/resolutions.py
+@@ -33,6 +33,45 @@
+     values=list(dict.fromkeys(str(v).strip() for v in values if str(v).strip()))
+     return values[0] if len(values)==1 else ', '.join(values[:-1])+' y '+values[-1] if values else ''
+ 
++def _has_explicit_value(value):
++    if value is None:return False
++    if isinstance(value,str):return bool(value.strip())
++    return True
++
++def resolution_marked(value):
++    """Interpreta la columna humana RES sin convertir valores dudosos en proyectos."""
++    if isinstance(value,bool):return value
++    if isinstance(value,(int,float)):
++        try:return float(value)!=0
++        except (TypeError,ValueError):return False
++    raw=str(value or '').strip().lower().replace(',','.')
++    if raw in {'1','1.0'}:return True
++    if raw in {'0','0.0'}:return False
++    text=normalize(value)
++    if text in {'si','s','x','true','verdadero','res','resolucion','con resolucion'}:return True
++    return False
++
++def reviewed_resolution_ids(work):
++    """Devuelve None si RES no fue usado; si fue usado, la selección humana es autoritativa."""
++    explicit=False;selected=set()
++    for row in work.rows:
++        if 'RES' not in row.review or not _has_explicit_value(row.review.get('RES')):continue
++        explicit=True
++        if resolution_marked(row.review.get('RES')):selected.add(row.id)
++    return selected if explicit else None
++
++def automatic_project_selections(work,fallback_kind='PC_IE'):
++    """Proyectos automáticos respetando RES cuando la planilla revisada lo utiliza."""
++    reviewed=reviewed_resolution_ids(work);result=[]
++    for row in work.rows:
++        if row.excluded:continue
++        kinds=[kind for kind in row.actions if kind in KINDS]
++        if reviewed is not None:
++            if row.id not in reviewed:continue
++            if not kinds:kinds=[fallback_kind]
++        for kind in kinds:result.append((row.id,kind))
++    return result
++
+ def replace_paragraph(paragraph,text):
+     """Modifica solo tramos cambiados conservando los runs del resto de la matriz."""
+     original=paragraph.text
+@@ -69,8 +108,8 @@
+     for r in rows:
+         name=value(work,r,'nombre');rut=value(work,r,'rut');program=value(work,r,'programa')
+         persons.setdefault((normalize(name),normalize(rut)),[name,rut,[]])[2].append(program)
+-    vals['PERSONAS']=join_names(name+', RUT '+(rut or '[COMPLETAR RUT]') for name,rut,_ in persons.values())
+-    vals['DETALLE_PERSONAS']='; '.join(name+', RUT '+(rut or '[COMPLETAR RUT]')+', programa '+join_names(programs) for name,rut,programs in persons.values())
++    vals['PERSONAS']=join_names(name+', cédula de identidad N° '+(rut or '[COMPLETAR RUT]') for name,rut,_ in persons.values())
++    vals['DETALLE_PERSONAS']='; '.join(name+', cédula de identidad N° '+(rut or '[COMPLETAR RUT]')+', programa '+join_names(programs) for name,rut,programs in persons.values())
+     vals['_PLURAL']=len(persons)>1
+     vals['_VARIOS_PROGRAMAS']=len({normalize(value(work,r,'programa')) for r in rows})>1
+     vals['_VARIAS_FECHAS']=len({word_values(work,r).get('FECHA_RESOLUCION') for r in rows if word_values(work,r).get('FECHA_RESOLUCION')})>1
+@@ -86,21 +125,30 @@
+             ('la persona aludida','las personas individualizadas'),
+             ('del niño sujeto de protección','de los niños, niñas o adolescentes individualizados'),
+             ('del niño, niña o adolescente','de los niños, niñas o adolescentes'),
+-            ('cédula de identidad N°','cédulas de identidad N°'),
+-            ('cédula de identidad N.º','cédulas de identidad N.º'),
+         ]
+         if project.values.get('_VARIOS_PROGRAMAS'):
+             replacements.extend([('al organismo interventor','a los organismos interventores'),('al programa interventor','a los programas intervinientes'),('a la institución','a las instituciones correspondientes'),('de dicho programa','de dichos programas')])
+         if project.values.get('_VARIAS_FECHAS'):replacements.append(('con fecha ','con fechas '))
+         for p in paragraphs(doc):
+             text=p.text
++            # Las matrices históricas separan {{NOMBRE}} y {{RUT}}. En grupos de
++            # varios NNA se reemplaza ese bloque completo para conservar la
++            # correspondencia jurídica persona/cédula en el propio considerando.
++            for marker in ('cédula de identidad N°','cédula de identidad N.º'):
++                old_pair=project.values['NOMBRE']+', '+marker+' '+project.values['RUT']
++                if old_pair in text:
++                    people=project.values['PERSONAS'].replace('cédula de identidad N°',marker)
++                    text=text.replace(old_pair,people)
+             for old,new in replacements:text=text.replace(old,new)
+             replace_paragraph(p,text)
+-        # Deja explícita la correspondencia persona/RUT/programa, incluso si son distintos.
+-        detail='Personas comprendidas: '+project.values['DETALLE_PERSONAS']+'.'
+-        anchor=next((p for p in doc.paragraphs if '{{' not in p.text and p.text.strip().startswith('RIT')),None)
+-        if anchor:anchor.insert_paragraph_before(detail)
+-        else:doc.add_paragraph(detail)
++        # Si excepcionalmente existen programas distintos para el mismo RIT, se
++        # conserva un detalle explícito; con un solo programa no se agrega texto
++        # ajeno a la matriz judicial.
++        if project.values.get('_VARIOS_PROGRAMAS'):
++            detail='Personas comprendidas: '+project.values['DETALLE_PERSONAS']+'.'
++            anchor=next((p for p in doc.paragraphs if '{{' not in p.text and p.text.strip().startswith('RIT')),None)
++            if anchor:anchor.insert_paragraph_before(detail)
++            else:doc.add_paragraph(detail)
+     doc.save(target)
+     return doc
+ 
+--- a/src/nurus/personal/app.py
++++ b/src/nurus/personal/app.py
+@@ -14,7 +14,7 @@
+ from .config import Configuration, UMBRALES, atomic_json, validate
+ from .work import Work
+ from .outputs import prepare_drafts, prepare_required_drafts, create_draft, create_drafts, import_contacts, value
+-from .resolutions import KINDS, prepare_projects, generate_projects
++from .resolutions import KINDS, prepare_projects, generate_projects, automatic_project_selections, reviewed_resolution_ids
+ from .modalities import MODALITIES
+ from .importing import SheetChoice
+ from nurus.rus.reader import list_workbook_sheets
+@@ -197,11 +197,16 @@
+         self.mode.set(self.work.mode);self.file.set(self.work.path)
+         self.observation_id=None
+         self.records.delete(*self.records.get_children());self.words.delete(*self.words.get_children())
++        reviewed_res=reviewed_resolution_ids(self.work)
++        automatic=dict();fallback_kind=self.manual_word.get() if hasattr(self,'manual_word') else 'PC_IE'
++        for rid,kind in automatic_project_selections(self.work,fallback_kind):
++            automatic.setdefault(rid,[]).append(kind)
+         for row in self.work.rows:
+             state='Excluido' if row.excluded else 'Revisar aviso' if row.warnings else 'Propuesta'
+             self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=('excluded' if row.excluded else 'warning' if row.warnings else '',))
+-            for kind in row.actions:
+-                if kind in ('PC_IE','PC_INFO'):self.words.insert('','end',iid=row.id+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,'Verificar procedencia'))
++            for kind in automatic.get(row.id,[]):
++                source='Indicado en archivo (RES)' if reviewed_res is not None else 'Verificar procedencia'
++                self.words.insert('','end',iid=row.id+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,source))
+         n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)
+         self.summary.set(f'{n} registros · {obs} propuestas · {exc} excluidos · {len(self.words.get_children())} proyectos posibles')
+         from .statistics import summarize
+@@ -409,12 +414,14 @@
+ 
+     def _add_words(self):
+         work=self._require_work();kind=self.manual_word.get()
++        selected=list(self.records.selection())
++        if not selected:raise ValueError('Selecciona en Trabajo los registros que quieres agregar manualmente como proyecto.')
+         self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
+-        for rid in (self.records.selection() or tuple(r.id for r in work.rows)):
++        for rid in selected:
+             row=next(r for r in work.rows if r.id==rid)
+             if row.excluded:continue
+             iid=rid+'|'+kind
+-            if not self.words.exists(iid):self.words.insert('','end',iid=iid,values=(value(work,row,'rit'),value(work,row,'tribunal'),kind,'Gestión particular: verificar'))
++            if not self.words.exists(iid):self.words.insert('','end',iid=iid,values=(value(work,row,'rit'),value(work,row,'tribunal'),kind,'Agregado manualmente'))
+ 
+     def _capture_project(self):
+         if self.project_index is not None and self.project_index<len(self.projects):
+@@ -430,10 +437,11 @@
+         work=self._require_work()
+         selected=list(self.words.selection()) or list(self.words.get_children())
+         if not selected:
+-            # En una planilla externa el usuario elige el tipo; no necesita un análisis del motor.
+-            kind=self.manual_word.get()
+-            selected=[r.id+'|'+kind for r in work.rows if not r.excluded]
+-        selections=[item.split('|') for item in selected]
++            selections=automatic_project_selections(work,self.manual_word.get())
++            if not selections:
++                raise ValueError('No hay proyectos indicados. Si la planilla usa RES, solo se generan los marcados allí; para agregar otro caso, selecciónalo en Trabajo y usa Agregar desde Trabajo.')
++        else:
++            selections=[item.split('|') for item in selected]
+         def done(result):
+             self.projects,errors=result;self.project_index=None;self.project_list.delete(0,'end')
+             for p in self.projects:self.project_list.insert('end',p.rit+' · '+p.kind+' · '+str(len(p.record_ids))+' registros')
+--- a/tests/test_personal_batch_revision.py
++++ b/tests/test_personal_batch_revision.py
+@@ -10,7 +10,7 @@
+ from nurus.personal.work import Work
+ from nurus.personal.importing import SheetChoice
+ from nurus.personal.outputs import prepare_drafts,create_drafts,Draft
+-from nurus.personal.resolutions import prepare_projects,generate_projects,replace_paragraph
++from nurus.personal.resolutions import prepare_projects,generate_projects,replace_paragraph,automatic_project_selections,reviewed_resolution_ids
+ from nurus.personal.template_package import import_templates,install_bundled_templates
+ 
+ def external(tmp_path,rows=None):
+@@ -132,3 +132,31 @@
+     generate_projects(work,projects,tmp_path/'lote.docx')
+     counts=summarize(work)
+     assert counts['word_generados']==1 and counts['proyectos_generados']==2
++
++
++def test_reviewed_res_column_is_authoritative_for_automatic_projects(tmp_path):
++    book=Workbook();sheet=book.active;sheet.title='Registros'
++    sheet.append(['RIT','TRIBUNAL','NOMBRE','RUT','DERIVACION','OBSERVACION','RES'])
++    sheet.append(['X-1-2026','LAJA','Persona Uno','11111111-1','AFT EJEMPLO','Texto','1.0'])
++    sheet.append(['X-2-2026','LAJA','Persona Dos','22222222-2','AFT EJEMPLO','Texto','No'])
++    sheet.append(['X-3-2026','LAJA','Persona Tres','33333333-3','AFT EJEMPLO','Texto',''])
++    path=tmp_path/'seleccion_res.xlsx';book.save(path)
++    work=Work.external(path,defaults())
++    assert reviewed_resolution_ids(work)=={work.rows[0].id}
++    assert automatic_project_selections(work,'PC_INFO')==[(work.rows[0].id,'PC_INFO')]
++
++
++def test_grouped_people_keep_each_identity_number_next_to_its_name(tmp_path):
++    rows=[
++        ['X-149-2025','MULCHEN','SOFÍA IGNACIA DAROCH VERDUGO','24010461-K','AFT  MULCHEN','Texto','2026-09-14',1,0],
++        ['X-149-2025','MULCHEN','MIA VALENTINA DAROCH VERDUGO','24624826-5','AFT  MULCHEN','Texto','2026-09-14',1,0],
++    ]
++    work=external(tmp_path,rows)
++    projects,errors=prepare_projects(work,[(r.id,'PC_IE') for r in work.rows],BASE/'plantillas_word')
++    assert not errors and len(projects)==1
++    text=projects[0].text
++    expected=('SOFÍA IGNACIA DAROCH VERDUGO, cédula de identidad N° 24010461-K y '
++              'MIA VALENTINA DAROCH VERDUGO, cédula de identidad N° 24624826-5')
++    assert expected in text
++    assert 'SOFÍA IGNACIA DAROCH VERDUGO y MIA VALENTINA DAROCH VERDUGO, cédula' not in text
++    assert 'cédulas de identidad' not in text
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -4,7 +4,7 @@
+ 
+ [project]
+ name = "nurus"
+-version = "0.4.0.dev4"
++version = "0.4.0.dev5"
+ description = "CSMP personal: Excel, proyectos Word y borradores desde un trabajo compartido"
+ requires-python = ">=3.12,<3.15"
+ dependencies = ["pandas>=2.2,<3", "openpyxl>=3.1,<4", "python-docx>=1.1,<2", "lxml>=4.9,<7", "docxcompose>=1.4,<3"]
+--- a/src/nurus/__init__.py
++++ b/src/nurus/__init__.py
+@@ -1,3 +1,3 @@
+ """NuRus: revisión local, trazable y con control humano."""
+ 
+-__version__ = "0.4.0.dev4"
++__version__ = "0.4.0.dev5"
+--- a/.github/workflows/tests.yml
++++ b/.github/workflows/tests.yml
+@@ -70,14 +70,14 @@
+       - name: Build Windows distribution
+         if: matrix.python == '3.12'
+         shell: pwsh
+-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev4.zip HEAD
++        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev5.zip HEAD
+ 
+       - name: Source distribution
+         if: matrix.python == '3.12'
+         uses: actions/upload-artifact@v4
+         with:
+-          name: CSMP-Windows-dev4
+-          path: dist/CSMP_Assistant_personal_0.4.0-dev4.zip
++          name: CSMP-Windows-dev5
++          path: dist/CSMP_Assistant_personal_0.4.0-dev5.zip
+ 
+       - name: Wheel artifact
+         uses: actions/upload-artifact@v4
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,6 @@
+ # CSMP Assistant personal — Windows
+ 
+-Versión **0.4.0.dev4**, actualizada el 14 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos.
++Versión **0.4.0.dev5**, actualizada el 14 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos.
+ 
+ ## Instalación y actualización
+ 
+@@ -27,7 +27,9 @@
+ 
+ ## Resoluciones
+ 
+-El tipo `PC_IE`, `PC_INFO` o `NOMENCL` se puede asignar de forma independiente de la sugerencia del motor. Los proyectos se agrupan por **tribunal + RIT + tipo**. Si hay varias personas en el mismo grupo, se genera un solo proyecto con la individualización correspondiente.
++El tipo `PC_IE`, `PC_INFO` o `NOMENCL` se puede asignar de forma independiente de la sugerencia del motor. Los proyectos se agrupan por **tribunal + RIT + tipo**. Si la planilla revisada utiliza la columna `RES`, esa selección humana es autoritativa: solo los registros marcados afirmativamente se incorporan automáticamente; el motor no vuelve a agregar proyectos descartados en el Excel. Si `RES` no fue utilizado, se conservan las sugerencias automáticas. Un caso adicional puede agregarse manualmente seleccionándolo primero en Trabajo.
++
++Si hay varias personas en el mismo RIT y tipo, se genera un solo proyecto. Cada NNA queda individualizado junto a su propia cédula —por ejemplo, `NOMBRE 1, cédula de identidad N° RUT 1 y NOMBRE 2, cédula de identidad N° RUT 2`— en vez de construir por separado una lista de nombres y otra de RUT.
+ 
+ **Generar UN Word** produce un único archivo y cada proyecto comienza en página nueva. Los datos ausentes se marcan como `[COMPLETAR ...]`. Todas las fechas insertadas por el generador de proyectos se escriben íntegramente en palabras, por ejemplo: `catorce de septiembre de dos mil veintiséis`.
+ 
+--- a/docs/CAMBIOS_USO_20260914.md
++++ b/docs/CAMBIOS_USO_20260914.md
+@@ -1,6 +1,6 @@
+ # Ajustes de uso — 14 de septiembre de 2026
+ 
+-Versión consolidada: **0.4.0.dev4**. Objetivo: preparar Excel, Word y borradores con menos pasos, manteniendo revisión humana y sin escribir en RUS/SATURNO ni enviar correos.
++Versión consolidada: **0.4.0.dev5**. Objetivo: preparar Excel, Word y borradores con menos pasos, manteniendo revisión humana y sin escribir en RUS/SATURNO ni enviar correos.
+ 
+ ## Cambios consolidados
+ 
+@@ -12,6 +12,7 @@
+ - Correos: selección de modalidades, editor ampliado, carga de planilla modificada/externa, guardado de todo el lote y adjuntos automáticos con nombre del programa. Se agrega **Preparar TODOS los correos necesarios**, que incluye el informativo general de la pestaña y los correos específicos derivados de reglas en una sola preparación.
+ - Las planillas exportadas conservan `NURUS_REGLAS` en columna técnica oculta; al reabrirlas se reconstruyen acciones/correos. Para copias anteriores se usa `NURUS_TRAZABILIDAD` como respaldo cuando es posible.
+ - Resoluciones: tipo manual independiente, agrupación tribunal + RIT + tipo, una resolución por grupo y un único Word con salto de página entre proyectos. Las fechas generadas se expresan completamente en palabras.
++- Resoluciones: la columna humana `RES` de una planilla revisada prevalece sobre las sugerencias del motor; si se usa, solo los registros marcados afirmativamente entran al lote automático. Para varios NNA en un mismo RIT, cada nombre queda inmediatamente asociado a su propia cédula en la redacción principal.
+ - Matrices: seis bases disponibles (Laja y Mulchén). Cinco cuerpos revisados se verifican por SHA-256; PC_INFO Laja se incorporó desde Word antiguo. Tomé sigue pendiente por falta de fuente.
+ - La revisión de matrices repone correctamente un archivo eliminado aun cuando la revisión ya estaba marcada como aplicada.
+ - Recursos de matrices divididos en cinco payloads pequeños independientes para evitar corrupción/truncamiento del archivo monolítico anterior.
+@@ -25,5 +26,5 @@
+ 
+ No hay matrices de Tomé. La CI no acredita comportamiento real de Excel 2010/Outlook clásico ni calidad jurídica de una resolución concreta; esas verificaciones siguen siendo humanas/institucionales.
+ 
+-[G-ESTADO] Código y documentación alineados para 0.4.0.dev4.
++[G-ESTADO] Código y documentación alineados para 0.4.0.dev5.
+ [L-SIGUIENTE] Ejecutar aceptación Office institucional con copias autorizadas.
