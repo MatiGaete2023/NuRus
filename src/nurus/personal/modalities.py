@@ -11,9 +11,9 @@ def modality(program):
     name=normalize(program).upper()
     first=re.split(r'[\s-]+',name)[0]
     if first=='DCE':return 'DCE'
-    if first=='FAE':return 'FAE'
+    if first in {'FAE','FAS'}:return 'FAE'
     if first.startswith(('REM','RLP','RMA','RFA','RDS','RSP','RPE')) or first in {'RES','RESIDENCIA','RESIDENCIAL'}:return 'RES'
-    if first in {'AFT','PF','PRM','PPF','PIE','PDE','PEE','PAS','DAM','OPD','PDC','FAS'}:return 'AMB'
+    if first in {'AFT','PF','PRM','PPF','PIE','PDE','PEE','PAS','DAM','OPD','PDC'}:return 'AMB'
     return ''
 def selected_row(work,row,keys):
     if keys is None or set(keys)==set(MODALITIES):return True
