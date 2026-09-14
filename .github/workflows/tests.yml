@@ -6,8 +6,6 @@ on:
       - main
       - implementacion-plan-2026-09-08
       - csmp-personal-2026-09-13
-    paths-ignore:
-      - '.matrix_payload/**'
   pull_request:
 
 jobs:
@@ -40,9 +38,11 @@ jobs:
           import nurus; from importlib.metadata import version;
           from nurus.rus.catalog import load_catalog;
           from nurus.storage.database import Database;
+          from nurus.personal.template_package import _matrix_patches;
           assert nurus.__version__ == version('nurus'); assert load_catalog();
+          assert len(_matrix_patches()) == 5;
           folder = tempfile.TemporaryDirectory(); db = Database(Path(folder.name) / 'check.sqlite3');
-          assert db.list_templates(); print(nurus.__version__, 'installed resources OK'); folder.cleanup()"
+          assert db.list_templates(); print(nurus.__version__, 'installed resources OK; 5 matrix patches verified'); folder.cleanup()"
 
       - name: Dependency check
         run: python -m pip check
