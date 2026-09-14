@@ -45,7 +45,7 @@ def test_modalities_filter_and_program_attachment_names(tmp_path):
     assert len(drafts)==1
     assert Path(drafts[0].attachments[0]).name=='FAE EJEMPLO.xlsx'
     sheet=load_workbook(drafts[0].attachments[0]).active
-    assert sheet.max_row==2 and sheet['D2'].value=='Persona Tres'
+    assert sheet.max_row==2 and sheet['C2'].value=='Persona Tres'
     all_drafts=prepare_drafts(work,'programa_espera')
     assert len(all_drafts)==2
 
