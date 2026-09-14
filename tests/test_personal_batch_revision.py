@@ -6,7 +6,7 @@ import json
 import pytest
 from openpyxl import Workbook,load_workbook
 from docx import Document
-from nurus.personal.config import defaults,Configuration,BASE,CC
+from nurus.personal.config import defaults,Configuration,BASE,CC,LEGACY_CORREO_BODIES,CORREO_REVISION
 from nurus.personal.work import Work
 from nurus.personal.importing import SheetChoice
 from nurus.personal.outputs import prepare_drafts,create_drafts,Draft
@@ -76,6 +76,36 @@ def test_due_report_attachment_contains_only_operational_columns(tmp_path):
     assert [c.value for c in out[1]]==['RIT','TRIBUNAL','NOMBRE','DERIVACION','F. VENCIMIENTO']
     assert out.max_column==5
     assert [out.cell(2,i).value for i in range(1,6)]==['X-20-2026','LAJA','Persona Informe','PRM EJEMPLO','30/09/2026']
+
+
+def test_manual_email_bodies_match_csmp_2025_contract():
+    templates=defaults()['correos']['plantillas']
+    assert templates['espera']['cuerpo']==('Buen día:\n\nJunto con saludar, se informa que pestaña espera del módulo RUS en SITFA, '
+                                             'se revisaron todos los registros pertenecientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,')
+    assert templates['cumplimiento']['cuerpo']==('Buen día:\n\nJunto con saludar, se informa que pestaña cumplimiento del modulo RUS en SITFA, '
+                                                   'se revisaron todos los registros pertenecientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,')
+    assert templates['informes']['cuerpo']==('Buen día:\n\nJunto con saludar, se informa que pestaña informes del módulo RUS en SITFA, '
+                                               'se revisaron todos los registros pertenecientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,')
+    assert templates['medidas']['cuerpo']==('Buen día:\n\nJunto con saludar, se remite archivo Excel adjunto con nomina de medidas sin vigencia y por vencer '
+                                              'al día {FECHA} en {ALCANCE_MODALIDADES}.\n\nAtte. a Ud.,')
+    assert templates['programa_por_vencer']['cuerpo']==('Buen día:\n\nJunto con saludar, se envía planilla con RIT de causas en las cuales, informes de avances '
+                                                           'se encuentran pronto a vencer. Se ruega acusar recibo de la información.\n\nAtte. a Ud.,')
+    assert templates['programa_por_vencer']['adjunto']=='obligatorio'
+
+
+def test_existing_default_mail_bodies_migrate_but_custom_body_is_preserved(tmp_path):
+    conf=Configuration(tmp_path/'config');cfg=deepcopy(conf.data);cfg.pop('revision_correos',None)
+    cfg['correos']['plantillas']['espera']['cuerpo']=LEGACY_CORREO_BODIES['espera']
+    cfg['correos']['plantillas']['cumplimiento']['cuerpo']='Mi formato personalizado.'
+    cfg['correos']['plantillas']['programa_por_vencer']['cuerpo']=LEGACY_CORREO_BODIES['programa_por_vencer']
+    conf.save(cfg);updated=Configuration(conf.directory)
+    canonical=defaults()['correos']['plantillas']
+    assert updated.data['revision_correos']==CORREO_REVISION
+    assert updated.data['correos']['plantillas']['espera']['cuerpo']==canonical['espera']['cuerpo']
+    assert updated.data['correos']['plantillas']['programa_por_vencer']['cuerpo']==canonical['programa_por_vencer']['cuerpo']
+    assert updated.data['correos']['plantillas']['cumplimiento']['cuerpo']=='Mi formato personalizado.'
+    assert updated.path.with_suffix('.bak').exists()
+
 
 def test_batch_save_empty_to_and_partial_failure_do_not_duplicate(tmp_path,monkeypatch):
     work=external(tmp_path);seen=[]
