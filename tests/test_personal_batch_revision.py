@@ -49,6 +49,34 @@ def test_modalities_filter_and_program_attachment_names(tmp_path):
     all_drafts=prepare_drafts(work,'programa_espera')
     assert len(all_drafts)==2
 
+
+def test_waiting_attachment_contains_only_operational_columns(tmp_path):
+    book=Workbook();sheet=book.active;sheet.title='Espera'
+    sheet.append(['RIT','TRIBUNAL','NOMBRE','RUT','DERIVACION','T ESPERA','OBSERVACION'])
+    sheet.append(['X-10-2026','MULCHEN','Persona Espera','11111111-1','AFT EJEMPLO',72,'Texto interno que no debe salir'])
+    path=tmp_path/'espera_adj.xlsx';book.save(path)
+    work=Work.external(path,defaults(),mode='ESPERA')
+    drafts=prepare_drafts(work,'programa_espera',directory=tmp_path/'salida')
+    assert len(drafts)==1 and len(drafts[0].attachments)==1
+    out=load_workbook(drafts[0].attachments[0]).active
+    assert [c.value for c in out[1]]==['RIT','TRIBUNAL','NOMBRE','DERIVACION','T ESPERA']
+    assert out.max_column==5
+    assert [out.cell(2,i).value for i in range(1,6)]==['X-10-2026','MULCHEN','Persona Espera','AFT EJEMPLO','72']
+
+
+def test_due_report_attachment_contains_only_operational_columns(tmp_path):
+    book=Workbook();sheet=book.active;sheet.title='Informes'
+    sheet.append(['RIT','TRIBUNAL','NOMBRE','RUT','DERIVACION','FECHA VENCIMIENTO','OBSERVACION'])
+    sheet.append(['X-20-2026','LAJA','Persona Informe','22222222-2','PRM EJEMPLO','30/09/2026','Texto interno que no debe salir'])
+    path=tmp_path/'informes_adj.xlsx';book.save(path)
+    work=Work.external(path,defaults(),mode='INFORMES')
+    drafts=prepare_drafts(work,'programa_por_vencer',directory=tmp_path/'salida')
+    assert len(drafts)==1 and len(drafts[0].attachments)==1
+    out=load_workbook(drafts[0].attachments[0]).active
+    assert [c.value for c in out[1]]==['RIT','TRIBUNAL','NOMBRE','DERIVACION','F. VENCIMIENTO']
+    assert out.max_column==5
+    assert [out.cell(2,i).value for i in range(1,6)]==['X-20-2026','LAJA','Persona Informe','PRM EJEMPLO','30/09/2026']
+
 def test_batch_save_empty_to_and_partial_failure_do_not_duplicate(tmp_path,monkeypatch):
     work=external(tmp_path);seen=[]
     def save(product,**kwargs):
@@ -144,6 +172,24 @@ def test_reviewed_res_column_is_authoritative_for_automatic_projects(tmp_path):
     work=Work.external(path,defaults())
     assert reviewed_resolution_ids(work)=={work.rows[0].id}
     assert automatic_project_selections(work,'PC_INFO')==[(work.rows[0].id,'PC_INFO')]
+
+
+def test_resolution_mark_on_one_row_recognizes_complete_rit(tmp_path):
+    book=Workbook();sheet=book.active;sheet.title='Registros'
+    sheet.append(['RIT','TRIBUNAL','NOMBRE','RUT','DERIVACION','OBSERVACION','GENERAR RESOLUCIÓN'])
+    sheet.append(['X-149-2025','MULCHEN','SOFÍA IGNACIA DAROCH VERDUGO','24010461-K','AFT MULCHEN','Texto','1'])
+    sheet.append(['X-149-2025','MULCHEN','MIA VALENTINA DAROCH VERDUGO','24624826-5','AFT MULCHEN','Texto',''])
+    sheet.append(['X-150-2025','MULCHEN','Otra Persona','11111111-1','AFT MULCHEN','Texto',''])
+    path=tmp_path/'res_por_causa.xlsx';book.save(path)
+    work=Work.external(path,defaults())
+    selected=automatic_project_selections(work,'PC_IE')
+    assert {rid for rid,kind in selected}=={work.rows[0].id,work.rows[1].id}
+    assert {kind for rid,kind in selected}=={'PC_IE'}
+    projects,errors=prepare_projects(work,selected,BASE/'plantillas_word')
+    assert not errors and len(projects)==1
+    assert set(projects[0].record_ids)=={work.rows[0].id,work.rows[1].id}
+    assert 'SOFÍA IGNACIA DAROCH VERDUGO' in projects[0].text
+    assert 'MIA VALENTINA DAROCH VERDUGO' in projects[0].text
 
 
 def test_grouped_people_keep_each_identity_number_next_to_its_name(tmp_path):

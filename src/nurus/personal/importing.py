@@ -43,7 +43,7 @@ def read_external(path,mode='ESPERA',sheet=None):
                         detected,mapping=inferred[0]
                 # Los campos humanos usan el mismo nombre interno cualquiera sea su alias.
                 human={}
-                for key,aliases in {'OBSERVACION':('observacion','observaciones'),'FECHA_OBS':('fecha_obs','fecha obs','fecha observacion'),'TT':('tt',),'CC':('cc',),'RES':('res','resolucion generada')}.items():
+                for key,aliases in {'OBSERVACION':('observacion','observaciones'),'FECHA_OBS':('fecha_obs','fecha obs','fecha observacion'),'TT':('tt',),'CC':('cc',),'RES':('res','resolucion generada','resolucion','generar resolucion','proyecto resolucion','proyecto de resolucion')}.items():
                     found=[h for h in headers if normalize(h) in {normalize(a) for a in aliases}]
                     if len(found)==1:human[key]=found[0]
                 rules_col=next((h for h in headers if normalize(h)==normalize('NURUS_REGLAS')),None)

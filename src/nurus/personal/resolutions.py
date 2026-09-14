@@ -38,8 +38,17 @@ def _has_explicit_value(value):
     if isinstance(value,str):return bool(value.strip())
     return True
 
+def resolution_kind(value):
+    text=normalize(value).replace('_',' ')
+    return {'pc ie':'PC_IE','pc info':'PC_INFO','nomencl':'NOMENCL','nomenclatura':'NOMENCL'}.get(text)
+
+def _case_key(work,row):
+    court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
+    return normalize(court),normalize(value(work,row,'rit'))
+
 def resolution_marked(value):
     """Interpreta la columna humana RES sin convertir valores dudosos en proyectos."""
+    if resolution_kind(value):return True
     if isinstance(value,bool):return value
     if isinstance(value,(int,float)):
         try:return float(value)!=0
@@ -61,15 +70,29 @@ def reviewed_resolution_ids(work):
     return selected if explicit else None
 
 def automatic_project_selections(work,fallback_kind='PC_IE'):
-    """Proyectos automáticos respetando RES cuando la planilla revisada lo utiliza."""
-    reviewed=reviewed_resolution_ids(work);result=[]
+    """Proyectos automáticos respetando RES y tratando cada tribunal/RIT como una causa."""
+    reviewed=reviewed_resolution_ids(work)
+    result=[]
+    if reviewed is None:
+        for row in work.rows:
+            if row.excluded:continue
+            for kind in (kind for kind in row.actions if kind in KINDS):result.append((row.id,kind))
+        return result
+
+    by_id={row.id:row for row in work.rows}
+    case_kinds=OrderedDict()
+    for rid in reviewed:
+        row=by_id.get(rid)
+        if not row or row.excluded:continue
+        explicit=resolution_kind(row.review.get('RES'))
+        kinds=[explicit] if explicit else [kind for kind in row.actions if kind in KINDS]
+        if not kinds:kinds=[fallback_kind]
+        bucket=case_kinds.setdefault(_case_key(work,row),[])
+        for kind in kinds:
+            if kind not in bucket:bucket.append(kind)
     for row in work.rows:
         if row.excluded:continue
-        kinds=[kind for kind in row.actions if kind in KINDS]
-        if reviewed is not None:
-            if row.id not in reviewed:continue
-            if not kinds:kinds=[fallback_kind]
-        for kind in kinds:result.append((row.id,kind))
+        for kind in case_kinds.get(_case_key(work,row),[]):result.append((row.id,kind))
     return result
 
 def replace_paragraph(paragraph,text):
@@ -154,7 +177,12 @@ def render_project(project,target):
 
 def prepare_projects(work,selections,template_dir):
     work.refresh()
-    by_id={r.id:r for r in work.rows};groups=OrderedDict()
+    by_id={r.id:r for r in work.rows};groups=OrderedDict();case_rows=OrderedDict()
+    for row in work.rows:
+        if row.excluded:continue
+        court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
+        rit=value(work,row,'rit').strip()
+        case_rows.setdefault((court,normalize(rit)),[]).append(row)
     for rid,kind in selections:
         if rid not in by_id or kind not in KINDS:continue
         row=by_id[rid]
@@ -163,7 +191,9 @@ def prepare_projects(work,selections,template_dir):
         rit=value(work,row,'rit').strip()
         key=(court,normalize(rit),kind)
         group=groups.setdefault(key,[])
-        if row.id not in {r.id for r in group}:group.append(row)
+        existing={r.id for r in group}
+        for candidate in case_rows.get((court,normalize(rit)),[]):
+            if candidate.id not in existing:group.append(candidate);existing.add(candidate.id)
     projects=[];errors=[]
     with TemporaryDirectory() as directory:
         for (court,_,kind),rows in groups.items():

@@ -79,18 +79,31 @@ def import_contacts(cfg,path):
         candidates[n]=m
     return candidates,conflicts
 
-def _table(work,rows,path):
+def _table(work,rows,path,kind=''):
     from openpyxl import Workbook
     from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
     book=Workbook();sheet=book.active;sheet.title='Nómina'
-    headers=['RIT','TRIBUNAL','RUT','NOMBRE','PROGRAMA','VENCIMIENTO / ESPERA','OBSERVACION']
+    if kind=='programa_espera':
+        headers=['RIT','TRIBUNAL','NOMBRE','DERIVACION','T ESPERA']
+        keys=('rit','tribunal','nombre','programa','espera')
+    elif kind in {'programa_vencido','programa_por_vencer'}:
+        headers=['RIT','TRIBUNAL','NOMBRE','DERIVACION','F. VENCIMIENTO']
+        keys=('rit','tribunal','nombre','programa','vencimiento')
+    else:
+        headers=['RIT','TRIBUNAL','RUT','NOMBRE','PROGRAMA','VENCIMIENTO / ESPERA','OBSERVACION']
+        keys=None
     sheet.append(headers)
     for row in rows:
-        sheet.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[value(work,row,'vencimiento') or value(work,row,'espera'),str(row.review.get('OBSERVACION',row.observation))])
+        if keys:
+            sheet.append([value(work,row,key) for key in keys])
+        else:
+            sheet.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[value(work,row,'vencimiento') or value(work,row,'espera'),str(row.review.get('OBSERVACION',row.observation))])
         for cell in sheet[sheet.max_row]:cell.data_type='s'
     sheet.freeze_panes='A2';sheet.auto_filter.ref=sheet.dimensions
     for cell in sheet[1]:cell.font=Font(bold=True)
-    for col in ('A','B','C','D','E','F','G'):sheet.column_dimensions[col].width=25 if col!='G' else 65
+    for index,header in enumerate(headers,1):
+        sheet.column_dimensions[get_column_letter(index)].width=38 if header=='NOMBRE' else 24
     write_new_file(Path(path),book.save)
     return str(path)
 
@@ -131,7 +144,7 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
             for name,subset in by_program.items():
                 target=folder/'adjuntos'/uuid4().hex
                 target.mkdir(parents=True,exist_ok=True)
-                draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx')))
+                draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx'),kind))
         draft.key=sha256((kind+'|'+','.join(r.id for r in rows)+'|'+draft.subject).encode()).hexdigest()
         output.append(draft)
     return output
