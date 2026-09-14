@@ -15,7 +15,7 @@ UMBRALES = dict(espera_dce=30, espera_laja=30, espera_mulchen=30, espera_tome=30
                proyecto_tome=60, mayoria=60, oido=45, resolucion_reciente=30,
                ingreso_reciente=30, medida=45, informe=30, ficha_antigua=180,
                ficha_reciente=30, ficha_fae=120)
-CORREO_REVISION = 1
+CORREO_REVISION = 2
 LEGACY_CORREO_BODIES = {
     'espera': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Espera del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',
     'cumplimiento': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Cumplimiento del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',
@@ -128,10 +128,16 @@ class Configuration:
         if self.data.get('revision_correos',0)<CORREO_REVISION:
             updated=deepcopy(self.data)
             canonical=defaults()['correos']['plantillas']
-            for key,previous_body in LEGACY_CORREO_BODIES.items():
-                actual=updated.get('correos',{}).get('plantillas',{}).get(key)
-                if actual and actual.get('cuerpo')==previous_body and key in canonical:
-                    actual['cuerpo']=canonical[key]['cuerpo']
+            templates=updated['correos']['plantillas']
+            # Completa únicamente plantillas ausentes. Las existentes se respetan,
+            # salvo cuerpos predeterminados antiguos conocidos que sí deben migrar.
+            for key,canonical_template in canonical.items():
+                if key not in templates:
+                    templates[key]=deepcopy(canonical_template)
+                    continue
+                previous_body=LEGACY_CORREO_BODIES.get(key)
+                if previous_body and templates[key].get('cuerpo')==previous_body:
+                    templates[key]['cuerpo']=canonical_template['cuerpo']
             updated['revision_correos']=CORREO_REVISION
             self.save(updated)
 
