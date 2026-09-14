@@ -5,3 +5,7 @@ __pycache__/
 data/*.sqlite3
 *.log
 
+.venv-csmp/
+dist/
+build/
+*.egg-info/

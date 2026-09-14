@@ -38,11 +38,14 @@ jobs:
           import nurus; from importlib.metadata import version;
           from nurus.rus.catalog import load_catalog;
           from nurus.storage.database import Database;
-          from nurus.personal.template_package import _matrix_patches;
+          from nurus.personal.template_package import _matrix_patches; import nurus.personal as personal;
           assert nurus.__version__ == version('nurus'); assert load_catalog();
           assert len(_matrix_patches()) == 5;
+          template_root = Path(personal.__file__).parent / 'plantillas_word';
+          expected = {'LAJA/NOMENCL.docx','LAJA/PC_IE.docx','LAJA/PC_INFO.docx','MULCHEN/NOMENCL.docx','MULCHEN/PC_IE.docx','MULCHEN/PC_INFO.docx'};
+          actual = {p.relative_to(template_root).as_posix() for p in template_root.rglob('*.docx')}; assert actual == expected;
           folder = tempfile.TemporaryDirectory(); db = Database(Path(folder.name) / 'check.sqlite3');
-          assert db.list_templates(); print(nurus.__version__, 'installed resources OK; 5 matrix patches verified'); folder.cleanup()"
+          assert db.list_templates(); print(nurus.__version__, 'installed resources OK; 5 patches and 6 templates verified'); folder.cleanup()"
 
       - name: Dependency check
         run: python -m pip check
@@ -55,7 +58,7 @@ jobs:
         run: python -c "import win32com.client; print('pywin32 OK')"
 
       - name: Compile
-        run: python -m compileall -q src tests
+        run: python -m compileall -q src tests tools
 
       - name: Tests
         run: python -m pytest -q
@@ -67,14 +70,14 @@ jobs:
       - name: Build Windows distribution
         if: matrix.python == '3.12'
         shell: pwsh
-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev2.zip HEAD
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev3.zip HEAD
 
       - name: Source distribution
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Windows-dev2
-          path: dist/CSMP_Assistant_personal_0.4.0-dev2.zip
+          name: CSMP-Windows-dev3
+          path: dist/CSMP_Assistant_personal_0.4.0-dev3.zip
 
       - name: Wheel artifact
         uses: actions/upload-artifact@v4
