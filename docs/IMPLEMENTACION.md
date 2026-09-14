@@ -1,6 +1,6 @@
 # Estado operativo del repositorio NuRus
 
-Actualizado: 14 de septiembre de 2026. Rama auditada: `csmp-personal-2026-09-13`. Versión del paquete: **0.4.0.dev4**.
+Actualizado: 14 de septiembre de 2026. Rama auditada: `csmp-personal-2026-09-13`. Versión del paquete: **0.4.0.dev5**.
 
 ## Alcance actual
 
@@ -14,7 +14,7 @@ Invariantes: solo Windows para CSMP Assistant; no escribir en RUS/SATURNO; no en
 - CI: exclusivamente Windows para esta rama.
 - Exportación: copia preservada; la fidelidad completa depende de Excel de escritorio en el equipo objetivo.
 - Cumplimiento sin cruce utilizable: C-10 no se evalúa y se deja advertencia; el flujo personal continúa sin exigir excepción. El flujo histórico de NuRus puede conservar controles distintos y debe leerse en sus documentos fechados.
-- Resoluciones: seis matrices base Laja/Mulchén; Tomé sigue sin matriz fuente.
+- Resoluciones: seis matrices base Laja/Mulchén; Tomé sigue sin matriz fuente. Si la planilla revisada usa `RES`, esa selección humana prevalece sobre la propuesta automática; los grupos con varios NNA mantienen cada nombre junto a su propia cédula.
 - Correos: borradores en lote, sin envío automático, con adjuntos por programa.
 
 ## Documentación
