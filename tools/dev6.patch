@@ -1,7 +1,7 @@
 --- a/src/nurus/personal/outputs.py
 +++ b/src/nurus/personal/outputs.py
 @@ -78,19 +78,33 @@
-- def _table(work,rows,path):
+-def _table(work,rows,path):
 +def _table(work,rows,path,kind=''):
      from openpyxl import Workbook
      from openpyxl.styles import Font
