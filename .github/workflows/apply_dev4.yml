@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   apply:
-    if: github.event.head_commit.message == 'Bootstrap CSMP dev4 correction'
+    if: github.event.head_commit.message == 'Bootstrap CSMP dev4 correction v2'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -19,10 +19,12 @@ jobs:
           ref: csmp-personal-2026-09-13
           fetch-depth: 0
 
-      - name: Apply reviewed correction
+      - name: Reconstruct and apply reviewed correction
         shell: bash
         run: |
-          gzip -dc tools/dev4.patch.gz > /tmp/dev4.patch
+          cat tools/dev4.patch.b64.* | tr -d '\r\n' | base64 -d > /tmp/dev4.patch.gz
+          gzip -t /tmp/dev4.patch.gz
+          gzip -dc /tmp/dev4.patch.gz > /tmp/dev4.patch
           git apply --check /tmp/dev4.patch
           git apply --whitespace=nowarn /tmp/dev4.patch
           python -m compileall -q src tests tools
