@@ -48,3 +48,21 @@ def test_same_revision_preserves_later_manual_edit(tmp_path):
     assert path.read_bytes()==before
     assert not result['patched']
     assert 'EDICION POSTERIOR DEL USUARIO' in '\n'.join(p.text for p in Document(path).paragraphs)
+
+
+def test_same_revision_restores_deleted_matrix_with_current_body(tmp_path):
+    source=BASE/'plantillas_word';target=tmp_path/'plantillas_word'
+    install_bundled_templates(source,target)
+    data=json.loads((BASE/'matrix_document_patches.json').read_text(encoding='utf-8'))
+    relative='LAJA/NOMENCL.docx';path=target/relative
+    expected=data['templates'][relative]['sha256']
+    assert document_hash(path)==expected
+
+    path.unlink()
+    result=install_bundled_templates(source,target)
+
+    assert path.is_file()
+    assert str(path) in result['installed']
+    assert str(path) in result['patched']
+    assert document_hash(path)==expected
+    Document(path)
