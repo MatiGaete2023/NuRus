@@ -3,38 +3,93 @@ from pathlib import Path
 from zipfile import ZipFile
 from io import BytesIO
 from docx import Document
+import base64
+import hashlib
+import json
 import re
 import shutil
+import zlib
 from nurus.rus.columns import normalize
 
-BUNDLED_REVISION='2026-09-14-matrices-1'
+BASE=Path(__file__).parent
+BUNDLED_REVISION='2026-09-14-matrices-v1'
+PATCH_FILE=BASE/'matrix_document_patches.json'
+
+def _matrix_patches():
+    data=json.loads(PATCH_FILE.read_text(encoding='utf-8'))
+    if data.get('revision')!=BUNDLED_REVISION:
+        raise ValueError('La revisión de matrices empaquetada no coincide con la esperada.')
+    result={}
+    for relative,item in data['templates'].items():
+        xml=zlib.decompress(base64.b64decode(item['data']))
+        digest=hashlib.sha256(xml).hexdigest()
+        if digest!=item['sha256']:
+            raise ValueError('Parche de matriz alterado: '+relative)
+        result[Path(relative)]=(xml,digest)
+    return result
+
+def _document_hash(path):
+    with ZipFile(path) as archive:
+        return hashlib.sha256(archive.read('word/document.xml')).hexdigest()
+
+def _replace_document_xml(path,xml,expected):
+    path=Path(path);temp=path.with_name(path.name+'.tmp')
+    try:
+        with ZipFile(path) as source, ZipFile(temp,'w') as target:
+            found=False
+            for info in source.infolist():
+                content=source.read(info.filename)
+                if info.filename=='word/document.xml':content=xml;found=True
+                target.writestr(info,content)
+            if not found:raise ValueError('La matriz no contiene word/document.xml: '+str(path))
+        Document(temp)  # valida que el DOCX reconstruido siga siendo utilizable.
+        if _document_hash(temp)!=expected:raise ValueError('No se pudo verificar la matriz reconstruida: '+str(path))
+        temp.replace(path)
+    finally:
+        temp.unlink(missing_ok=True)
 
 def install_bundled_templates(source,directory,revision=BUNDLED_REVISION):
-    """Instala una revisión de matrices una sola vez y respalda las anteriores.
+    """Instala la revisión de matrices una sola vez y respalda lo reemplazado.
 
-    Tras registrar la revisión, los inicios posteriores solo reponen archivos ausentes;
-    por ello una edición manual posterior no se sobrescribe automáticamente.
+    La revisión 2026-09-14 sustituye únicamente el cuerpo XML de las cinco matrices
+    entregadas por el usuario. El resto del DOCX se conserva. Tras registrar la
+    revisión, una edición manual posterior no se sobrescribe automáticamente.
     """
     source=Path(source);root=Path(directory);root.mkdir(parents=True,exist_ok=True)
     marker=root/'.bundled_revision'
     previous=marker.read_text(encoding='utf-8').strip() if marker.exists() else ''
     migrating=previous!=revision
-    installed=[];backups=[];preserved=[]
+    patches=_matrix_patches() if revision==BUNDLED_REVISION else {}
+    installed=[];backups=[];preserved=[];patched=[];missing=[]
+    existed={}
     if source.exists():
         for path in sorted(source.rglob('*.docx')):
             relative=path.relative_to(source);target=root/relative;target.parent.mkdir(parents=True,exist_ok=True)
+            existed[relative]=target.exists()
             if not target.exists():
-                shutil.copyfile(path,target);installed.append(str(target));continue
-            if not migrating:
-                preserved.append(str(target));continue
-            if target.read_bytes()==path.read_bytes():
-                preserved.append(str(target));continue
-            backup=target.with_name(target.stem+'.pre_'+revision.replace('-','_')+'.bak.docx')
+                shutil.copyfile(path,target);installed.append(str(target))
+            else:preserved.append(str(target))
+    for relative,(xml,digest) in patches.items():
+        target=root/relative
+        if not target.exists():
+            baseline=source/relative
+            if not baseline.exists():missing.append(str(relative));continue
+            target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(baseline,target);installed.append(str(target));existed[relative]=False
+        current=_document_hash(target)
+        if current==digest:continue
+        # Con la misma revisión, una modificación humana posterior se conserva.
+        # Solo se repone un archivo ausente, caso tratado arriba.
+        if not migrating:continue
+        if existed.get(relative,True):
+            suffix=revision.replace('-','_')
+            backup=target.with_name(target.stem+'.pre_'+suffix+'.bak.docx')
             if not backup.exists():shutil.copyfile(target,backup)
-            backups.append(str(backup));shutil.copyfile(path,target);installed.append(str(target))
+            backups.append(str(backup))
+        _replace_document_xml(target,xml,digest);patched.append(str(target))
+    if missing:raise ValueError('Faltan matrices base para aplicar la revisión: '+', '.join(missing))
     if migrating:
         temp=marker.with_suffix('.tmp');temp.write_text(revision,encoding='utf-8');temp.replace(marker)
-    return {'revision':revision,'installed':installed,'backups':backups,'preserved':preserved}
+    return {'revision':revision,'installed':installed,'backups':backups,'preserved':preserved,'patched':patched}
 
 def import_templates(path,directory):
     root=Path(directory);pending={};unmatched=[]
@@ -47,7 +102,7 @@ def import_templates(path,directory):
             if len(courts)!=1 or len(kinds)!=1:unmatched.append(item.filename);continue
             if item.file_size>20_000_000:raise ValueError('Matriz demasiado grande: '+item.filename)
             content=archive.read(item)
-            Document(BytesIO(content)) # valida DOCX antes de sustituir cualquier matriz
+            Document(BytesIO(content))
             key=(courts[0],kinds[0])
             if key in pending:raise ValueError('Hay dos matrices para '+('/'.join(key))+'. Conserva una versión por tipo.')
             pending[key]=content
