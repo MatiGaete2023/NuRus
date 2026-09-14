@@ -26,8 +26,8 @@ jobs:
         run: |
           set -euo pipefail
           sed -i 's/\r$//' tools/dev5.patch
-          git apply --check --ignore-space-change --whitespace=nowarn tools/dev5.patch
-          git apply --ignore-space-change --whitespace=nowarn tools/dev5.patch
+          git apply --check --exclude=.github/workflows/tests.yml --ignore-space-change --whitespace=nowarn tools/dev5.patch
+          git apply --exclude=.github/workflows/tests.yml --ignore-space-change --whitespace=nowarn tools/dev5.patch
           python -m compileall -q src tests tools
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
