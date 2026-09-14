@@ -39,10 +39,12 @@ def test_vertical_preserves_source_and_makes_result_available(tmp_path,mode):
     assert 'Se sugiere remitir' not in w.rows[0].observation
     assert 'Se sugiere preparar' not in w.rows[0].observation
 
-def test_no_cross_requires_documented_exception_only_on_export(tmp_path):
+def test_no_cross_is_warning_and_export_continues(tmp_path):
     w=Work(defaults()).analyze(source(tmp_path,'CUMPLIMIENTO'),'CUMPLIMIENTO')
-    assert w.rows
-    with pytest.raises(ValueError,match='excepción'):w.export(tmp_path/'out.xlsx',backend='portable',reduced_fidelity=True)
+    assert w.rows and w.cross_missing and not w.needs_cross
+    assert any('Sin cruce utilizable' in warning for warning in w.warnings)
+    out=w.export(tmp_path/'out.xlsx',backend='portable',reduced_fidelity=True)
+    assert Path(out).is_file()
 
 def test_text_edit_cannot_change_actions(tmp_path):
     path=source(tmp_path);a=Work(defaults()).analyze(path,'ESPERA')
@@ -137,7 +139,7 @@ def test_external_records_do_not_require_motor_roundtrip(tmp_path):
 def test_word_template_inventory_and_real_generation(tmp_path):
     from nurus.personal.config import BASE
     from nurus.personal.outputs import generate_word,template_variables
-    folder=BASE/'plantillas_word';assert len(list(folder.rglob('*.docx')))==5
+    folder=BASE/'plantillas_word';assert len(list(folder.rglob('*.docx')))==6
     w=exported(tmp_path);out=tmp_path/'proyecto.docx'
     generate_word(w,w.rows[0],'PC_IE',folder,out,confirmed=True)
     assert not template_variables(out)
