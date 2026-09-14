@@ -176,6 +176,14 @@ def save_draft(
             raise DraftSaveUncertain(
                 "El borrador fue guardado, pero no se pudo confirmar completamente su identidad."
             ) from exc
+        # Display() es necesario para que Outlook inserte su firma, pero no debe
+        # dejar un Inspector abierto por cada elemento de un lote. El borrador ya
+        # fue guardado y validado; un fallo al cerrar la ventana no invalida ese guardado.
+        if preserve_signature:
+            try:
+                mail.Close(0)  # olSave
+            except Exception:
+                pass
         return DraftReceipt(
             entry_id=entry_id,
             store_id=store_id,
