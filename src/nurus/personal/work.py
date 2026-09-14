@@ -49,6 +49,8 @@ class Work:
         self.exception=''
         self.output_hash=''
         self.receipts={}
+        self.needs_cross=False
+        self.cross_missing=False
 
     def analyze(self,path,mode,*,sheet=None,cross_sheet=None,as_of=None):
         batch=read_workbook(path,mode,sheet_name=sheet,cross_sheet_name=cross_sheet)
@@ -61,7 +63,8 @@ class Work:
         self.source_hash=batch.workbook_sha256
         self.content=batch.source_bytes
         self.warnings=list(batch.warnings)
-        self.needs_cross=self.mode=='CUMPLIMIENTO' and not batch.cross_records
+        self.needs_cross=False
+        self.cross_missing=self.mode=='CUMPLIMIENTO' and not batch.cross_records
         self.rows=[]
         index={}
         key_fields=('rit','rut','nombre','tribunal','programa')
@@ -74,8 +77,9 @@ class Work:
                 if key in index and index[key]!=due:self.warnings.append('Cruce duplicado: se usa la última fila según el perfil Asistente.')
                 index[key]=due
         if self.mode=='CUMPLIMIENTO' and (not batch.cross_records or not all(batch.cross_mapping.get(k) for k in (*key_fields,'vencimiento'))):
-            self.needs_cross=True
-            self.warnings.append('Sin cruce utilizable: no se evalúa C-10. Puedes documentar la excepción y continuar.')
+            self.cross_missing=True
+            self.needs_cross=False
+            self.warnings.append('Sin cruce utilizable: no se evalúa C-10. El resto del análisis y la exportación continúan sin bloqueo.')
         # La función de observación recibe alias propios del Asistente.
         cols=dict(self.mapping)
         fn={'ESPERA':generar_observacion_espera,'CUMPLIMIENTO':generar_observacion_cumplimiento,'INFORMES':generar_observacion_informes}[self.mode]
@@ -114,11 +118,11 @@ class Work:
         return self
 
     def document_exception(self,reason):
+        """Compatibilidad: permite dejar una nota, pero ya no bloquea la exportación."""
         if not reason.strip():raise ValueError('Indica el motivo de la excepción de cruce.')
         self.exception=reason.strip()
 
     def export(self,destination,*,backend='native',reduced_fidelity=False):
-        if self.needs_cross and not self.exception:raise ValueError('Documenta la excepción de cruce de Cumplimiento antes de exportar.')
         batch={'source_name':Path(self.path).name,'source_path':self.path,'source_hash':self.source_hash,
                'primary_sheet':self.sheet,'header_row':self.header,'mode':self.mode,'export_stage':'proposal'}
         records=[{'record_id':r.id,'source_sheet':self.sheet,'source_row':r.source_row,'source_hash':self.source_hash,
@@ -173,7 +177,7 @@ class Work:
         obj=cls(config)
         obj.path=data['path'];obj.output=obj.path;obj.mode=data['mode'];obj.as_of=date.today().isoformat()
         obj.sheet=data['sheet'];obj.header=data['header'];obj.mapping=data['mapping']
-        obj.content=data['content'];obj.source_hash=data['digest'];obj.output_hash=data['digest'];obj.needs_cross=False
+        obj.content=data['content'];obj.source_hash=data['digest'];obj.output_hash=data['digest'];obj.needs_cross=False;obj.cross_missing=False
         obj.external_input=True;obj.warnings=[];seen={}
         for number,values,review in data['records']:
             identity='|'.join(historical_match(values.get(obj.mapping.get(k,''),'')) for k in ('rit','rut','nombre','tribunal','programa'))
@@ -198,6 +202,11 @@ class Work:
         directory=Path(directory)
         data=json.loads((directory/'trabajo.json').read_text(encoding='utf-8'))
         obj=cls(data['config']);obj.__dict__.update(data)
+        # Migra sesiones dev1/dev2: la ausencia del cruce queda como advertencia,
+        # no como validación que impida continuar o exportar.
+        if getattr(obj,'needs_cross',False):obj.cross_missing=True
+        obj.needs_cross=False
+        if not hasattr(obj,'cross_missing'):obj.cross_missing=False
         obj.rows=[Row(**r) for r in data['rows']]
         obj.content=(directory/(obj.source_hash+'.bin')).read_bytes()
         if sha256(obj.content).hexdigest()!=obj.source_hash:raise ValueError('La copia de origen guardada no coincide con el trabajo.')
