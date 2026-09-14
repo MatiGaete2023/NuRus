@@ -6,6 +6,8 @@ on:
       - main
       - implementacion-plan-2026-09-08
       - csmp-personal-2026-09-13
+    paths-ignore:
+      - '.matrix_payload/**'
   pull_request:
 
 jobs:
