@@ -1,11 +1,11 @@
 from copy import deepcopy
-from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
 
 from nurus.personal.config import defaults
 from nurus.personal.outputs import Draft
 from nurus.personal import runtime_fixes_20260916 as fixes
+from nurus.personal import runtime_fixes_20260916_ui as ui_fixes
 from nurus.personal.resolutions import automatic_project_selections
 from nurus.personal.work import Work, Row
 
@@ -57,15 +57,38 @@ def test_unedited_rows_remain_pending_when_another_row_is_reviewed(tmp_path):
     book.close()
 
 
-def test_draft_identity_changes_when_user_edits_content_or_recipient(tmp_path):
+def test_export_button_captures_live_editor_before_export(monkeypatch):
+    calls=[]
+    monkeypatch.setattr(ui_fixes,'_ORIGINAL_EXPORT_CURRENT',lambda self:calls.append('export'))
+    dummy=type('Dummy',(),{})()
+    dummy._capture_observation=lambda:calls.append('capture')
+    ui_fixes.export_current_with_live_edit(dummy)
+    assert calls==['capture','export']
+
+
+def test_draft_identity_changes_when_user_edits_content_recipient_or_attachment(tmp_path):
     attachment = tmp_path/'a.txt';attachment.write_text('uno',encoding='utf-8')
     first = Draft('Asunto','Cuerpo','a@example.cl','ucc_concepcion@pjud.cl',[str(attachment)])
-    second = deepcopy(first);second.body = 'Cuerpo corregido'
-    third = deepcopy(first);third.to = 'b@example.cl'
-    assert fixes._draft_fingerprint(first) != fixes._draft_fingerprint(second)
-    assert fixes._draft_fingerprint(first) != fixes._draft_fingerprint(third)
+    body_edit = deepcopy(first);body_edit.body = 'Cuerpo corregido'
+    recipient_edit = deepcopy(first);recipient_edit.to = 'b@example.cl'
+    original = fixes._draft_fingerprint(first)
+    assert original != fixes._draft_fingerprint(body_edit)
+    assert original != fixes._draft_fingerprint(recipient_edit)
     attachment.write_text('dos',encoding='utf-8')
-    assert fixes._draft_fingerprint(first) != fixes._draft_fingerprint(second)
+    assert original != fixes._draft_fingerprint(first)
+
+
+def test_create_draft_replaces_legacy_key_with_reviewed_content_key(monkeypatch,tmp_path):
+    attachment=tmp_path/'a.txt';attachment.write_text('contenido',encoding='utf-8')
+    draft=Draft('Asunto','Cuerpo editado','','ucc_concepcion@pjud.cl',[str(attachment)],key='legacy-key')
+    captured={}
+    def fake(work,item,confirmed=False):
+        captured['key']=item.key;captured['confirmed']=confirmed;return 'ok'
+    monkeypatch.setattr(fixes,'_ORIGINAL_CREATE_DRAFT',fake)
+    assert fixes.create_draft_by_content(object(),draft,confirmed=True)=='ok'
+    assert captured['confirmed'] is True
+    assert captured['key']!='legacy-key'
+    assert captured['key']==fixes._draft_fingerprint(draft)
 
 
 def _row(rid, observation, actions, res=''):
@@ -86,6 +109,12 @@ def _fake_work(rows):
 
 def test_resolution_type_comes_from_reviewed_observation_when_res_only_marks_case():
     row = _row('r1','Se remite proyecto de resolución pidiendo cuenta respecto del informe de avance.',['PC_IE'],'X')
+    selections = automatic_project_selections(_fake_work([row]),'PC_IE')
+    assert selections == [('r1','PC_INFO')]
+
+
+def test_resolution_type_can_use_short_informe_wording():
+    row = _row('r1','Informe vencido; corresponde pedir cuenta.',['PC_IE'],'X')
     selections = automatic_project_selections(_fake_work([row]),'PC_IE')
     assert selections == [('r1','PC_INFO')]
 
