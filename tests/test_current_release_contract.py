@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 import tomllib
 import nurus
 
@@ -45,9 +46,13 @@ def test_gitignore_covers_local_csmp_environment_and_build_outputs():
 
 
 def test_repository_has_no_common_generated_junk_tracked():
+    """Controla el índice Git, no los cachés que pytest/compileall crean durante CI."""
+    completed=subprocess.run(
+        ['git','ls-files','-z'],cwd=ROOT,check=True,capture_output=True,
+    )
+    tracked=[Path(item.decode('utf-8')) for item in completed.stdout.split(b'\0') if item]
     forbidden_names={'.DS_Store','Thumbs.db'}
-    for path in ROOT.rglob('*'):
-        relative=path.relative_to(ROOT)
+    for path in tracked:
         assert path.name not in forbidden_names
-        assert '__pycache__' not in relative.parts
+        assert '__pycache__' not in path.parts
         assert path.suffix.lower() not in {'.pyc','.pyo'}
