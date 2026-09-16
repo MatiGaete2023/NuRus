@@ -18,10 +18,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Python ${{ matrix.python }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -54,7 +54,6 @@ jobs:
         run: python -c "import xlrd; print(xlrd.__version__)"
 
       - name: Native Excel/Outlook dependency on Windows
-        if: runner.os == 'Windows'
         run: python -c "import win32com.client; print('pywin32 OK')"
 
       - name: Compile
@@ -70,14 +69,14 @@ jobs:
       - name: Build Windows distribution
         if: matrix.python == '3.12'
         shell: pwsh
-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev5.zip HEAD
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev6.zip HEAD
 
       - name: Source distribution
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Windows-dev5
-          path: dist/CSMP_Assistant_personal_0.4.0-dev5.zip
+          name: CSMP-Windows-dev6
+          path: dist/CSMP_Assistant_personal_0.4.0-dev6.zip
 
       - name: Wheel artifact
         uses: actions/upload-artifact@v4

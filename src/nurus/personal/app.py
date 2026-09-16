@@ -1,11 +1,11 @@
 """Interfaz CSMP personal.
 
-Mantiene la aplicación base y especializa la pestaña Correos para reproducir el
-flujo operativo del Creador de Correos CSMP v2.1 sin duplicar el motor NuRus.
+Mantiene la aplicación base y especializa el flujo operativo CSMP sin monkey-patches
+ni duplicación del motor NuRus.
 """
 from copy import deepcopy
 from dataclasses import replace
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -14,7 +14,11 @@ from tkinter.scrolledtext import ScrolledText
 from .app_base import App as _BaseApp
 from .mail_controls import alcance_modalidades, selected_court_record_ids
 from .modalities import MODALITIES
-from .outputs import prepare_drafts, prepare_required_drafts, create_draft, create_drafts
+from .outputs import prepare_drafts, prepare_required_drafts, create_drafts, value
+from .resolutions import automatic_project_selections, reviewed_resolution_ids, unique_case_selections
+from .statistics import summarize
+from .work import Work
+from nurus.rus.columns import normalize
 
 
 class App(_BaseApp):
@@ -172,6 +176,32 @@ class App(_BaseApp):
         def done(drafts):self._display_prepared_drafts(drafts,'{count} correos necesarios preparados: informativo general y gestiones específicas detectadas. Todavía no se guardaron en Outlook.')
         self._run('Preparando todos los correos necesarios del trabajo…',lambda:prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys),done)
 
+    def _send_all(self):
+        work=self._require_work();self._capture_mail()
+        if self.drafts:
+            drafts=[replace(draft) for draft in self.drafts]
+            def done(result):
+                self._save_session()
+                self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya procesados; {len(result['errors'])} incidencias.")
+                if result['errors']:messagebox.showwarning('Lote guardado con incidencias','\n'.join(result['errors']))
+            self._run('Guardando el lote de borradores en Outlook…',lambda:create_drafts(work,drafts),done)
+            return
+        self._sync_mail_config(work)
+        keys=self._selected_mail_modalities()
+        if not keys:raise ValueError('Selecciona al menos una modalidad.')
+        selected=self._mail_selected_ids(work,manual=False)
+        period=self.period.get();phrase=alcance_modalidades(keys)
+        def action():
+            drafts=prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys)
+            return drafts,create_drafts(work,[replace(draft) for draft in drafts])
+        def done(payload):
+            drafts,result=payload
+            self._display_prepared_drafts(drafts,'{count} borradores preparados y procesados para Outlook.')
+            self._save_session()
+            self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya existentes; {len(result['errors'])} incidencias.")
+            if result['errors']:messagebox.showwarning('Lote guardado con incidencias','\n'.join(result['errors']))
+        self._run('Preparando y guardando todos los borradores en Outlook…',action,done)
+
     def _attachment_all(self):
         self._capture_mail()
         if not self.drafts:raise ValueError('Primero prepara los borradores.')
@@ -195,6 +225,89 @@ class App(_BaseApp):
         text.insert('end','PARA: '+draft.to+'\nCC: '+draft.cc+'\nASUNTO: '+draft.subject+'\n\n'+draft.body)
         if draft.attachments:text.insert('end','\n\nADJUNTOS:\n'+'\n'.join('- '+Path(path).name for path in draft.attachments))
         text.configure(state='disabled')
+
+    def _process(self):
+        if self.busy:raise ValueError('Hay una operación en curso.')
+        path=self.file.get();mode=self.mode.get();sheet=self.sheet.get() or None
+        if not Path(path).is_file():raise ValueError('Selecciona un archivo Excel existente.')
+        cfg=self.cfg.data
+        def done(work):
+            self.work=work;self._clear_drafts();self.observation_id=None;self._show_work();self._export_current()
+        self._run('Analizando '+mode+'…',lambda:Work(cfg).analyze(path,mode,sheet=sheet),done)
+
+    def _export_current(self):
+        self._capture_observation()
+        if not self.work:raise ValueError('Primero analiza el archivo.')
+        folder=Path(self.folder.get());folder.mkdir(parents=True,exist_ok=True)
+        path=folder/(Path(self.work.path).stem+' - revisable '+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+Path(self.work.path).suffix)
+        work=self.work
+        def done(result):
+            self._show_work();self._save_session();self.status.set('Excel generado: '+result+' · Disponible en Correos y Resoluciones.')
+        self._run('Exportando copia preservada con Excel…',lambda:work.export(path),done)
+
+    def _show_work(self):
+        if not self.work:return
+        self.mode.set(self.work.mode);self.file.set(self.work.path);self.observation_id=None
+        self.records.delete(*self.records.get_children());self.words.delete(*self.words.get_children())
+        reviewed_res=reviewed_resolution_ids(self.work)
+        fallback_kind=self.manual_word.get() if hasattr(self,'manual_word') else 'PC_IE'
+        selections=unique_case_selections(self.work,automatic_project_selections(self.work,fallback_kind))
+        by_id={row.id:row for row in self.work.rows}
+        for row in self.work.rows:
+            state='Excluido' if row.excluded else 'Revisar aviso' if row.warnings else 'Propuesta'
+            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=('excluded' if row.excluded else 'warning' if row.warnings else '',))
+        for rid,kind in selections:
+            row=by_id[rid]
+            source='Indicado/revisado en archivo (RES)' if reviewed_res is not None else 'Sugerencia automática revisable'
+            self.words.insert('','end',iid=rid+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,source))
+        n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)
+        self.summary.set(f'{n} registros · {obs} propuestas · {exc} excluidos · {len(self.words.get_children())} proyectos posibles')
+        totals=summarize(self.work)
+        if totals['constancias']:self.summary.set(self.summary.get()+f" · {totals['constancias']} constancias con fecha · {totals['con_carga']} con carga")
+        self.detail.set('\n'.join(dict.fromkeys(self.work.warnings)))
+
+    @staticmethod
+    def _visible_project_key(values):
+        return normalize(values[1]),normalize(values[0]),str(values[2]).strip().upper()
+
+    def _existing_project_iid(self,key,exclude=None):
+        for iid in self.words.get_children():
+            if iid==exclude:continue
+            values=self.words.item(iid,'values')
+            if len(values)>=3 and self._visible_project_key(values)==key:return iid
+        return None
+
+    def _assign_word_type(self):
+        selected=list(self.words.selection())
+        if not selected:raise ValueError('Selecciona una o más filas concretas de Resoluciones antes de cambiar su tipo.')
+        kind=self.manual_word.get();new=[]
+        for iid in selected:
+            rid=iid.split('|')[0];values=list(self.words.item(iid,'values'));values[2]=kind
+            key=self._visible_project_key(values)
+            existing=self._existing_project_iid(key,exclude=iid)
+            self.words.delete(iid)
+            if existing:
+                target=existing
+            else:
+                target=rid+'|'+kind
+                if not self.words.exists(target):self.words.insert('','end',iid=target,values=values)
+            new.append(target)
+        self.words.selection_set(tuple(dict.fromkeys(new)))
+        self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
+        self.status.set(f'Tipo {kind} aplicado solo a {len(selected)} selección(es).')
+
+    def _add_words(self):
+        work=self._require_work();kind=self.manual_word.get();selected=list(self.records.selection())
+        if not selected:raise ValueError('Selecciona en Trabajo los registros que quieres agregar manualmente como proyecto.')
+        self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
+        for rid in selected:
+            row=next(r for r in work.rows if r.id==rid)
+            if row.excluded:continue
+            values=(value(work,row,'rit'),value(work,row,'tribunal'),kind,'Agregado manualmente')
+            key=self._visible_project_key(values)
+            if self._existing_project_iid(key):continue
+            iid=rid+'|'+kind
+            if not self.words.exists(iid):self.words.insert('','end',iid=iid,values=values)
 
 
 def main():

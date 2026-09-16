@@ -5,8 +5,8 @@ from datetime import date
 from hashlib import sha256
 from pathlib import Path
 import json
-from uuid import uuid4
 
+from nurus.rus.columns import normalize
 from nurus.rus.reader import read_workbook
 from nurus.rus.rules import as_date, as_int, tribunal, historical_match
 from nurus.services.exports import _export_preserved_payload
@@ -16,6 +16,7 @@ from .motor.composicion import Incidencias
 from .motor.reglas_espera import generar_observacion_espera
 from .motor.reglas_cumplimiento import generar_observacion_cumplimiento
 from .motor.reglas_informes import generar_observacion_informes
+
 
 @dataclass
 class Row:
@@ -29,6 +30,7 @@ class Row:
     excluded: bool = False
     review: dict = field(default_factory=dict)
 
+
 def actions_for(events):
     """Selección por identificador de rama, nunca por palabras de la observación."""
     actions=[]
@@ -38,6 +40,33 @@ def actions_for(events):
     if any(e.startswith('INFORMES.I02_') for e in events):actions.append('programa_por_vencer')
     if any(e.startswith(('CUMPLIMIENTO.C04_','CUMPLIMIENTO.C05_')) for e in events):actions.append('medidas')
     return actions
+
+
+def _explicit(value):
+    if value is None:return False
+    if isinstance(value,str):return bool(value.strip())
+    return True
+
+
+def _human_reviewed(row):
+    """Distingue una edición humana real de columnas técnicas reimportadas vacías."""
+    review=row.review or {}
+    if 'OBSERVACION' in review and str(review.get('OBSERVACION',''))!=str(row.observation or ''):return True
+    return any(_explicit(review.get(key)) for key in ('FECHA_OBS','TT','CC','RES'))
+
+
+def _source_value(row,key,default=''):
+    wanted=normalize(key)
+    for column,value in row.values.items():
+        if normalize(column)==wanted:return value
+    return default
+
+
+def _review_value(row,key,fallback=None):
+    if key in (row.review or {}):return row.review.get(key,'')
+    if fallback is not None:return fallback
+    return _source_value(row,key,'')
+
 
 class Work:
     def __init__(self, config):
@@ -49,6 +78,8 @@ class Work:
         self.exception=''
         self.output_hash=''
         self.receipts={}
+        # Campos conservados para recuperar sesiones antiguas. En el flujo vigente
+        # la ausencia del cruce de Cumplimiento es solo una advertencia.
         self.needs_cross=False
         self.cross_missing=False
 
@@ -80,12 +111,10 @@ class Work:
             self.cross_missing=True
             self.needs_cross=False
             self.warnings.append('Sin cruce utilizable: no se evalúa C-10. El resto del análisis y la exportación continúan sin bloqueo.')
-        # La función de observación recibe alias propios del Asistente.
         cols=dict(self.mapping)
         fn={'ESPERA':generar_observacion_espera,'CUMPLIMIENTO':generar_observacion_cumplimiento,'INFORMES':generar_observacion_informes}[self.mode]
         for record in batch.records:
             values=dict(record.values)
-            # Fechas seriales se interpretan con el calendario del libro antes del motor.
             for name in ('nacimiento','resolucion','ingreso','egreso_proy','oido','prox_aud','ficha_ind','ficha_fae','vencimiento'):
                 column=cols.get(name)
                 if column and isinstance(values.get(column),(int,float)):
@@ -118,16 +147,38 @@ class Work:
         return self
 
     def document_exception(self,reason):
-        """Compatibilidad: permite dejar una nota, pero ya no bloquea la exportación."""
+        """Compatibilidad con sesiones antiguas; ya no es requisito para exportar."""
         if not reason.strip():raise ValueError('Indica el motivo de la excepción de cruce.')
         self.exception=reason.strip()
 
     def export(self,destination,*,backend='native',reduced_fidelity=False):
+        """Exporta la propuesta o las ediciones humanas vigentes de Trabajo.
+
+        Si existe al menos una edición humana, las filas realmente revisadas quedan
+        REVISADAS y escriben sus campos de revisión. Las restantes se conservan como
+        PENDIENTES, sin atribuirles una revisión inexistente.
+        """
+        reviewed={row.id:_human_reviewed(row) for row in self.rows}
+        reviewed_stage=any(reviewed.values())
         batch={'source_name':Path(self.path).name,'source_path':self.path,'source_hash':self.source_hash,
-               'primary_sheet':self.sheet,'header_row':self.header,'mode':self.mode,'export_stage':'proposal'}
-        records=[{'record_id':r.id,'source_sheet':self.sheet,'source_row':r.source_row,'source_hash':self.source_hash,
-                  'decision':'excluded' if r.excluded else 'pending','evaluation_status':'blocked' if r.warnings else 'reviewed',
-                  'edit_reason':'; '.join(r.warnings),'edited_observation':r.review.get('OBSERVACION',r.observation),'rule_ids_json':json.dumps(r.rules)} for r in self.rows]
+               'primary_sheet':self.sheet,'header_row':self.header,'mode':self.mode,
+               'export_stage':'reviewed' if reviewed_stage else 'proposal'}
+        records=[]
+        for row in self.rows:
+            is_reviewed=reviewed[row.id]
+            records.append({
+                'record_id':row.id,'source_sheet':self.sheet,'source_row':row.source_row,'source_hash':self.source_hash,
+                'decision':'excluded' if row.excluded else ('approved' if is_reviewed else 'pending'),
+                'evaluation_status':'blocked' if row.warnings else 'reviewed',
+                'edit_reason':'; '.join(row.warnings),
+                'edited_observation':_review_value(row,'OBSERVACION',row.observation),
+                'rule_ids_json':json.dumps(row.rules),
+                'rus_recorded':bool(is_reviewed and not row.excluded),
+                'review_date':_review_value(row,'FECHA_OBS'),
+                'tt_value':_review_value(row,'TT'),
+                'workload_value':_review_value(row,'CC'),
+                'resolution_value':_review_value(row,'RES'),
+            })
         result=_export_preserved_payload(self.content,{'batch':batch,'records':records,'exceptions':[self.exception] if self.exception else []},destination,backend=backend,allow_reduced_fidelity=reduced_fidelity)
         self.output=str(result.path)
         self.output_hash=sha256(Path(self.output).read_bytes()).hexdigest()
@@ -156,7 +207,6 @@ class Work:
             key=str(values.get('NURUS_ID_REGISTRO','')).strip()
             if not key:continue
             if key not in by_id or key in incoming:raise ValueError('Hay identidades ajenas o duplicadas en la copia; no se aplicaron cambios.')
-            # Un ID pegado en otra persona no basta para acreditar identidad.
             old=by_id[key]
             for field in ('rit','rut','nombre','tribunal','programa'):
                 column=self.mapping.get(field)
@@ -204,8 +254,6 @@ class Work:
         directory=Path(directory)
         data=json.loads((directory/'trabajo.json').read_text(encoding='utf-8'))
         obj=cls(data['config']);obj.__dict__.update(data)
-        # Migra sesiones dev1/dev2: la ausencia del cruce queda como advertencia,
-        # no como validación que impida continuar o exportar.
         if getattr(obj,'needs_cross',False):obj.cross_missing=True
         obj.needs_cross=False
         if not hasattr(obj,'cross_missing'):obj.cross_missing=False

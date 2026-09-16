@@ -16,6 +16,7 @@ from nurus.rus.rules import tribunal
 from nurus.services.file_output import write_new_file
 from .config import CC, emails
 
+
 @dataclass
 class Draft:
     subject: str
@@ -26,11 +27,13 @@ class Draft:
     required: bool = False
     key: str = ''
 
+
 _MONTHS = ('', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre')
 _UNITS = ('cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve')
 _SPECIAL = {10:'diez',11:'once',12:'doce',13:'trece',14:'catorce',15:'quince',16:'dieciséis',17:'diecisiete',18:'dieciocho',19:'diecinueve',20:'veinte',21:'veintiuno',22:'veintidós',23:'veintitrés',24:'veinticuatro',25:'veinticinco',26:'veintiséis',27:'veintisiete',28:'veintiocho',29:'veintinueve'}
 _TENS = {30:'treinta',40:'cuarenta',50:'cincuenta',60:'sesenta',70:'setenta',80:'ochenta',90:'noventa'}
 _HUNDREDS = {100:'cien',200:'doscientos',300:'trescientos',400:'cuatrocientos',500:'quinientos',600:'seiscientos',700:'setecientos',800:'ochocientos',900:'novecientos'}
+
 
 def number_in_words(number):
     """Cardinal español suficiente para días y años de proyectos judiciales."""
@@ -49,9 +52,11 @@ def number_in_words(number):
     head='mil' if thousands==1 else number_in_words(thousands)+' mil'
     return head+(' '+number_in_words(rest) if rest else '')
 
+
 def date_in_words(value):
     """Fecha completamente en palabras: «catorce de septiembre de dos mil veintiséis»."""
     return f"{number_in_words(value.day)} de {_MONTHS[value.month]} de {number_in_words(value.year)}"
+
 
 def value(work,row,key):
     """Texto operativo de una celda sin perder ceros ni exponer horas de Excel."""
@@ -60,12 +65,14 @@ def value(work,row,key):
     if isinstance(raw,(datetime,date)):return raw.strftime('%d/%m/%Y')
     return str(raw)
 
+
 def resolve_contact(cfg,name):
     key=normalize(name)
     aliases={normalize(k):normalize(v) for k,v in cfg['aliases'].items()}
     key=aliases.get(key,key)
     found={v for k,v in cfg['contactos'].items() if normalize(k)==key and v.strip()}
     return next(iter(found)) if len(found)==1 else ''
+
 
 def import_contacts(cfg,path):
     import pandas as pd
@@ -82,6 +89,7 @@ def import_contacts(cfg,path):
         if previous and previous!={m}:conflicts.append(n);continue
         candidates[n]=m
     return candidates,conflicts
+
 
 def _table(work,rows,path,kind=''):
     from openpyxl import Workbook
@@ -110,6 +118,30 @@ def _table(work,rows,path,kind=''):
         sheet.column_dimensions[get_column_letter(index)].width=38 if header=='NOMBRE' else 24
     write_new_file(Path(path),book.save)
     return str(path)
+
+
+def draft_fingerprint(draft):
+    """Identidad estable del borrador realmente revisado.
+
+    Se usa nombre+hash del adjunto, no su ruta temporal. Así regenerar una nómina
+    idéntica dentro de otra carpeta UUID no permite crear un duplicado en Outlook,
+    mientras que una edición real de destinatarios, texto o bytes sí cambia la clave.
+    """
+    attachments=[]
+    for item in draft.attachments:
+        path=Path(item)
+        digest=sha256(path.read_bytes()).hexdigest() if path.is_file() else 'MISSING'
+        attachments.append((path.name,digest))
+    payload={
+        'to':'; '.join(emails(draft.to)),
+        'cc':'; '.join(emails(CC+';'+draft.cc)),
+        'subject':str(draft.subject or ''),
+        'body':str(draft.body or ''),
+        'attachments':sorted(attachments),
+        'required':bool(draft.required),
+    }
+    return sha256(json.dumps(payload,ensure_ascii=False,sort_keys=True).encode('utf-8')).hexdigest()
+
 
 def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,selected=None,directory=None,manual_selection=False,modality_keys=None):
     work.refresh()
@@ -143,30 +175,24 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
             folder=Path(directory or Path(work.output).parent);folder.mkdir(parents=True,exist_ok=True)
             by_program=defaultdict(list)
             for row in rows:by_program[value(work,row,'programa')].append(row)
-            # Carpetas únicas permiten conservar el nombre real del programa en cada adjunto.
             draft.attachments=[]
             for name,subset in by_program.items():
                 target=folder/'adjuntos'/uuid4().hex
                 target.mkdir(parents=True,exist_ok=True)
                 draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx'),kind))
-        draft.key=sha256((kind+'|'+','.join(r.id for r in rows)+'|'+draft.subject).encode()).hexdigest()
+        draft.key=draft_fingerprint(draft)
         output.append(draft)
     return output
 
-def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None):
-    """Prepara en una sola operación todas las comunicaciones que surgen del trabajo.
 
-    Incluye el informativo general de la pestaña y todos los correos derivados de
-    acciones del motor. No incluye «especial» ni «proyectos», que son productos
-    manuales y no se infieren automáticamente.
-    """
+def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None):
+    """Prepara en una sola operación todas las comunicaciones que surgen del trabajo."""
     work.refresh()
     cfg=work.config
     templates=cfg['correos']['plantillas']
     mode=str(getattr(work,'mode','')).lower()
     kinds=[]
-    if mode in {'espera','cumplimiento','informes'} and mode in templates:
-        kinds.append(mode)
+    if mode in {'espera','cumplimiento','informes'} and mode in templates:kinds.append(mode)
     selected_ids=set(selected) if selected is not None else None
     from .modalities import selected_row
     action_kinds=set()
@@ -175,13 +201,13 @@ def prepare_required_drafts(work,*,modalities='',period='',selected=None,directo
         action_kinds.update(action for action in row.actions if action in templates)
     for kind in ('programa_espera','programa_vencido','programa_por_vencer','medidas'):
         if kind in action_kinds:kinds.append(kind)
-    drafts=[]
-    seen=set()
+    drafts=[];seen=set()
     for kind in kinds:
         for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys):
             if draft.key not in seen:
                 drafts.append(draft);seen.add(draft.key)
     return drafts
+
 
 def program_filename(name):
     result=re.sub(r'[<>:"/\\|?*\x00-\x1f]','_',str(name)).strip().rstrip('. ')
@@ -189,11 +215,13 @@ def program_filename(name):
     if re.fullmatch(r'(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])',result.split('.')[0]):result='_'+result
     return result[:120].rstrip('. ')
 
+
 def create_drafts(work,drafts):
     """Un clic guarda el lote. Los resultados parciales se conservan sin repetir Save."""
     result={'created':0,'skipped':0,'errors':[]}
     for draft in drafts:
-        if draft.key and draft.key in work.receipts:
+        draft.key=draft_fingerprint(draft)
+        if draft.key in work.receipts:
             state=work.receipts[draft.key].get('state')
             result['skipped']+=1
             if state!='created':result['errors'].append(draft.subject+': guardado previo incierto; revisa Borradores.')
@@ -202,9 +230,10 @@ def create_drafts(work,drafts):
         except Exception as exc:result['errors'].append(draft.subject+': '+str(exc))
     return result
 
+
 def create_draft(work,draft,*,confirmed=False):
     if not confirmed:raise ValueError('Revisa destinatarios, texto y adjuntos antes de crear el borrador.')
-    if not draft.key:draft.key=sha256((draft.subject+'|'+draft.body+'|'+draft.to).encode()).hexdigest()
+    draft.key=draft_fingerprint(draft)
     if draft.key in work.receipts:raise ValueError('Este borrador ya se creó o su guardado quedó incierto; revisa Outlook antes de repetir.')
     to='; '.join(emails(draft.to));cc='; '.join(emails(CC+';'+draft.cc))
     if draft.required and not draft.attachments:raise ValueError('Este correo requiere adjunto.')
@@ -231,6 +260,7 @@ def create_draft(work,draft,*,confirmed=False):
     work.receipts[draft.key]={'kind':'draft','state':'created','entry_id':receipt.entry_id,'store_id':receipt.store_id}
     if getattr(work,'storage_directory',None):work.save(work.storage_directory)
     return receipt
+
 
 def fill_docx(template,destination,values):
     """Sustituye tokens entre runs sin reconstruir párrafos ni eliminar estilos."""
@@ -269,6 +299,7 @@ def fill_docx(template,destination,values):
     write_new_file(Path(destination),write)
     return str(destination)
 
+
 def word_values(work,row):
     from nurus.rus.rules import as_date
     durations=[str(v) for k,v in row.values.items() if normalize(k) in ('duracion','plazo','vigencia')]
@@ -276,6 +307,7 @@ def word_values(work,row):
     resolution=as_date(row.values.get(work.mapping.get('resolucion','')))
     vals.update(FECHA=date_in_words(date.today()),FECHA_RESOLUCION=date_in_words(resolution) if resolution else '',DURACION=durations[0] if len(durations)==1 else '')
     return vals
+
 
 def template_variables(path):
     from zipfile import ZipFile
@@ -290,7 +322,9 @@ def template_variables(path):
                     result.update(re.findall(r'\{\{([A-Z_]+)\}\}',text))
     return result
 
+
 def generate_word(work,row,kind,template_dir,destination,*,confirmed=False,extra=None):
+    """Compatibilidad con el generador unitario anterior; el flujo visible usa generate_projects."""
     if not confirmed:raise ValueError('Verifica primer pide cuenta y antecedentes de la carpeta judicial.')
     if row.excluded:raise ValueError('La fila está excluida del seguimiento.')
     work.refresh()

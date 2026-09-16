@@ -1,21 +1,23 @@
 """Proyectos agrupados y editables; un documento por lote."""
 from dataclasses import dataclass, field
 from collections import OrderedDict
-from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 from difflib import SequenceMatcher
+
 from docx import Document
-from docx.oxml import OxmlElement
-from docx.enum.text import WD_BREAK
 from docxcompose.composer import Composer
+
 from nurus.rus.rules import tribunal
 from nurus.rus.columns import normalize
 from nurus.services.file_output import write_new_file
 from .outputs import value,word_values,template_variables,fill_docx
 
+
 KINDS=('PC_IE','PC_INFO','NOMENCL')
+
+
 @dataclass
 class Project:
     key: str
@@ -29,22 +31,27 @@ class Project:
     original_text: str
     warnings: list = field(default_factory=list)
 
+
 def join_names(values):
     values=list(dict.fromkeys(str(v).strip() for v in values if str(v).strip()))
     return values[0] if len(values)==1 else ', '.join(values[:-1])+' y '+values[-1] if values else ''
+
 
 def _has_explicit_value(value):
     if value is None:return False
     if isinstance(value,str):return bool(value.strip())
     return True
 
+
 def resolution_kind(value):
     text=normalize(value).replace('_',' ')
     return {'pc ie':'PC_IE','pc info':'PC_INFO','nomencl':'NOMENCL','nomenclatura':'NOMENCL'}.get(text)
 
+
 def _case_key(work,row):
     court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
     return normalize(court),normalize(value(work,row,'rit'))
+
 
 def resolution_marked(value):
     """Interpreta la columna humana RES sin convertir valores dudosos en proyectos."""
@@ -60,6 +67,7 @@ def resolution_marked(value):
     if text in {'si','s','x','true','verdadero','res','resolucion','con resolucion'}:return True
     return False
 
+
 def reviewed_resolution_ids(work):
     """Devuelve None si RES no fue usado; si fue usado, la selección humana es autoritativa."""
     explicit=False;selected=set()
@@ -69,32 +77,69 @@ def reviewed_resolution_ids(work):
         if resolution_marked(row.review.get('RES')):selected.add(row.id)
     return selected if explicit else None
 
+
+def observation_resolution_kind(row):
+    """Obtiene el tipo de matriz desde la observación humana cuando RES no lo especifica."""
+    text=normalize((row.review or {}).get('OBSERVACION',row.observation) or '')
+    if not text:return None
+    if 'nomencl' in text:return 'NOMENCL'
+    if 'pc info' in text:return 'PC_INFO'
+    if 'pc ie' in text:return 'PC_IE'
+    if any(part in text for part in ('informe','diagnostico','diagnostico clinico')):return 'PC_INFO'
+    if any(part in text for part in ('ingreso efectivo','fecha estimada de ingreso','ingreso al programa')):return 'PC_IE'
+    return None
+
+
 def automatic_project_selections(work,fallback_kind='PC_IE'):
-    """Proyectos automáticos respetando RES y tratando cada tribunal/RIT como una causa."""
+    """Selecciona proyectos con precedencia RES explícito > observación > regla.
+
+    Si RES no fue usado, una observación por sí sola no crea un proyecto: debe
+    existir una acción de resolución del motor. Si RES sí fue usado como marca, la
+    observación puede discriminar la matriz y el fallback se usa solo como último
+    recurso para un caso expresamente marcado.
+    """
     reviewed=reviewed_resolution_ids(work)
     result=[]
     if reviewed is None:
         for row in work.rows:
             if row.excluded:continue
-            for kind in (kind for kind in row.actions if kind in KINDS):result.append((row.id,kind))
+            suggested=[kind for kind in row.actions if kind in KINDS]
+            if not suggested:continue
+            observed=observation_resolution_kind(row)
+            kinds=[observed] if observed else suggested
+            for kind in kinds:
+                if kind in KINDS:result.append((row.id,kind))
         return result
 
-    # Recorre el orden humano de la planilla, no el orden no determinista de un set.
-    # Esto estabiliza el orden de tipos cuando una misma causa contiene más de una
-    # indicación explícita en RES.
     case_kinds=OrderedDict()
     for row in work.rows:
         if row.id not in reviewed or row.excluded:continue
         explicit=resolution_kind(row.review.get('RES'))
-        kinds=[explicit] if explicit else [kind for kind in row.actions if kind in KINDS]
+        observed=observation_resolution_kind(row)
+        actions=[kind for kind in row.actions if kind in KINDS]
+        kinds=[explicit] if explicit else ([observed] if observed else actions)
         if not kinds:kinds=[fallback_kind]
         bucket=case_kinds.setdefault(_case_key(work,row),[])
         for kind in kinds:
-            if kind not in bucket:bucket.append(kind)
+            if kind and kind not in bucket:bucket.append(kind)
     for row in work.rows:
         if row.excluded:continue
         for kind in case_kinds.get(_case_key(work,row),[]):result.append((row.id,kind))
     return result
+
+
+def unique_case_selections(work,selections):
+    """Una fila visible por tribunal + RIT + tipo, preservando el orden de origen."""
+    by_id={row.id:row for row in work.rows}
+    seen=set();result=[]
+    for rid,kind in selections:
+        row=by_id.get(rid)
+        if not row or row.excluded or kind not in KINDS:continue
+        key=(*_case_key(work,row),kind)
+        if key in seen:continue
+        seen.add(key);result.append((rid,kind))
+    return result
+
 
 def replace_paragraph(paragraph,text):
     """Modifica solo tramos cambiados conservando los runs del resto de la matriz."""
@@ -117,12 +162,14 @@ def replace_paragraph(paragraph,text):
         first.text=prefix+text[a:b]+(suffix if first is last else '')
         for run,_,_ in touched[1:]:run.text=suffix if run is last else ''
 
+
 def paragraphs(doc):
     yield from doc.paragraphs
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 yield from cell.paragraphs
+
 
 def grouped_values(work,rows):
     vals=word_values(work,rows[0])
@@ -139,9 +186,8 @@ def grouped_values(work,rows):
     vals['_VARIAS_FECHAS']=len({word_values(work,r).get('FECHA_RESOLUCION') for r in rows if word_values(work,r).get('FECHA_RESOLUCION')})>1
     return vals
 
+
 def render_project(project,target):
-    from tempfile import NamedTemporaryFile
-    # fill_docx conserva imágenes, tablas, marcadores y formato de la matriz.
     fill_docx(project.template,target,project.values)
     doc=Document(target)
     if project.values.get('_PLURAL'):
@@ -155,9 +201,6 @@ def render_project(project,target):
         if project.values.get('_VARIAS_FECHAS'):replacements.append(('con fecha ','con fechas '))
         for p in paragraphs(doc):
             text=p.text
-            # Las matrices históricas separan {{NOMBRE}} y {{RUT}}. En grupos de
-            # varios NNA se reemplaza ese bloque completo para conservar la
-            # correspondencia jurídica persona/cédula en el propio considerando.
             for marker in ('cédula de identidad N°','cédula de identidad N.º'):
                 old_pair=project.values['NOMBRE']+', '+marker+' '+project.values['RUT']
                 if old_pair in text:
@@ -165,9 +208,6 @@ def render_project(project,target):
                     text=text.replace(old_pair,people)
             for old,new in replacements:text=text.replace(old,new)
             replace_paragraph(p,text)
-        # Si excepcionalmente existen programas distintos para el mismo RIT, se
-        # conserva un detalle explícito; con un solo programa no se agrega texto
-        # ajeno a la matriz judicial.
         if project.values.get('_VARIOS_PROGRAMAS'):
             detail='Personas comprendidas: '+project.values['DETALLE_PERSONAS']+'.'
             anchor=next((p for p in doc.paragraphs if '{{' not in p.text and p.text.strip().startswith('RIT')),None)
@@ -175,6 +215,7 @@ def render_project(project,target):
             else:doc.add_paragraph(detail)
     doc.save(target)
     return doc
+
 
 def prepare_projects(work,selections,template_dir):
     work.refresh()
@@ -211,6 +252,7 @@ def prepare_projects(work,selections,template_dir):
             project.text='\n'.join(p.text for p in paragraphs(doc));project.original_text=project.text
             projects.append(project)
     return projects,errors
+
 
 def generate_projects(work,projects,destination):
     """Una resolución comienza en página nueva. No corta textos extensos."""

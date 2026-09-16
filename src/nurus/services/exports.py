@@ -249,8 +249,10 @@ def _annotation_values(record: dict, stage: str) -> tuple[str, str]:
         state = "REQUIERE_REVISION"
     elif stage == "proposal":
         state = "PROPUESTA"
-    else:
+    elif record["decision"] == "approved":
         state = "REVISADO"
+    else:
+        state = "PENDIENTE"
     return str(_safe_cell(record["edited_observation"])), state
 
 
@@ -330,7 +332,7 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         last_column = max(sheet.max_column, state_column)
         status_letter = get_column_letter(state_column)
         highlight = FormulaRule(
-            formula=["$" + status_letter + str(first_data_row) + '="EXCLUIDO"'],
+            formula=["$" + status_letter + str(first_data_row) + '=\"EXCLUIDO\"'],
             fill=PatternFill(fill_type="solid", fgColor="FFF2CC"),
         )
         sheet.conditional_formatting.add(
@@ -400,8 +402,6 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
     with source_handle:
         source_handle.write(content)
 
-    # El destino conserva siempre la misma extensión que el origen. SaveCopyAs evita
-    # conversiones de formato y reduce la superficie COM a un único argumento posicional.
     target.unlink(missing_ok=True)
     initialized = False
     app = book = placeholder = None
@@ -467,11 +467,9 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
                                  keep_existing=stage == "proposal" and title == "OBSERVACION")
         sheet.Columns(columns["NURUS_REGLAS"]).Hidden = True
 
-        # Un relleno directo es más compatible que crear una regla de formato condicional
-        # mediante argumentos COM nominales. Solo afecta a la copia de salida.
         operation = "marcar filas excluidas"
         last_column = max(used_last, *columns.values())
-        excluded_color = 255 + 242 * 256 + 204 * 65536  # RGB FFF2CC
+        excluded_color = 255 + 242 * 256 + 204 * 65536
         for record in records:
             if record["decision"] != "excluded":
                 continue
@@ -506,34 +504,18 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         ) from exc
     finally:
         if book is not None:
-            try:
-                book.Close(False)
-            except Exception:
-                pass
+            try:book.Close(False)
+            except Exception:pass
         if placeholder is not None:
-            try:
-                placeholder.Close(False)
-            except Exception:
-                pass
+            try:placeholder.Close(False)
+            except Exception:pass
         if app is not None:
-            try:
-                app.Quit()
-            except Exception:
-                pass
+            try:app.Quit()
+            except Exception:pass
         if initialized:
-            try:
-                pythoncom.CoUninitialize()
-            except Exception:
-                pass
+            try:pythoncom.CoUninitialize()
+            except Exception:pass
         source_path.unlink(missing_ok=True)
-
-
-def _excel_column_name(column: int) -> str:
-    result = ""
-    while column:
-        column, remainder = divmod(column - 1, 26)
-        result = chr(65 + remainder) + result
-    return result
 
 
 def _export_preserved_payload(
@@ -575,8 +557,7 @@ def _export_preserved_payload(
             target_created = True
             shutil.copyfileobj(source, output)
     except OSError as exc:
-        if target_created:
-            target.unlink(missing_ok=True)
+        if target_created:target.unlink(missing_ok=True)
         raise ExportError(f"No se pudo escribir la exportación: {exc}") from exc
     finally:
         temporary.unlink(missing_ok=True)
