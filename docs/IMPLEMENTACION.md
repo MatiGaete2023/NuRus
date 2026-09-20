@@ -13,7 +13,7 @@ Invariantes: solo Windows para CSMP Assistant; no escribir en RUS/SATURNO; no en
 ## Estado técnico
 
 - Python soportado: 3.12, 3.13 y 3.14.
-- CI: Windows con Python 3.12, 3.13 y 3.14; checkpoint `0523f3cb…` verde en los tres jobs. Python 3.12: **230 passed, 1 skipped**.
+- CI: Windows con Python 3.12, 3.13 y 3.14; cierre `574955b5…`, run `35535124753`, verde en los tres jobs. Python 3.12: **230 passed, 1 skipped**.
 - Exportación: copia preservada; captura las ediciones humanas visibles antes de exportar, distingue `REVISADO`/`PENDIENTE` y conserva neutralización de fórmulas.
 - Cumplimiento sin cruce utilizable: C-10 no se evalúa y se deja advertencia; el flujo personal continúa sin exigir excepción.
 - Resoluciones: seis matrices base Laja/Mulchén; Tomé sigue sin matriz fuente. Una fila visible por tribunal/RIT/tipo; precedencia tipo explícito en `RES` > observación revisada > regla del motor.
@@ -24,5 +24,5 @@ Invariantes: solo Windows para CSMP Assistant; no escribir en RUS/SATURNO; no en
 
 `INDICE_DOCUMENTACION.md` identifica documentos vigentes e históricos. `ESTADO_CONSOLIDADO_20260920.md` es la referencia canónica para decisiones, quejas del usuario, soluciones y próximos pasos. `AUDITORIA_REPOSITORIO_20260916.md` registra el alcance y las decisiones de limpieza de esta revisión. `VERIFICACION_PERSONAL.md` describe evidencia automatizada y límites de aceptación.
 
-[G-ESTADO] Rama personal consolidada en **0.4.0.dev6**, sin capa de monkey-patching transitoria y con documentación reconciliada al 20-09-2026.
+[G-ESTADO] **0.4.0.dev6** consolidado y verificado; `main` y la rama personal deben apuntar al mismo cierre documental de esta revisión. No hay capa de monkey-patching transitoria.
 [L-SIGUIENTE] Ejecutar ACEP-01 a ACEP-12 en el equipo institucional y resolver el conflicto DCE antes de declarar una release candidata.
