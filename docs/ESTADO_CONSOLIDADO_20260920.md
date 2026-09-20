@@ -325,6 +325,11 @@ La experiencia anterior del usuario sí aporta evidencia práctica de que Python
 
 El contrato documental se verificó en el commit `574955b5e63608ff7bcf16db29ee36d859a59385`, GitHub Actions run `35535124753`: **success** en Windows con Python 3.12, 3.13 y 3.14. En Python 3.12 se obtuvieron **230 passed, 1 skipped**, smoke GUI correcto y distribución `CSMP-Windows-dev6` generada. Los commits posteriores de este cierre solo actualizan documentación y se marcan `[skip ci]`; no alteran runtime ni suite.
 
+
+### 7.4 Higiene adicional del árbol actual
+
+Se recorrieron los **87 archivos Python** versionados del árbol final buscando rutas de riesgo o deuda evidente: llamadas `.Send(`, marcadores `TODO`/`FIXME`, rutas personales rígidas `C:\\Users\\...`, `shell=True`, `eval(`/`exec(` y restos ejecutables `runtime_fixes_`. No se encontraron esas rutas en código productivo. Las únicas referencias a `runtime_fixes_` permanecen en el contrato de release que comprueba que dichos módulos no existan. Esta revisión es una comprobación de higiene dirigida; no sustituye análisis estático especializado ni aceptación funcional.
+
 ---
 
 ## 8. Conflictos y límites abiertos
