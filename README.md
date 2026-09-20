@@ -1,6 +1,6 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev6**, actualizada el 16 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos.
+Versión **0.4.0.dev6**, estado consolidado al 20 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
 
 ## Instalación y actualización
 
@@ -47,6 +47,6 @@ La versión 0.4.0.dev6 eliminó los cuatro módulos transitorios `runtime_fixes_
 
 ## Estado de verificación
 
-La CI de esta rama se ejecuta en Windows con Python 3.12, 3.13 y 3.14. Verifica instalación, wheel, recursos empaquetados, cinco parches de matrices, seis matrices base, dependencias, compilación, pruebas y contratos de higiene del repositorio; Python 3.12 además ejecuta el smoke de la GUI y construye la distribución Windows `CSMP-Windows-dev6`.
+La CI de esta rama se ejecuta en Windows con Python 3.12, 3.13 y 3.14. El checkpoint auditado `0523f3cb…` terminó verde en los tres entornos; Python 3.12 registró 230 pruebas aprobadas y 1 omitida. Verifica instalación, wheel, recursos empaquetados, cinco parches de matrices, seis matrices base, dependencias, compilación, pruebas y contratos de higiene del repositorio; Python 3.12 además ejecuta el smoke de la GUI y construye la distribución Windows `CSMP-Windows-dev6`.
 
-La validación automática no reemplaza la prueba final con Excel/Outlook institucionales. Consulta `docs/IMPLEMENTACION_PERSONAL.md`, `docs/VERIFICACION_PERSONAL.md`, `docs/AUDITORIA_REPOSITORIO_20260916.md` y `docs/INDICE_DOCUMENTACION.md`.
+La validación automática no reemplaza la prueba final con Excel/Outlook institucionales. Consulta primero `docs/ESTADO_CONSOLIDADO_20260920.md` y `docs/INDICE_DOCUMENTACION.md`; la implementación, verificación, auditorías y documentos históricos quedan enlazados desde ese índice.
