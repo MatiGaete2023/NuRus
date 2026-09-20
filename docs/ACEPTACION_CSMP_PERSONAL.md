@@ -1,6 +1,6 @@
 # Aceptación institucional — CSMP Assistant personal 0.4.0.dev6
 
-Estado inicial: **PENDIENTE**. Usar copias autorizadas y no enviar mensajes durante la prueba.
+Estado al 20 de septiembre de 2026: **PENDIENTE**. No hay resultados institucionales formalmente registrados todavía. Usar copias autorizadas y no enviar mensajes durante la prueba.
 
 Responsable: ______ Fecha: ______ PC/Windows: ______ Python: ______ Excel: ______ Outlook/cuenta: ______ Commit instalado: ______
 
@@ -20,5 +20,7 @@ Responsable: ______ Fecha: ______ PC/Windows: ______ Python: ______ Excel: _____
 | ACEP-12 | Enviados/estadísticas y reinicio | Consulta solo lectura, exportación correcta, sesión recuperable y tiempos/clics registrados | Pendiente |
 
 Ante un error, registrar ID, operación, mensaje completo, versión/commit y archivo de prueba; conservar original y salida. Ante guardado Outlook incierto, revisar Borradores antes de repetir.
+
+Antes de declarar una release candidata debe además resolverse el conflicto DCE documentado en `ESTADO_CONSOLIDADO_20260920.md` y `CAMBIOS_USO_20260916.md`.
 
 Aceptación: APROBADA / CON OBSERVACIONES / RECHAZADA. Pendientes y responsable: ______. Firma: ______.
