@@ -64,7 +64,7 @@ La rama personal desciende de `implementacion-plan-2026-09-08` y está 93 commit
 
 ## 4. Tamaño e inventario auditado
 
-Árbol del HEAD `0523f3cb…`:
+Árbol del HEAD de runtime auditado `0523f3cb…` (antes de agregar esta consolidación documental):
 
 - 147 archivos versionados.
 - 69 archivos bajo `src/`.
@@ -320,6 +320,13 @@ La experiencia anterior del usuario sí aporta evidencia práctica de que Python
 
 ---
 
+
+### 7.3 Cierre remoto de esta consolidación
+
+El contrato documental se verificó en el commit `574955b5e63608ff7bcf16db29ee36d859a59385`, GitHub Actions run `35535124753`: **success** en Windows con Python 3.12, 3.13 y 3.14. En Python 3.12 se obtuvieron **230 passed, 1 skipped**, smoke GUI correcto y distribución `CSMP-Windows-dev6` generada. Los commits posteriores de este cierre solo actualizan documentación y se marcan `[skip ci]`; no alteran runtime ni suite.
+
+---
+
 ## 8. Conflictos y límites abiertos
 
 ### C01 — Regla DCE en Informes
@@ -434,7 +441,7 @@ Solo después de aceptación y uso real:
 
 La política recomendada es:
 
-- `main`: código vigente después de CI verde de esta consolidación.
+- `main`: rama por defecto; al cierre se sincroniza por fast-forward con el checkpoint documental de `csmp-personal-2026-09-13`.
 - `csmp-personal-2026-09-13`: rama de desarrollo que conserva el historial del producto personal.
 - `implementacion-plan-2026-09-08`: referencia del prototipo dev7.
 - `revision-producto-csmp-2026-09-13`: referencia de la auditoría que motivó la migración selectiva.
@@ -470,8 +477,8 @@ D07. Revisión humana por excepción, sin aprobación fila por fila.
 
 [G-ESTADO]
 Versión: 0.4.0.dev6.
-CI previa a esta consolidación: Windows 3.12/3.13/3.14 verde;
-230 passed, 1 skipped en 3.12.
+CI de cierre: run 35535124753, Windows 3.12/3.13/3.14 verde;
+230 passed, 1 skipped en 3.12; smoke GUI y distribución Windows OK.
 Código transitorio eliminado.
 Excel preservado, correos, Word, configuración y Enviados integrados.
 
