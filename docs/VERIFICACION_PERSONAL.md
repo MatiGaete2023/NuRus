@@ -34,6 +34,10 @@ GitHub Actions usa Windows Server, no el PC institucional. La verificación auto
 
 [COMPROBADO POR DISEÑO] El adaptador Outlook del producto personal solo guarda borradores; no existe una ruta autorizada de envío automático desde CSMP Assistant.
 
+## Cierre de verificación del 20 de septiembre de 2026
+
+GitHub Actions run `35535124753`, commit `574955b5e63608ff7bcf16db29ee36d859a59385`: **success** en Windows con Python 3.12, 3.13 y 3.14. En Python 3.12: **230 passed, 1 skipped**; también aprobaron el smoke de la GUI, la construcción del wheel y la distribución `CSMP-Windows-dev6`. Este commit contiene el estado consolidado y el contrato que exige su presencia. Los commits posteriores de cierre documental usan `[skip ci]` y no modifican runtime ni pruebas.
+
 ## Estado al 20 de septiembre de 2026
 
 La aceptación institucional sigue pendiente. El hecho de que CI esté verde no acredita Excel 2010, Outlook clásico, firma/cuenta institucional ni ahorro real de tiempo. Esos puntos deben cerrarse mediante `ACEPTACION_CSMP_PERSONAL.md`.
