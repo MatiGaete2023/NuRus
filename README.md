@@ -4,7 +4,7 @@ Versión **0.4.0.dev6**, estado consolidado al 20 de septiembre de 2026. Esta ra
 
 ## Instalación y actualización
 
-1. Descarga el ZIP de la rama `csmp-personal-2026-09-13` y extrae su contenido.
+1. Descarga el ZIP de `main` y extrae su contenido. La rama `csmp-personal-2026-09-13` se conserva como historial de integración del producto personal.
 2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat`.
 3. Se admite Python 3.12, 3.13 o 3.14. El entorno queda en `.venv-csmp` dentro de la carpeta de la aplicación. No requiere permisos de administrador ni Node.
 4. Excel de escritorio y Outlook clásico son necesarios para la ruta completa de uso institucional. La instalación normal puede descargar dependencias Python; si existe `paquetes/`, el instalador usa ese repositorio local.
@@ -47,6 +47,6 @@ La versión 0.4.0.dev6 eliminó los cuatro módulos transitorios `runtime_fixes_
 
 ## Estado de verificación
 
-La CI de esta rama se ejecuta en Windows con Python 3.12, 3.13 y 3.14. El checkpoint auditado `0523f3cb…` terminó verde en los tres entornos; Python 3.12 registró 230 pruebas aprobadas y 1 omitida. Verifica instalación, wheel, recursos empaquetados, cinco parches de matrices, seis matrices base, dependencias, compilación, pruebas y contratos de higiene del repositorio; Python 3.12 además ejecuta el smoke de la GUI y construye la distribución Windows `CSMP-Windows-dev6`.
+La CI de esta rama se ejecuta en Windows con Python 3.12, 3.13 y 3.14. El cierre del 20-09 (`574955b5…`, run `35535124753`) terminó verde en los tres entornos; Python 3.12 registró 230 pruebas aprobadas y 1 omitida. Verifica instalación, wheel, recursos empaquetados, cinco parches de matrices, seis matrices base, dependencias, compilación, pruebas y contratos de higiene del repositorio; Python 3.12 además ejecuta el smoke de la GUI y construye la distribución Windows `CSMP-Windows-dev6`.
 
 La validación automática no reemplaza la prueba final con Excel/Outlook institucionales. Consulta primero `docs/ESTADO_CONSOLIDADO_20260920.md` y `docs/INDICE_DOCUMENTACION.md`; la implementación, verificación, auditorías y documentos históricos quedan enlazados desde ese índice.
