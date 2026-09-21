@@ -1,4 +1,4 @@
-> Actualización vigente: **0.4.0.dev9**, 21-09-2026. `LIMPIEZA_ASISTENTE_20260921.md` registra la limpieza y las correcciones actuales; `VERIFICACION_PERSONAL.md` contiene la evidencia. La descripción funcional fechada que sigue se conserva como referencia dev6; no acredita por sí sola una versión posterior.
+> Actualización vigente: **0.4.0.dev9**, 21-09-2026. `PANEL_CORREOS_20260921.md` describe la interfaz y el alcance de destinatarios; `LIMPIEZA_ASISTENTE_20260921.md` registra la limpieza dev8 y `VERIFICACION_PERSONAL.md` contiene la evidencia de cierre. La descripción funcional fechada que sigue conserva decisiones anteriores que continúan vigentes.
 
 # Implementación CSMP Assistant personal — 16 de septiembre de 2026
 
@@ -22,7 +22,7 @@ Las exportaciones incluyen `NURUS_REGLAS` como columna técnica oculta. `Work.ex
 
 ## Correos
 
-Correos permite seleccionar tribunal y modalidades, editar Para/CC/asunto/cuerpo/adjuntos y guardar un borrador o todo el lote. **Preparar TODOS los correos necesarios** construye el informativo general de la pestaña y cada comunicación específica respaldada por acciones del motor: `programa_espera`, `programa_vencido`, `programa_por_vencer` y `medidas`. Los productos `especial` y `proyectos` permanecen manuales.
+Correos separa **destinatario** y **filtro de causas**. El alcance puede ser Solo programas, Solo tribunales o Ambos; no seleccionar tribunal en el filtro incluye todas las causas. **Preparar todos** clasifica las comunicaciones automáticas por su naturaleza: `programa_espera`, `programa_vencido` y `programa_por_vencer` son de programa; el informativo general de la pestaña y `medidas` son de tribunal. Las plantillas manuales pueden dirigirse expresamente al alcance elegido. Para/CC/asunto/cuerpo/adjuntos siguen siendo editables.
 
 **Guardar TODOS los borradores** funciona tanto con un lote ya preparado como sin vista previa previa: en este último caso prepara y guarda el conjunto necesario. No existe llamada de envío. Destinatarios ambiguos/desconocidos quedan vacíos; la CC institucional se conserva.
 
@@ -36,7 +36,7 @@ Cuando `RES` no fue utilizado, una observación aislada no crea un proyecto nuev
 
 `prepare_projects` sigue expandiendo la fila representativa a todas las personas de la misma causa. Varias personas del mismo tribunal/RIT/tipo se integran en un solo proyecto y cada NNA queda junto a su propia cédula. Se genera un único Word con página nueva por proyecto. `FECHA` y `FECHA_RESOLUCION` se renderizan totalmente en palabras.
 
-## Arquitectura y limpieza 0.4.0.dev6
+## Arquitectura y limpieza vigente
 
 Las correcciones que inicialmente estaban en cuatro módulos `runtime_fixes_20260916*` se integraron directamente en `work.py`, `outputs.py`, `resolutions.py`, `app.py` y `services/exports.py`. `nurus.personal.__init__` vuelve a ser declarativo y no altera funciones de otros módulos mediante importaciones con efectos secundarios.
 
@@ -50,7 +50,7 @@ Inventario base: seis matrices, tres de Laja y tres de Mulchén. Cinco matrices 
 
 ## Verificación y límites
 
-La suite remota se ejecuta en Windows 3.12–3.14. El contrato de release verifica versión, recursos instalados, cinco parches, seis matrices, ausencia de la capa transitoria y consistencia de la distribución dev6. La aceptación con Excel 2010/Outlook clásico, cuenta institucional y archivos reales autorizados sigue siendo externa a CI.
+La suite remota se ejecuta en Windows 3.12–3.14. El cierre dev9 (`c262321e…`, run `35646164874`) obtuvo **254 passed, 1 skipped** en cada versión; Python 3.12 aprobó además el smoke CustomTkinter a 1024×650 y la distribución `CSMP-Windows-dev9`. El contrato verifica versión, recursos, matrices, limpieza, alcances de correo y consistencia del paquete. La aceptación con Excel 2010/Outlook clásico, cuenta institucional y archivos reales autorizados sigue siendo externa a CI.
 
-[G-ESTADO] Implementación personal consolidada en **0.4.0.dev6**.
+[G-ESTADO] Implementación personal consolidada en **0.4.0.dev9**.
 [L-SIGUIENTE] Ejecutar `ACEPTACION_CSMP_PERSONAL.md` en el equipo institucional y registrar resultados.

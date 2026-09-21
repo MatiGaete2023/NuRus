@@ -4,7 +4,7 @@
 **Producto vigente:** CSMP Assistant personal  
 **Versión vigente:** `0.4.0.dev9` (ver actualización siguiente)
 **Checkpoint histórico del cuerpo:** `0.4.0.dev6`
-**Rama de trabajo auditada:** `csmp-personal-2026-09-13`  
+**Rama candidata dev9:** `csmp-ux-20260921` (destinada a fast-forward de `main` y de la rama personal tras el cierre)  
 **HEAD al iniciar esta revisión:** `0523f3cb666a7e55b6a4fd64eb92949c89a58e26`  
 **Finalidad de este documento:** dejar una representación canónica del estado del proyecto, las decisiones del usuario, los problemas encontrados, cómo se resolvieron, los límites vigentes y el orden recomendado de los siguientes pasos.
 
@@ -12,7 +12,7 @@ Este documento reemplaza como **estado de navegación** a los resúmenes parcial
 
 ## Actualización vigente — panel y correos dev9
 
-Se integra CustomTkinter (dependencia nueva en el entorno aislado Windows), navegación lateral y tarjetas de borradores con datos reales. Destinatarios y filtro de tribunal se separan: solo programas, solo tribunales o ambos. La migración de correos revisión 3 recupera el texto del manual de Informes por vencer sin reemplazar textos personales. No existe botón Enviar; solo guardar uno/todos. Se conserva la limpieza dev8 validada en `bab202e9533e88b5130a277f01b90b816e98940e`, run `35620647820`. Ver `PANEL_CORREOS_20260921.md` y `VERIFICACION_PERSONAL.md` para el cierre actual. Los pendientes institucionales continúan.
+Se integra CustomTkinter (dependencia nueva en el entorno aislado Windows), navegación lateral y tarjetas de borradores con datos reales. Destinatarios y filtro de tribunal se separan: solo programas, solo tribunales o ambos. `Preparar todos` mantiene la naturaleza de cada comunicación: `programa_*` va a programas; el informativo general y `medidas` van a tribunales. La migración de correos revisión 3 recupera el texto del manual de Informes por vencer sin reemplazar textos personales. No existe botón Enviar; solo guardar uno/todos. Se conserva la limpieza dev8 validada en `bab202e9533e88b5130a277f01b90b816e98940e`, run `35620647820`. El cierre dev9 está validado en `c262321e227302cc9349061a941c06af29879219`, run `35646164874`: Windows 3.12/3.13/3.14 success, 254 passed y 1 skipped por versión, smoke CustomTkinter y distribución dev9 correctos. Los pendientes institucionales continúan.
 
 ## Checkpoint anterior — limpieza dev8, 21 de septiembre de 2026
 
@@ -311,6 +311,10 @@ La configuración se guarda bajo `LOCALAPPDATA/CSMP_Personal`. Las escrituras so
 
 ## 7. Estado de pruebas y verificación
 
+### 7.0 CI vigente dev9
+
+GitHub Actions run **35646164874**, commit `c262321e227302cc9349061a941c06af29879219`: **success** en Windows con Python 3.12, 3.13 y 3.14; **254 passed, 1 skipped** en cada versión. Python 3.12 aprobó además el smoke de la interfaz CustomTkinter a 1024×650, capturas de Correos/Configuración y la distribución `CSMP-Windows-dev9`. Esta evidencia automatizada no sustituye la aceptación Office institucional.
+
 ### 7.1 CI vigente al inicio de esta revisión
 
 GitHub Actions run **35127052431**, HEAD `0523f3cb666a7e55b6a4fd64eb92949c89a58e26`:
@@ -372,7 +376,7 @@ CI usa runners Windows modernos. Queda pendiente ejecutar y registrar Excel 2010
 Todavía falta medir el mismo ciclo con:
 
 - herramientas anteriores;
-- CSMP Assistant dev6;
+- CSMP Assistant dev9;
 
 registrando tiempo, clics, recargas y correcciones. Esta comparación es el criterio final para decidir adopción.
 
@@ -441,7 +445,7 @@ Reunir ejemplos finales ya corregidos por el usuario y comparar propuesta del mo
 
 Después de aceptación:
 
-- decidir si `0.4.0.dev6` avanza a `0.4.0rc1` o versión estable;
+- decidir si `0.4.0.dev9` avanza a `0.4.0rc1` o versión estable;
 - crear tag/release;
 - conservar distribución Windows reproducible;
 - congelar documentación de la release;
@@ -496,11 +500,11 @@ D06. Resoluciones agrupadas por tribunal/RIT/tipo en un Word.
 D07. Revisión humana por excepción, sin aprobación fila por fila.
 
 [G-ESTADO]
-Versión: 0.4.0.dev6.
-CI de cierre: run 35535124753, Windows 3.12/3.13/3.14 verde;
-230 passed, 1 skipped en 3.12; smoke GUI y distribución Windows OK.
-Código transitorio eliminado.
-Excel preservado, correos, Word, configuración y Enviados integrados.
+Versión: 0.4.0.dev9.
+CI vigente: run 35646164874, Windows 3.12/3.13/3.14 verde;
+254 passed, 1 skipped por versión; smoke CustomTkinter y distribución Windows OK en 3.12.
+Código transitorio e interfaz NuRus paralela eliminados.
+Excel preservado, correos con alcance programa/tribunal, Word, configuración y Enviados integrados.
 
 [L-PENDIENTE]
 - aceptación Office institucional;

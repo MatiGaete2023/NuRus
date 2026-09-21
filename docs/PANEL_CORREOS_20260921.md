@@ -30,7 +30,9 @@ Extraer en una carpeta nueva y ejecutar `Instalar_CSMP.bat`, después `Abrir_CSM
 
 ## Verificación y límites
 
-Las pruebas verifican alcance por destino, destinatario vacío, nombre de nómina, migración sin pérdida de personalizaciones y selección de causas sin tribunal obligatorio. La ventana real en Windows comprueba navegación, tarjetas, adjuntos, campos editables y geometría. Los resultados exactos se registran en `VERIFICACION_PERSONAL.md`.
+Las pruebas verifican alcance por destino, destinatario vacío, nombre de nómina, migración sin pérdida de personalizaciones y selección de causas sin tribunal obligatorio. `Preparar todos` separa semánticamente los tipos automáticos: `programa_*` se dirige a programas; el informativo general y `medidas` se dirigen a tribunales. La ventana real en Windows comprueba navegación, tarjetas, adjuntos, campos editables y geometría.
+
+Cierre validado: commit `c262321e227302cc9349061a941c06af29879219`, GitHub Actions run `35646164874`, **success** en Python 3.12/3.13/3.14 con 254 pruebas aprobadas y 1 omitida por versión. Python 3.12 aprobó además el smoke visual y generó la distribución `CSMP-Windows-dev9`. Los detalles están en `VERIFICACION_PERSONAL.md`.
 
 La documentación primaria usada para los controles es la de [CustomTkinter](https://customtkinter.tomschimansky.com/documentation/), incluidos [CTkTextbox](https://customtkinter.tomschimansky.com/documentation/widgets/textbox/) y [CTkScrollableFrame](https://customtkinter.tomschimansky.com/documentation/widgets/scrollableframe/).
 

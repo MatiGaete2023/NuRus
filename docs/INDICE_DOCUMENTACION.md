@@ -11,7 +11,7 @@ Actualizado: 21 de septiembre de 2026. Versión vigente: **0.4.0.dev9**.
 - `ESTADO_CONSOLIDADO_20260920.md`: **referencia canónica de estado**; reúne evolución, observaciones del usuario, soluciones, decisiones, conflictos y próximos pasos.
 - `../README.md`: instalación, uso y alcance actual.
 - `IMPLEMENTACION.md`: portada del estado operativo del repositorio.
-- `IMPLEMENTACION_PERSONAL.md`: comportamiento funcional conservado y actualización dev8.
+- `IMPLEMENTACION_PERSONAL.md`: comportamiento funcional vigente, incluido el alcance de correos y cierre dev9.
 - `AUDITORIA_REPOSITORIO_20260916.md`: auditoría integral y limpieza de código del 16-09-2026; evidencia fechada que complementa el estado consolidado.
 - `CAMBIOS_USO_20260916.md`: cambios funcionales y técnicos vigentes incorporados el 16-09-2026.
 - `VERIFICACION_PERSONAL.md`: evidencia automática y límites.

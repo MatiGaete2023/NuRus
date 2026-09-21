@@ -13,4 +13,6 @@ Actualizado: 21 de septiembre de 2026. Versión **0.4.0.dev9**. Único producto:
 
 La limpieza y las correcciones de uso están en `LIMPIEZA_ASISTENTE_20260921.md`. `VERIFICACION_PERSONAL.md` registra el SHA y resultado de CI, sin confundir ejecuciones anteriores con el código actual. `INDICE_DOCUMENTACION.md` separa instrucciones vigentes de informes históricos.
 
+Verificación vigente: commit `c262321e227302cc9349061a941c06af29879219`, run `35646164874`, Windows Python 3.12/3.13/3.14 **success**, 254 pruebas aprobadas y 1 omitida por versión; smoke CustomTkinter y distribución dev9 correctos en 3.12.
+
 Pendientes externos: aceptación Office institucional, decisión DCE, matrices Tomé y medición real de ahorro de trabajo. No se añaden pasos de aprobación para resolverlos.
