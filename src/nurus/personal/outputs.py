@@ -30,6 +30,7 @@ class Draft:
     court: str = ''
     due: str = ''
     kind: str = ''
+    recipient_type: str = ''
     record_ids: list = field(default_factory=list)
 
 
@@ -181,6 +182,7 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
         from nurus.rus.rules import as_date
         dates=[as_date(r.values.get(work.mapping.get('vencimiento',''))) for r in rows]
         dates=[d for d in dates if d]
+        draft.recipient_type='programas' if to_program else 'tribunales'
         draft.program=program if to_program else ''
         draft.court=court_cfg['nombre'];draft.due=min(dates).isoformat() if dates else ''
         draft.kind=kind;draft.record_ids=[r.id for r in rows]
@@ -222,6 +224,13 @@ def prepare_required_drafts(work,*,modalities='',period='',selected=None,directo
             if draft.key not in seen:
                 drafts.append(draft);seen.add(draft.key)
     return drafts
+
+
+def drafts_for_scope(drafts,scope):
+    """Filtra vistas preparadas sin reconstruir ni perder las ediciones del usuario."""
+    if scope not in {'todos','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
+    if scope=='todos':return list(drafts)
+    return [d for d in drafts if (d.recipient_type or ('programas' if d.program else 'tribunales'))==scope]
 
 
 def program_filename(name):

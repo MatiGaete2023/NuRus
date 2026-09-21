@@ -65,3 +65,14 @@ def test_manual_text_migration_preserves_custom_body(tmp_path):
     old['correos']['plantillas']['programa_por_vencer']['cuerpo']='Texto personal autorizado.'
     cfg.save(old)
     assert Configuration(cfg.directory).data['correos']['plantillas']['programa_por_vencer']['cuerpo']=='Texto personal autorizado.'
+
+
+def test_destination_filter_preserves_edited_drafts_when_switching_back():
+    from nurus.personal.outputs import Draft, drafts_for_scope
+    program=Draft('A programa','Texto editado',recipient_type='programas')
+    court=Draft('A tribunal','Otro texto',recipient_type='tribunales')
+    source=[program,court]
+    assert drafts_for_scope(source,'programas')==[program]
+    drafts_for_scope(source,'programas')[0].body='Nueva edición'
+    assert drafts_for_scope(source,'tribunales')==[court]
+    assert drafts_for_scope(source,'todos')[0].body=='Nueva edición'

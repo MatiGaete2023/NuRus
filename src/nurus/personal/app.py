@@ -13,7 +13,7 @@ from .ui import Textbox as ScrolledText
 from .app_base import App as _BaseApp
 from .mail_view import build_mail_page
 from .mail_controls import alcance_modalidades, selected_court_record_ids
-from .outputs import prepare_drafts, prepare_required_drafts, create_drafts, value
+from .outputs import prepare_drafts, prepare_required_drafts, create_drafts, drafts_for_scope, value
 from .resolutions import automatic_project_selections, reviewed_resolution_ids, unique_case_selections
 from .statistics import summarize
 from .work import Work
@@ -78,7 +78,15 @@ class App(_BaseApp):
         for key in ('correos','contactos','aliases','cuenta_outlook','firma'):
             work.config[key]=deepcopy(self.cfg.data[key])
 
-    def _display_prepared_drafts(self,drafts,message):
+    def _mail_target_changed(self,event=None):
+        self._capture_mail()
+        source=getattr(self,'_draft_scope_source',self.drafts)
+        self._display_prepared_drafts(source,'{count} borradores del alcance elegido. Preparar todos incorpora las gestiones faltantes.',keep_source=True)
+
+    def _display_prepared_drafts(self,drafts,message,keep_source=False):
+        if not keep_source:self._draft_scope_source=list(drafts)
+        target=self.mail_target.get() if hasattr(self,'mail_target') else 'todos'
+        drafts=drafts_for_scope(drafts,target)
         self.drafts=drafts;self.mail_list.delete(0,'end');self.draft_index=None
         self.mail_list.set_drafts(drafts,getattr(getattr(self,'work',None),'receipts',{}))
         if drafts:self.mail_list.selection_set(0);self._select_mail()

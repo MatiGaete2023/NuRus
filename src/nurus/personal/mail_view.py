@@ -88,7 +88,8 @@ def build_mail_page(app):
     cfg=app.cfg.data['correos']
     top=ctk.CTkFrame(page,fg_color='transparent');top.grid(row=0,column=0,sticky='ew',padx=8,pady=(8,4));top.grid_columnconfigure(1,weight=1)
     app.mail_target=tk.StringVar(value='programas')
-    NamedChoice(top,keyvariable=app.mail_target,names=lambda:{'programas':'Solo programas','tribunales':'Solo tribunales','todos':'Ambos'},state='readonly',width=21).grid(row=0,column=0,padx=(0,8))
+    app.target_box=NamedChoice(top,keyvariable=app.mail_target,names=lambda:{'programas':'Solo programas','tribunales':'Solo tribunales','todos':'Ambos'},state='readonly',width=21)
+    app.target_box.grid(row=0,column=0,padx=(0,8));app.target_box.bind('<<ComboboxSelected>>',app._mail_target_changed)
     app.mail_kind=tk.StringVar(value='programa_por_vencer')
     app.kind_box=NamedChoice(top,keyvariable=app.mail_kind,names=lambda:{k:v['nombre'] for k,v in app.cfg.data['correos']['plantillas'].items()},state='readonly',width=32)
     app.kind_box.grid(row=0,column=1,sticky='ew');app.kind_box.bind('<<ComboboxSelected>>',app._mail_kind_changed)

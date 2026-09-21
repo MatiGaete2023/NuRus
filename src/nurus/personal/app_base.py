@@ -263,7 +263,7 @@ class App(ctk.CTk):
         ttk.Button(window,text='Usar hoja',command=apply).pack(pady=15)
 
     def _clear_drafts(self):
-        self.drafts=[];self.draft_index=None;self.mail_list.delete(0,'end')
+        self.drafts=[];self._draft_scope_source=[];self.draft_index=None;self.mail_list.delete(0,'end')
         self._clear_mail_editor();self._clear_projects()
 
     def _clear_projects(self):

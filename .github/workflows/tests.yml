@@ -59,13 +59,13 @@ jobs:
       - name: Compile
         run: python -m compileall -q src tests tools
 
-      - name: Tests
-        timeout-minutes: 8
-        run: python -m pytest -q -o faulthandler_timeout=90
-
       - name: Personal GUI smoke
         if: matrix.python == '3.12'
         run: python tools/smoke_personal_gui.py
+
+      - name: Tests
+        timeout-minutes: 8
+        run: python -m pytest -q -o faulthandler_timeout=90
 
       - name: Windows interface captures
         if: always() && matrix.python == '3.12'

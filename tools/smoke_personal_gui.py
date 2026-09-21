@@ -51,6 +51,11 @@ with TemporaryDirectory() as directory:
         app.mail_list._choose(1);app.update()
         assert app.subject.get()=='Otro borrador' and app.body.get('1.0','end-1c')=='Segundo cuerpo'
         app.mail_list._choose(0);app.update()
+        app.body.insert('end',' Edición conservada.')
+        app.mail_target.set('tribunales');app._mail_target_changed();app.update()
+        assert not app.drafts
+        app.mail_target.set('programas');app._mail_target_changed();app.update()
+        assert len(app.drafts)==2 and app.body.get('1.0','end-1c').endswith('Edición conservada.')
         app.attach.set('Programa de prueba.xlsx\nSegundo programa.xlsx');app.attachment_chips._remove(0)
         assert app.attach.get()=='Segundo programa.xlsx'
         assert app.mail_target.get()=='programas'
