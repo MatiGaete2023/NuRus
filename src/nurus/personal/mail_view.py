@@ -63,7 +63,8 @@ class DraftCards(ctk.CTkScrollableFrame):
 
 class AttachmentChips(ctk.CTkScrollableFrame):
     def __init__(self,parent,variable):
-        super().__init__(parent,height=42,fg_color=ui.FIELD)
+        # Una sola franja horizontal evita que muchos adjuntos reduzcan el editor.
+        super().__init__(parent,height=42,fg_color=ui.FIELD,orientation='horizontal')
         self.variable=variable;self._trace=variable.trace_add('write',self._draw);self._draw()
 
     def _remove(self,index):
@@ -73,9 +74,9 @@ class AttachmentChips(ctk.CTkScrollableFrame):
     def _draw(self,*args):
         for child in self.winfo_children():child.destroy()
         files=[p for p in self.variable.get().split('\n') if p]
-        if not files:ctk.CTkLabel(self,text='Sin adjuntos',text_color=ui.MUTED,height=24).pack(anchor='w',padx=6)
+        if not files:ctk.CTkLabel(self,text='Sin adjuntos',text_color=ui.MUTED,height=24).pack(side='left',padx=6)
         for i,path in enumerate(files):
-            chip=ctk.CTkFrame(self,fg_color=ui.BLUE,corner_radius=7);chip.pack(fill='x',pady=2,padx=3)
+            chip=ctk.CTkFrame(self,fg_color=ui.BLUE,corner_radius=7);chip.pack(side='left',pady=2,padx=3)
             ctk.CTkButton(chip,text='×',width=27,height=24,fg_color='transparent',command=lambda index=i:self._remove(index)).pack(side='right',padx=3)
             ctk.CTkLabel(chip,text=Path(path).name,anchor='w',height=24).pack(side='left',fill='x',expand=True,padx=8)
 
@@ -130,7 +131,7 @@ def build_mail_page(app):
     app.mail_list=DraftCards(content);app.mail_list.grid(row=0,column=0,sticky='ns',padx=(0,10));app.mail_list.bind('<<ListboxSelect>>',app._select_mail)
     app.mail_list.set_drafts([])
     compose=ctk.CTkFrame(content,fg_color=ui.PANEL,corner_radius=12,border_width=1,border_color='#394451')
-    compose.grid(row=0,column=1,sticky='nsew');compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1)
+    compose.grid(row=0,column=1,sticky='nsew');compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1,minsize=120)
     ui.Label(compose,text='Correo editable',font=('Segoe UI',16,'bold')).grid(row=0,column=0,columnspan=2,sticky='w',padx=12,pady=(8,4))
     ui.Button(compose,text='Vista previa',width=100,command=lambda:app._guard(app._preview_mail)).grid(row=0,column=1,sticky='e',padx=12,pady=5)
     app.to=tk.StringVar();app.cc=tk.StringVar();app.subject=tk.StringVar();app.attach=tk.StringVar()

@@ -66,7 +66,8 @@ with TemporaryDirectory() as directory:
         assert button.winfo_ismapped()
         assert button.winfo_rootx()+button.winfo_width() <= app.winfo_rootx()+app.winfo_width()
         assert button.winfo_rooty()+button.winfo_height() <= app.winfo_rooty()+app.winfo_height()
-        assert app.body.winfo_height() >= 100
+        body_height=app.body.winfo_height()
+        assert body_height >= 100, f'Editor de correo demasiado bajo a 1024x650: {body_height}px'
         # Nombres legibles, identidad interna estable y guardado al cambiar de plantilla.
         before=app.tpl_key.get();app.tpl_body.insert('end','\nPrueba de edición conservada.')
         other=next(k for k in app.cfg.data['correos']['plantillas'] if k!=before)
