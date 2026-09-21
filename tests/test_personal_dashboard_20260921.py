@@ -76,3 +76,16 @@ def test_destination_filter_preserves_edited_drafts_when_switching_back():
     drafts_for_scope(source,'programas')[0].body='Nueva edición'
     assert drafts_for_scope(source,'tribunales')==[court]
     assert drafts_for_scope(source,'todos')[0].body=='Nueva edición'
+
+
+def test_program_scope_never_repurposes_court_measures_mail(tmp_path):
+    work=exported(tmp_path,'CUMPLIMIENTO')
+    program_drafts=prepare_required_drafts(
+        work,modalities='todas las modalidades',recipient_scope='programas'
+    )
+    court_drafts=prepare_required_drafts(
+        work,modalities='todas las modalidades',recipient_scope='tribunales'
+    )
+    assert all(d.kind.startswith('programa_') for d in program_drafts)
+    assert {d.kind for d in court_drafts}=={'cumplimiento','medidas'}
+    assert all(d.recipient_type=='tribunales' for d in court_drafts)

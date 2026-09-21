@@ -217,7 +217,14 @@ def prepare_required_drafts(work,*,modalities='',period='',selected=None,directo
         if row.excluded or (selected_ids is not None and row.id not in selected_ids) or not selected_row(work,row,modality_keys):continue
         action_kinds.update(action for action in row.actions if action in templates)
     for kind in ('programa_espera','programa_vencido','programa_por_vencer','medidas'):
-        if kind in action_kinds and (recipient_scope!='tribunales' or kind=='medidas'):kinds.append(kind)
+        if kind not in action_kinds:
+            continue
+        program_mail=kind.startswith('programa_')
+        if recipient_scope=='programas' and not program_mail:
+            continue
+        if recipient_scope=='tribunales' and program_mail:
+            continue
+        kinds.append(kind)
     drafts=[];seen=set()
     for kind in kinds:
         for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys,recipient_scope='auto' if recipient_scope=='todos' else recipient_scope):
