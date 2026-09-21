@@ -138,10 +138,13 @@ def test_external_records_do_not_require_motor_roundtrip(tmp_path):
 
 def test_word_template_inventory_and_real_generation(tmp_path):
     from nurus.personal.config import BASE
-    from nurus.personal.outputs import generate_word,template_variables
+    from nurus.personal.resolutions import prepare_projects,generate_projects
+    from nurus.personal.outputs import template_variables
     folder=BASE/'plantillas_word';assert len(list(folder.rglob('*.docx')))==6
     w=exported(tmp_path);out=tmp_path/'proyecto.docx'
-    generate_word(w,w.rows[0],'PC_IE',folder,out,confirmed=True)
+    projects,errors=prepare_projects(w,[(w.rows[0].id,'PC_IE')],folder)
+    assert not errors and len(projects)==1
+    generate_projects(w,projects,out)
     assert not template_variables(out)
     text='\n'.join(p.text for p in Document(out).paragraphs)
     assert 'Persona Ejemplo' in text and 'X-1-2026' in text

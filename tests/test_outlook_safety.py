@@ -25,10 +25,10 @@ def _product_without_recipient() -> Product:
     )
 
 
-def test_create_draft_requires_explicit_confirmation():
+def test_save_draft_requires_explicit_confirmation():
     product = _product_without_recipient()
     with pytest.raises(ValueError, match="Confirma explícitamente"):
-        outlook_adapter.create_draft(product)
+        outlook_adapter.save_draft(product)
 
 
 def test_attachment_copy_keeps_exact_reviewed_bytes_and_original_name(tmp_path):

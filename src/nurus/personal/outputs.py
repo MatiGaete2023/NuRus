@@ -323,19 +323,3 @@ def template_variables(path):
                     text=''.join(p.itertext())
                     result.update(re.findall(r'\{\{([A-Z_]+)\}\}',text))
     return result
-
-
-def generate_word(work,row,kind,template_dir,destination,*,confirmed=False,extra=None):
-    """Compatibilidad con el generador unitario anterior; el flujo visible usa generate_projects."""
-    if not confirmed:raise ValueError('Verifica primer pide cuenta y antecedentes de la carpeta judicial.')
-    if row.excluded:raise ValueError('La fila está excluida del seguimiento.')
-    work.refresh()
-    court=tribunal(value(work,row,'tribunal'))
-    if not court or kind not in {'PC_IE','PC_INFO','NOMENCL'}:raise ValueError('Tribunal o tipo de proyecto no reconocido.')
-    template=Path(template_dir)/court/(kind+'.docx')
-    if not template.exists():raise ValueError(f'Sin plantilla {court}/{kind}. Incorpora la matriz Word correspondiente en Configuración.')
-    vals=word_values(work,row)
-    if extra:vals.update(extra)
-    result=fill_docx(template,destination,vals)
-    work.receipts[uuid4().hex]={'kind':'word','record_id':row.id,'path':result,'type':kind}
-    return result

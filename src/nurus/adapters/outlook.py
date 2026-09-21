@@ -202,10 +202,3 @@ def save_draft(
         raise OutlookUnavailable(f"No se pudo preparar el borrador Outlook: {exc}") from exc
     finally:
         pythoncom.CoUninitialize()
-
-
-def create_draft(product: Product, *, confirmed: bool = False) -> Product:
-    """Compatibilidad: guarda el borrador en la cuenta/carpeta predeterminada."""
-    save_draft(product, confirmed=confirmed)
-    product.status = ProductStatus.CREATED
-    return product

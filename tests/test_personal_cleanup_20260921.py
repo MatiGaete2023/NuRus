@@ -1,5 +1,8 @@
 """Regresiones del flujo vigente tras retirar la interfaz NuRus duplicada."""
 import ast
+import os
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -97,8 +100,21 @@ def test_empty_mail_result_does_not_show_previous_case():
 
 def test_saving_thresholds_keeps_rules_not_exposed_by_ui(tmp_path):
     cfg=Configuration(tmp_path/'cfg')
-    cfg.data['desactivadas']=['ESPERA.E05_PROYECTO_Y_CORREO','COMUN.OIDO']
+    cfg.data['desactivadas']=['COMUN.PROX_AUDIENCIA','COMUN.OIDO']
     app=SimpleNamespace(cfg=cfg,param_vars={k:Var(str(v)) for k,v in cfg.data['umbrales'].items()},
         disabled={'COMUN.OIDO':Var(True),'COMUN.CURADOR':Var(False)},status=Var(''))
     BaseApp._save_params(app)
-    assert set(Configuration(cfg.directory).data['desactivadas'])=={'ESPERA.E05_PROYECTO_Y_CORREO','COMUN.CURADOR'}
+    assert set(Configuration(cfg.directory).data['desactivadas'])=={'COMUN.PROX_AUDIENCIA','COMUN.CURADOR'}
+
+
+def test_active_assistant_import_does_not_load_historical_workflow_stack():
+    """El arranque vigente no debe materializar SQLite ni el evaluador NuRus retirado."""
+    code = (
+        "import sys; import nurus.personal.app; "
+        "assert 'nurus.services.workflow' not in sys.modules; "
+        "assert 'nurus.storage.database' not in sys.modules; "
+        "assert 'nurus.rus.service' not in sys.modules"
+    )
+    env = dict(os.environ)
+    env['PYTHONPATH'] = str(ROOT/'src')
+    subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=env, check=True)

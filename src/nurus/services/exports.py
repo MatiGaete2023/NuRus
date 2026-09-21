@@ -9,11 +9,13 @@ import tempfile
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from zipfile import ZipFile
 
-from nurus.storage.database import Database
 from nurus.services.file_output import write_new_file
+
+if TYPE_CHECKING:
+    from nurus.storage.database import Database
 
 
 class ExportError(ValueError):

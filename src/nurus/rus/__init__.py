@@ -1,12 +1,18 @@
-"""Lectura y evaluación trazable de las planillas RUS.
+"""Lectura de planillas RUS y compatibilidad diferida con el evaluador histórico.
 
-El paquete no escribe en SATURNO ni envía comunicaciones. Produce resultados
-revisables con procedencia de archivo, hash, hoja y fila.
+CSMP Assistant importa lector/modelos directamente. El evaluador NuRus anterior
+solo se carga si un consumidor histórico llama explícitamente evaluate_batch().
 """
 
 from .models import EvaluationBatch, EvaluationStatus, Mode, SourceReference
 from .reader import WorkbookReadError, read_workbook
-from .service import evaluate_batch
+
+
+def evaluate_batch(*args, **kwargs):
+    """Compatibilidad diferida; no forma parte del flujo operativo del Asistente."""
+    from .service import evaluate_batch as _evaluate_batch
+    return _evaluate_batch(*args, **kwargs)
+
 
 __all__ = [
     "EvaluationBatch",
@@ -17,4 +23,3 @@ __all__ = [
     "evaluate_batch",
     "read_workbook",
 ]
-
