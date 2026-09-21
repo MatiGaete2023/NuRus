@@ -38,12 +38,26 @@ En Word y Outlook, escoge tribunal y tipo antes de abrir o reemplazar la matriz.
 - Se mantienen módulos internos `nurus` por dependencia y compatibilidad. Se retira su experiencia separada de los accesos distribuidos; borrar el núcleo compartido rompería lectura/exportación y no aporta ahorro al usuario.
 - Las ediciones manuales de proyectos solo se reutilizan al volver a preparar si los datos del grupo no cambiaron; cambios simultáneos de planilla y redacción requieren revisar el nuevo proyecto.
 
-## Verificación
+## Verificación comprobada
 
-Prevista: suite completa en Windows con Python 3.12, 3.13 y 3.14; prueba real Tkinter de botones visibles, editor, scroll y guardado de configuración; construcción del paquete y del ZIP. Los resultados y commit se incorporan al cerrar la ejecución.
+Commit de código: `86e8ba8e095db5aa97e9d1a0fae8a51937633c2d`.
+[GitHub Actions 35551027804](https://github.com/MatiGaete2023/NuRus/actions/runs/35551027804).
+
+- Windows + Python 3.12: **239 passed, 1 skipped**, 130,05 segundos.
+- Windows + Python 3.13: **239 passed, 1 skipped**, 177,79 segundos.
+- Windows + Python 3.14: **239 passed, 1 skipped**, 169,34 segundos.
+- Instalación, dependencias, compilación, wheel y recursos instalados: correctos en los tres jobs.
+- Tkinter real en Windows: cinco pestañas, acción de guardado masivo dentro de la ventana a 1024×650, cuerpo editable de al menos 100 px, desplazamiento y persistencia al cambiar de plantilla: aprobado.
+- Distribución `CSMP-Windows-dev7` y capturas `CSMP-Windows-interface`: generadas por CI.
+
+Las capturas se generaron, pero su descarga al entorno de revisión devolvió HTTP 403 (1010). Por ello **no se declara inspección visual manual de esas imágenes**; la comprobación de geometría y funcionamiento anterior sí se ejecutó en Windows. No se instalaron ni probaron otros sistemas como destino del producto.
+
+Este informe y el cierre del estado se actualizan después de la ejecución mediante un commit exclusivamente documental, sin cambiar el runtime verificado.
 
 [G-ESTADO]
-Cambios de dev7 implementados desde dev6; comprobación Windows pendiente.
+CSMP Assistant personal 0.4.0.dev7 comprobado automáticamente en Windows 3.12–3.14.
+Cambios de uso y correcciones implementados desde dev6; sin nuevos requisitos de instalación.
 Decisión vigente: desarrollar exclusivamente CSMP Assistant personal.
+Pendientes externos: aceptación Office institucional, C01 DCE, matrices Tomé y medición del ciclo real.
 [L-SIGUIENTE]
-Completar CI Windows y registrar resultados antes de integrar en main.
+Ejecutar ACEP-01 a ACEP-12 en el PC institucional usando esta versión y un lote autorizado.

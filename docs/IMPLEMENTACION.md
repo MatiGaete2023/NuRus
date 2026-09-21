@@ -8,7 +8,7 @@ Actualizado: 20 de septiembre de 2026. Rama auditada: `csmp-personal-2026-09-13`
 
 El estado transversal y la historia de decisiones se consolidan en `ESTADO_CONSOLIDADO_20260920.md`; este archivo queda como portada técnica breve.
 
-El repositorio contiene el núcleo general/histórico de NuRus y la aplicación personal `CSMP Assistant`. El núcleo general no se elimina: mantiene scripts de entrada y cobertura de pruebas propios. Para esta rama, el estado operativo vigente del producto personal se documenta en `IMPLEMENTACION_PERSONAL.md`. Los informes fechados anteriores se conservan como evidencia histórica y no describen automáticamente el comportamiento vigente.
+El repositorio contiene el núcleo general/histórico de NuRus y la aplicación personal `CSMP Assistant`. El núcleo general no se elimina por sus dependencias compartidas y pruebas de regresión. Sus accesos anteriores remiten al Asistente; no continúa como producto separado. Para esta rama, el estado operativo vigente del producto personal se documenta en `IMPLEMENTACION_PERSONAL.md`. Los informes fechados anteriores se conservan como evidencia histórica y no describen automáticamente el comportamiento vigente.
 
 Invariantes: solo Windows para CSMP Assistant; no escribir en RUS/SATURNO; no enviar correos; Outlook solo guarda borradores; el Excel original se conserva; los productos son insumos para revisión humana.
 

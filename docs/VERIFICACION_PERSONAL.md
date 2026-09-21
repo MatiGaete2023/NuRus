@@ -1,3 +1,10 @@
+# Verificación vigente — CSMP Assistant personal 0.4.0.dev7
+
+Código comprobado: `86e8ba8e095db5aa97e9d1a0fae8a51937633c2d`.
+Run [35551027804](https://github.com/MatiGaete2023/NuRus/actions/runs/35551027804): éxito en Windows con Python 3.12, 3.13 y 3.14; **239 aprobadas y 1 omitida en cada versión**. Smoke de interfaz Windows y construcción de distribución dev7 aprobados. El detalle y la limitación de acceso a las capturas están en `REVISION_USABILIDAD_20260921.md`.
+
+## Evidencia anterior conservada (dev6)
+
 > Actualización vigente: **0.4.0.dev7**, 21-09-2026. Consultar `REVISION_USABILIDAD_20260921.md` para cambios y comprobaciones posteriores. La evidencia fechada que sigue corresponde a dev6.
 
 # Verificación CSMP personal

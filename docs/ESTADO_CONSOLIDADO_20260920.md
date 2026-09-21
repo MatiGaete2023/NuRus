@@ -11,7 +11,7 @@ Este documento reemplaza como **estado de navegación** a los resúmenes parcial
 
 ## Actualización material — 21 de septiembre de 2026
 
-Producto: **CSMP Assistant personal 0.4.0.dev7**. El cuerpo fechado el 20-09 conserva el estado dev6 como referencia. Los cambios posteriores, pruebas y límites están en `REVISION_USABILIDAD_20260921.md`. Las decisiones de dominio permanecen vigentes; se continúa solo la experiencia del Asistente. Los accesos NuRus anteriores pasan a abrirlo.
+Producto: **CSMP Assistant personal 0.4.0.dev7**. El cuerpo fechado el 20-09 conserva el estado dev6 como referencia. Los cambios posteriores, pruebas y límites están en `REVISION_USABILIDAD_20260921.md`. Las decisiones de dominio permanecen vigentes; se continúa solo la experiencia del Asistente. Los accesos NuRus anteriores pasan a abrirlo. CI de dev7: run `35551027804`, commit `86e8ba8e095db5aa97e9d1a0fae8a51937633c2d`, Windows 3.12/3.13/3.14 exitoso; 239 pruebas aprobadas y 1 omitida por versión. El cierre posterior es solo documental.
 
 ---
 
