@@ -1,29 +1,16 @@
 """Controles pequeños para el escritorio Windows del Asistente."""
 import tkinter as tk
-from tkinter import ttk
+import customtkinter as ctk
+from . import ui as ttk
 from collections import Counter
 
 
-class ScrollPane(ttk.Frame):
-    """Panel desplazable: no oculta acciones cuando hay poca altura disponible."""
-    def __init__(self, parent, **kwargs):
-        super().__init__(parent, **kwargs)
-        self.canvas = tk.Canvas(self, highlightthickness=0, width=315, height=260)
-        bar = ttk.Scrollbar(self, orient='vertical', command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=bar.set)
-        self.canvas.pack(side='left', fill='both', expand=True)
-        bar.pack(side='right', fill='y')
-        self.body = ttk.Frame(self.canvas, padding=4)
-        item = self.canvas.create_window((0, 0), window=self.body, anchor='nw')
-        self.body.bind('<Configure>', lambda e: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
-        self.canvas.bind('<Configure>', lambda e: self.canvas.itemconfigure(item, width=e.width))
-        self.canvas.bind('<MouseWheel>', self._wheel)
-        self.body.bind('<MouseWheel>', self._wheel)
+class ScrollPane(ctk.CTkScrollableFrame):
+    """Panel CTk desplazable con rueda, incluido sobre sus controles hijos."""
+    def __init__(self,parent,**kwargs):
+        super().__init__(parent,fg_color=ttk.PANEL,**kwargs)
+        self.body=self
 
-    def _wheel(self, event):
-        if self.body.winfo_height() > self.canvas.winfo_height():
-            self.canvas.yview_scroll(-1 if event.delta > 0 else 1, 'units')
-            return 'break'
 
 
 class NamedChoice(ttk.Combobox):

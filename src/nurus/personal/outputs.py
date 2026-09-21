@@ -26,6 +26,11 @@ class Draft:
     attachments: list = field(default_factory=list)
     required: bool = False
     key: str = ''
+    program: str = ''
+    court: str = ''
+    due: str = ''
+    kind: str = ''
+    record_ids: list = field(default_factory=list)
 
 
 _MONTHS = ('', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre')
@@ -143,10 +148,12 @@ def draft_fingerprint(draft):
     return sha256(json.dumps(payload,ensure_ascii=False,sort_keys=True).encode('utf-8')).hexdigest()
 
 
-def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,selected=None,directory=None,manual_selection=False,modality_keys=None):
+def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto'):
+    if recipient_scope not in {'auto','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     work.refresh()
     cfg=work.config
     tpl=cfg['correos']['plantillas'][kind]
+    to_program=recipient_scope=='programas' or (recipient_scope=='auto' and kind.startswith('programa_'))
     automatic_kind=kind in {'programa_espera','programa_vencido','programa_por_vencer','medidas'}
     if tpl.get('usa_modalidades') and not modalities.strip():raise ValueError('Indica las modalidades efectivamente comprendidas.')
     from .modalities import selected_row
@@ -157,7 +164,7 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
         if automatic_kind and kind not in row.actions and not (manual_selection or getattr(work,'external_input',False)):continue
         if kind=='proyectos' and not manual_selection and not getattr(work,'external_input',False) and row.id not in {rid for r in work.receipts.values() if r.get('kind')=='word' for rid in r.get('record_ids',[r.get('record_id')])}:continue
         court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
-        program=value(work,row,'programa') if kind.startswith('programa_') else ''
+        program=value(work,row,'programa') if to_program else ''
         groups[(court,normalize(program))].append(row)
     output=[]
     for (court,_),rows in groups.items():
@@ -168,9 +175,15 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
         for text in (tpl['asunto'],tpl['cuerpo']):
             for _,key,_,_ in Formatter().parse(text):
                 if key and not context.get(key,'').strip():raise ValueError('Completa '+key+' para esta plantilla.')
-        to=resolve_contact(cfg,program) if kind.startswith('programa_') else '; '.join(court_cfg['para'])
+        to=resolve_contact(cfg,program) if to_program else '; '.join(court_cfg['para'])
         draft=Draft(tpl['asunto'].format_map(context),tpl['cuerpo'].format_map(context),to,
                     '; '.join(emails(CC+';'+cfg['correos'].get('cc_adicional',''))),required=tpl['adjunto']=='obligatorio')
+        from nurus.rus.rules import as_date
+        dates=[as_date(r.values.get(work.mapping.get('vencimiento',''))) for r in rows]
+        dates=[d for d in dates if d]
+        draft.program=program if to_program else ''
+        draft.court=court_cfg['nombre'];draft.due=min(dates).isoformat() if dates else ''
+        draft.kind=kind;draft.record_ids=[r.id for r in rows]
         if cfg.get('firma'):draft.body+='\n\n'+cfg['firma']
         if draft.required:
             folder=Path(directory or Path(work.output).parent);folder.mkdir(parents=True,exist_ok=True)
@@ -186,14 +199,15 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
     return output
 
 
-def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None):
+def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None,recipient_scope='todos'):
     """Prepara en una sola operación todas las comunicaciones que surgen del trabajo."""
+    if recipient_scope not in {'todos','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     work.refresh()
     cfg=work.config
     templates=cfg['correos']['plantillas']
     mode=str(getattr(work,'mode','')).lower()
     kinds=[]
-    if mode in {'espera','cumplimiento','informes'} and mode in templates:kinds.append(mode)
+    if recipient_scope!='programas' and mode in {'espera','cumplimiento','informes'} and mode in templates:kinds.append(mode)
     selected_ids=set(selected) if selected is not None else None
     from .modalities import selected_row
     action_kinds=set()
@@ -201,10 +215,10 @@ def prepare_required_drafts(work,*,modalities='',period='',selected=None,directo
         if row.excluded or (selected_ids is not None and row.id not in selected_ids) or not selected_row(work,row,modality_keys):continue
         action_kinds.update(action for action in row.actions if action in templates)
     for kind in ('programa_espera','programa_vencido','programa_por_vencer','medidas'):
-        if kind in action_kinds:kinds.append(kind)
+        if kind in action_kinds and (recipient_scope!='tribunales' or kind=='medidas'):kinds.append(kind)
     drafts=[];seen=set()
     for kind in kinds:
-        for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys):
+        for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys,recipient_scope='auto' if recipient_scope=='todos' else recipient_scope):
             if draft.key not in seen:
                 drafts.append(draft);seen.add(draft.key)
     return drafts

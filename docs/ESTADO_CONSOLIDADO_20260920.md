@@ -2,7 +2,7 @@
 
 **Repositorio:** `MatiGaete2023/NuRus`  
 **Producto vigente:** CSMP Assistant personal  
-**Versión vigente:** `0.4.0.dev8` (ver actualización siguiente)
+**Versión vigente:** `0.4.0.dev9` (ver actualización siguiente)
 **Checkpoint histórico del cuerpo:** `0.4.0.dev6`
 **Rama de trabajo auditada:** `csmp-personal-2026-09-13`  
 **HEAD al iniciar esta revisión:** `0523f3cb666a7e55b6a4fd64eb92949c89a58e26`  
@@ -10,7 +10,11 @@
 
 Este documento reemplaza como **estado de navegación** a los resúmenes parciales anteriores. Los informes fechados se conservan como evidencia histórica y no deben reinterpretarse como descripción automática de la versión vigente.
 
-## Actualización vigente — limpieza dev8, 21 de septiembre de 2026
+## Actualización vigente — panel y correos dev9
+
+Se integra CustomTkinter (dependencia nueva en el entorno aislado Windows), navegación lateral y tarjetas de borradores con datos reales. Destinatarios y filtro de tribunal se separan: solo programas, solo tribunales o ambos. La migración de correos revisión 3 recupera el texto del manual de Informes por vencer sin reemplazar textos personales. No existe botón Enviar; solo guardar uno/todos. Se conserva la limpieza dev8 validada en `bab202e9533e88b5130a277f01b90b816e98940e`, run `35620647820`. Ver `PANEL_CORREOS_20260921.md` y `VERIFICACION_PERSONAL.md` para el cierre actual. Los pendientes institucionales continúan.
+
+## Checkpoint anterior — limpieza dev8, 21 de septiembre de 2026
 
 Producto: **CSMP Assistant personal 0.4.0.dev8**. Se retiran la interfaz NuRus, sus diálogos de producto, el benchmark histórico y nueve implementaciones de métodos sustituidas en el Asistente. Se conservan componentes compartidos, formatos y sesiones. Correcciones: hoja al cambiar de modo; resoluciones manuales al actualizar sin cambios y reexportar; limpieza de borradores/proyectos al localizar una copia modificada; editores vacíos al cambiar de trabajo; desactivaciones configuradas fuera de las cuatro casillas.
 

@@ -8,8 +8,10 @@ import queue
 import shutil
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, simpledialog
-from tkinter.scrolledtext import ScrolledText
+from tkinter import filedialog, messagebox, simpledialog
+import customtkinter as ctk
+from . import ui as ttk
+from .ui import Textbox as ScrolledText
 
 from .config import Configuration, PARAMETER_LABELS, VARIABLES
 from .widgets import ScrollPane, NamedChoice
@@ -20,9 +22,11 @@ from .importing import SheetChoice
 from nurus.rus.reader import list_workbook_sheets
 from nurus.adapters.sent_mail import count_sent_mail, export_sent_report
 
-class App(tk.Tk):
+class App(ctk.CTk):
     def __init__(self,configuration=None):
+        ctk.set_appearance_mode('Dark');ctk.set_default_color_theme('blue')
         super().__init__()
+        self.configure(fg_color=ttk.BG);ttk.install_theme(self)
         self.title('CSMP Assistant personal');self.geometry('1120x720');self.minsize(820,560)
         self.cfg=configuration or Configuration()
         self.work=None;self.drafts=[];self.draft_index=None;self.report=None;self.busy=False
@@ -32,14 +36,22 @@ class App(tk.Tk):
         self.template_dir.mkdir(parents=True,exist_ok=True)
         self._install_templates()
         self.status=tk.StringVar(value='Selecciona un Excel para comenzar.')
-        ttk.Label(self,text='CSMP Assistant',font=('Segoe UI',20,'bold')).pack(anchor='w',padx=14,pady=(10,0))
-        ttk.Label(self,text='Propuestas para revisión humana · Correos solo como borradores').pack(anchor='w',padx=14)
-        self.tabs=ttk.Notebook(self);self.tabs.pack(fill='both',expand=True,padx=12,pady=10)
+        self.grid_columnconfigure(1,weight=1);self.grid_rowconfigure(0,weight=1)
+        sidebar=ctk.CTkFrame(self,width=155,corner_radius=0,fg_color='#11161c')
+        sidebar.grid(row=0,column=0,sticky='nsew');sidebar.grid_propagate(False);sidebar.pack_propagate(False)
+        ctk.CTkLabel(sidebar,text='CSMP\nAssistant',font=('Segoe UI',22,'bold'),justify='left').pack(padx=16,pady=(24,18),anchor='w')
+        self.tabs=ttk.PageStack(self,sidebar);self.tabs.grid(row=0,column=1,sticky='nsew',padx=12,pady=12)
         self.pages={}
         for name in ('Trabajo','Correos','Resoluciones','Configuración','Enviados'):
             frame=ttk.Frame(self.tabs,padding=10);self.tabs.add(frame,text=name);self.pages[name]=frame
+        ctk.CTkLabel(sidebar,text='Uso personal\nSolo borradores',text_color=ttk.MUTED,justify='left').pack(side='bottom',padx=16,pady=18)
         self._work_page();self._mail_page();self._word_page();self._config_page();self._sent_page()
-        ttk.Label(self,textvariable=self.status,wraplength=1050).pack(fill='x',padx=12,pady=5)
+        statusbar=ctk.CTkFrame(self,corner_radius=0,fg_color='#11161c')
+        statusbar.grid(row=1,column=0,columnspan=2,sticky='ew');statusbar.grid_columnconfigure(0,weight=1)
+        self.status_label=ctk.CTkLabel(statusbar,textvariable=self.status,anchor='w',wraplength=760)
+        self.status_label.grid(row=0,column=0,sticky='ew',padx=14,pady=6)
+        self.progress=ctk.CTkProgressBar(statusbar,width=120,height=7,mode='indeterminate')
+        self.progress.grid(row=0,column=1,padx=14);self.progress.set(0)
         self.protocol('WM_DELETE_WINDOW',self._close)
         self.after(100,self._poll)
         saved=self.cfg.directory/'sesion/trabajo.json'
@@ -56,7 +68,7 @@ class App(tk.Tk):
 
     def _run(self,label,action,done=None):
         if self.busy:messagebox.showinfo('En curso','Espera a que termine la operación actual.');return
-        self.busy=True;self.status.set(label)
+        self.busy=True;self.status.set(label);self.progress.start()
         def worker():
             try:self.events.put((True,action(),done))
             except Exception as exc:self.events.put((False,exc,None))
@@ -66,6 +78,7 @@ class App(tk.Tk):
         try:
             while True:
                 ok,result,done=self.events.get_nowait();self.busy=False
+                self.progress.stop();self.progress.set(0)
                 if ok:
                     self.status.set('Operación terminada.')
                     if done:
@@ -153,7 +166,7 @@ class App(tk.Tk):
         split=ttk.Panedwindow(page,orient='vertical');split.pack(fill='both',expand=True)
         table=ttk.Frame(split);edit=ttk.Frame(split);split.add(table,weight=3);split.add(edit,weight=2)
         self.records=self._tree(table,('Estado','RIT','Tribunal','Programa','Observación'))
-        self.records.column('Observación',width=520);self.records.tag_configure('excluded',background='#fff2cc');self.records.tag_configure('warning',background='#fde9d9')
+        self.records.column('Observación',width=520);self.records.tag_configure('excluded',background='#665220',foreground='#fff2cc');self.records.tag_configure('warning',background='#653b29',foreground='#ffe2cd')
         self.records.bind('<<TreeviewSelect>>',self._detail)
         self.detail=tk.StringVar();ttk.Label(edit,textvariable=self.detail,wraplength=1000).pack(fill='x')
         ttk.Label(edit,text='Observación editable del registro seleccionado (se incorpora a los productos)').pack(anchor='w')
@@ -241,7 +254,7 @@ class App(tk.Tk):
         self._run('Reconociendo hojas, encabezados y observaciones…',lambda:Work.external(path,cfg,mode,sheet=sheet),done)
 
     def _choose_external_sheet(self,names):
-        window=tk.Toplevel(self);window.title('Elegir tabla del libro');window.transient(self)
+        window=ctk.CTkToplevel(self);window.title('Elegir tabla del libro');window.transient(self)
         ttk.Label(window,text='Hay varias tablas reconocidas. Elige la que necesitas:').pack(padx=15,pady=10)
         selected=tk.StringVar(value=names[0])
         ttk.Combobox(window,textvariable=selected,values=names,state='readonly',width=45).pack(padx=15)

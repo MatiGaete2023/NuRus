@@ -1,16 +1,18 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev8**, estado consolidado al 21 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+Versión **0.4.0.dev9**, estado consolidado al 21 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
 
 ## Cambios de esta actualización
+
+La [actualización dev9](docs/PANEL_CORREOS_20260921.md) incorpora CustomTkinter en modo oscuro, navegación lateral, tarjetas de programas y adjuntos individuales. **Solo programas / Solo tribunales / Ambos** define los destinatarios al preparar; el tribunal de las causas es un filtro opcional independiente. Se recupera el texto del manual de Informes por vencer mediante migración que conserva ediciones personales.
 
 La [auditoría y limpieza dev8](docs/LIMPIEZA_ASISTENTE_20260921.md) retira la interfaz NuRus y las implementaciones duplicadas del Asistente. Corregimos pérdida de ajustes de resoluciones al actualizar/exportar, productos anteriores visibles después de cambiar de copia, selección de hoja arrastrada entre modos y desactivaciones de reglas perdidas al guardar umbrales. No se agregan aprobaciones ni recargas. La [revisión dev7](docs/REVISION_USABILIDAD_20260921.md) conserva la evidencia de las mejoras previas.
 
 ## Instalación y actualización
 
-1. Descarga el ZIP de `main` y extrae su contenido. La rama `csmp-personal-2026-09-13` se conserva como historial de integración del producto personal.
+1. Descarga el ZIP de `main` y extrae su contenido en una carpeta nueva para no arrastrar archivos retirados. La rama `csmp-personal-2026-09-13` se conserva como historial de integración del producto personal.
 2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat`.
-3. Se admite Python 3.12, 3.13 o 3.14. El entorno queda en `.venv-csmp` dentro de la carpeta de la aplicación. No requiere permisos de administrador ni Node.
+3. Se admite Python 3.12, 3.13 o 3.14. El entorno queda en `.venv-csmp` dentro de la carpeta de la aplicación. No requiere permisos de administrador ni Node. El instalador incorpora `customtkinter` 5.2.x dentro de ese entorno aislado.
 4. Excel de escritorio y Outlook clásico son necesarios para la ruta completa de uso institucional. La instalación normal puede descargar dependencias Python; si existe `paquetes/`, el instalador usa ese repositorio local.
 
 La configuración del usuario se guarda en `LOCALAPPDATA/CSMP_Personal`. La actualización conserva la configuración y las matrices personalizadas. Las migraciones de textos y matrices dejan respaldo cuando corresponde.
@@ -27,7 +29,7 @@ También puedes cargar una planilla modificada/externa. Se buscan encabezados en
 
 Las modalidades se seleccionan con casillas: Residencial, Ambulatorio, Familia de acogida y DCE. FAS se clasifica como Familia de acogida. Los campos Para, CC, asunto, cuerpo y adjuntos son editables antes de guardar.
 
-**Preparar TODOS los correos necesarios** reúne el correo informativo general correspondiente a la pestaña revisada y todos los correos específicos detectados por las reglas. **Guardar TODOS los borradores** puede guardar un lote ya preparado o, si todavía no existe vista previa, preparar y guardar el conjunto necesario en una sola acción. No existe envío automático. Si no se conoce el destinatario, Para queda vacío. Siempre se incorpora la copia institucional configurada.
+**Preparar todos** respeta el alcance elegido: **Solo programas** genera las gestiones a programas sin añadir el informativo al tribunal; **Solo tribunales** prepara sus comunicaciones; **Ambos** conserva el conjunto anterior. No seleccionar un tribunal en los filtros incluye todas las causas. Las tarjetas muestran programa, tribunal y vencimiento si están disponibles en los datos; seleccionar una tarjeta carga el editor. **Guardar todos** puede guardar un lote ya preparado o, si todavía no existe vista previa, preparar y guardar el conjunto necesario en una sola acción. No existe envío automático. Si no se conoce el destinatario, Para queda vacío. Siempre se incorpora la copia institucional configurada.
 
 La identidad de un borrador depende de destinatarios efectivos, CC, asunto, cuerpo y contenido de los adjuntos. La ruta temporal de una nómina no forma parte de esa identidad: volver a preparar el mismo correo en otra carpeta UUID no habilita un duplicado, pero una edición real sí genera una identidad distinta.
 
@@ -53,6 +55,6 @@ El paquete Python sigue llamándose `nurus` para mantener instalaciones y archiv
 
 ## Estado de verificación
 
-La CI ejecuta instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev8`. La evidencia exacta del commit y de la ejecución está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md); no se atribuyen los resultados anteriores a cambios nuevos.
+La CI ejecuta instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev9`. La evidencia exacta del commit y de la ejecución está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md); no se atribuyen los resultados anteriores a cambios nuevos.
 
 La validación automática no reemplaza la prueba final con Excel/Outlook institucionales. Consulta primero `docs/ESTADO_CONSOLIDADO_20260920.md` y `docs/INDICE_DOCUMENTACION.md`; la implementación, verificación, auditorías y documentos históricos quedan enlazados desde ese índice.

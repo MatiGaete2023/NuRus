@@ -1,4 +1,4 @@
-# Aceptación institucional — CSMP Assistant personal 0.4.0.dev8
+# Aceptación institucional — CSMP Assistant personal 0.4.0.dev9
 
 Estado al 21 de septiembre de 2026: **PENDIENTE**. No hay resultados institucionales formalmente registrados todavía. Usar copias autorizadas y no enviar mensajes durante la prueba.
 

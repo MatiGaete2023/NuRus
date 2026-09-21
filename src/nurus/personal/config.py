@@ -31,7 +31,7 @@ PARAMETER_LABELS = {
     'ficha_reciente':'Ficha individual reciente: hasta',
     'ficha_fae':'Ficha FAE ausente: ingreso hace más de',
 }
-CORREO_REVISION = 2
+CORREO_REVISION = 3
 LEGACY_CORREO_BODIES = {
     'espera': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Espera del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',
     'cumplimiento': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Cumplimiento del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',

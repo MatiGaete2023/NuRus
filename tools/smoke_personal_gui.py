@@ -1,6 +1,10 @@
 """Prueba de ventana real en Windows; no inicia Office ni usa archivos del usuario."""
 from tempfile import TemporaryDirectory
 from pathlib import Path
+import base64
+from PIL import Image
+import customtkinter as ctk
+from nurus.personal.outputs import Draft
 from nurus.personal.config import Configuration
 from nurus.personal.app import App
 from nurus.personal.work import Work, Row
@@ -17,6 +21,9 @@ def capture_window(app,name):
     try:
         target.BitBlt((0,0),(right-left,bottom-top),source,(0,0),win32con.SRCCOPY)
         bitmap.SaveBitmapFile(target,str(folder/(name+'.bmp')))
+        png=folder/(name+'.png')
+        Image.open(folder/(name+'.bmp')).save(png)
+        print('CSMP_CAPTURE:'+name+':'+base64.b64encode(png.read_bytes()).decode('ascii'))
     finally:
         target.DeleteDC();source.DeleteDC();win32gui.ReleaseDC(hwnd,handle);win32gui.DeleteObject(bitmap.GetHandle())
 
@@ -25,6 +32,8 @@ with TemporaryDirectory() as directory:
     app=App(Configuration(Path(directory)))
     try:
         app.update_idletasks();app.update()
+        assert isinstance(app,ctk.CTk)
+        assert ctk.get_appearance_mode()=='Dark'
         assert len(app.tabs.tabs())==5
         for tab in app.tabs.tabs():
             app.tabs.select(tab);app.update_idletasks();app.update()
@@ -38,14 +47,20 @@ with TemporaryDirectory() as directory:
         app.geometry('1024x650');app.update_idletasks();app.update()
         # Las acciones deben estar dentro de la ventana a tamaño de PC institucional.
         app.tabs.select(app.pages['Correos']);app.update_idletasks();app.update()
+        app._display_prepared_drafts([Draft('Informes por vencer','Buen día:\n\nTexto de prueba editable.',program='PROGRAMA DE PRUEBA',court='Jgdo. L. y G. de Laja',due='2026-10-15',record_ids=['a']),Draft('Otro borrador','Segundo cuerpo',program='SEGUNDO PROGRAMA')],'{count} borradores de prueba')
+        app.mail_list._choose(1);app.update()
+        assert app.subject.get()=='Otro borrador' and app.body.get('1.0','end-1c')=='Segundo cuerpo'
+        app.mail_list._choose(0);app.update()
+        app.attach.set('Programa de prueba.xlsx\nSegundo programa.xlsx');app.attachment_chips._remove(0)
+        assert app.attach.get()=='Segundo programa.xlsx'
+        assert app.mail_target.get()=='programas'
+        app.update_idletasks();app.update()
         capture_window(app,'correos-1024x650')
         button=app.save_all_button
         assert button.winfo_ismapped()
         assert button.winfo_rootx()+button.winfo_width() <= app.winfo_rootx()+app.winfo_width()
         assert button.winfo_rooty()+button.winfo_height() <= app.winfo_rooty()+app.winfo_height()
         assert app.body.winfo_height() >= 100
-        app.mail_controls.canvas.yview_moveto(1);app.update()
-        assert app.mail_controls.canvas.yview()[1] >= .99
         # Nombres legibles, identidad interna estable y guardado al cambiar de plantilla.
         before=app.tpl_key.get();app.tpl_body.insert('end','\nPrueba de edición conservada.')
         other=next(k for k in app.cfg.data['correos']['plantillas'] if k!=before)
@@ -69,5 +84,5 @@ with TemporaryDirectory() as directory:
         app.project_editor.insert('end','Proyecto anterior');app._clear_drafts()
         assert not app.to.get() and not app.body.get('1.0','end-1c')
         assert not app.project_editor.get('1.0','end-1c')
-        print('Cinco pestañas; botones visibles a 1024x650; cuerpo editable >=100px; scroll y guardado de plantillas OK.')
+        print('Cinco áreas CTk oscuras; tarjetas seleccionables; adjuntos individuales; botones visibles a 1024x650; cuerpo editable >=100px; plantillas y resoluciones conservadas.')
     finally:app.destroy()
