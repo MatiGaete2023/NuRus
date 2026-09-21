@@ -1240,9 +1240,9 @@ class NuRusApp(ttk.Frame):
 
 
 def main() -> None:
-    root = tk.Tk()
-    NuRusApp(root, Database(data_dir() / "nurus.sqlite3"))
-    root.mainloop()
+    """Compatibilidad de accesos antiguos: el único producto activo es CSMP."""
+    from nurus.personal.app import main as personal_main
+    personal_main()
 
 
 if __name__ == "__main__":

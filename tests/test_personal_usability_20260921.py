@@ -95,3 +95,11 @@ def test_legacy_shortcuts_open_only_personal_assistant():
         assert 'nurus.app' not in text and '.venv\\' not in text
     scripts=tomllib.loads((root/'pyproject.toml').read_text())['project']['scripts']
     assert scripts['nurus']==scripts['csmp-assistant']=='nurus.personal.app:main'
+
+
+def test_old_module_entry_opens_personal_assistant(monkeypatch):
+    import nurus.app
+    calls=[]
+    monkeypatch.setattr('nurus.personal.app.main',lambda:calls.append('personal'))
+    nurus.app.main()
+    assert calls==['personal']

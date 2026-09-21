@@ -4,6 +4,22 @@ from pathlib import Path
 from nurus.personal.config import Configuration
 from nurus.personal.app import App
 
+def capture_window(app,name):
+    import win32gui,win32ui,win32con
+    folder=Path('artifacts');folder.mkdir(exist_ok=True)
+    hwnd=win32gui.GetAncestor(app.winfo_id(),2)
+    left,top,right,bottom=win32gui.GetWindowRect(hwnd)
+    handle=win32gui.GetWindowDC(hwnd)
+    source=win32ui.CreateDCFromHandle(handle);target=source.CreateCompatibleDC()
+    bitmap=win32ui.CreateBitmap();bitmap.CreateCompatibleBitmap(source,right-left,bottom-top)
+    target.SelectObject(bitmap)
+    try:
+        target.BitBlt((0,0),(right-left,bottom-top),source,(0,0),win32con.SRCCOPY)
+        bitmap.SaveBitmapFile(target,str(folder/(name+'.bmp')))
+    finally:
+        target.DeleteDC();source.DeleteDC();win32gui.ReleaseDC(hwnd,handle);win32gui.DeleteObject(bitmap.GetHandle())
+
+
 with TemporaryDirectory() as directory:
     app=App(Configuration(Path(directory)))
     try:
@@ -21,6 +37,7 @@ with TemporaryDirectory() as directory:
         app.geometry('1024x650');app.update_idletasks();app.update()
         # Las acciones deben estar dentro de la ventana a tamaño de PC institucional.
         app.tabs.select(app.pages['Correos']);app.update_idletasks();app.update()
+        capture_window(app,'correos-1024x650')
         button=app.save_all_button
         assert button.winfo_ismapped()
         assert button.winfo_rootx()+button.winfo_width() <= app.winfo_rootx()+app.winfo_width()
@@ -36,5 +53,7 @@ with TemporaryDirectory() as directory:
         app.tpl_key.set(before);app._load_tpl()
         assert app.tpl_body.get('1.0','end-1c').endswith('Prueba de edición conservada.')
         assert app.kind_box.get()==app.cfg.data['correos']['plantillas'][app.mail_kind.get()]['nombre']
+        app.tabs.select(app.pages['Configuración']);app.update_idletasks();app.update()
+        capture_window(app,'configuracion-1024x650')
         print('Cinco pestañas; botones visibles a 1024x650; cuerpo editable >=100px; scroll y guardado de plantillas OK.')
     finally:app.destroy()

@@ -147,14 +147,13 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
     work.refresh()
     cfg=work.config
     tpl=cfg['correos']['plantillas'][kind]
-    general=kind in {'espera','cumplimiento','informes'}
+    automatic_kind=kind in {'programa_espera','programa_vencido','programa_por_vencer','medidas'}
     if tpl.get('usa_modalidades') and not modalities.strip():raise ValueError('Indica las modalidades efectivamente comprendidas.')
     from .modalities import selected_row
     groups=defaultdict(list)
     for row in work.rows:
         if row.excluded or (selected is not None and row.id not in selected) or not selected_row(work,row,modality_keys):continue
         # Las comunicaciones personalizadas no tienen una regla del motor.
-        automatic_kind=kind in {'programa_espera','programa_vencido','programa_por_vencer','medidas'}
         if automatic_kind and kind not in row.actions and not (manual_selection or getattr(work,'external_input',False)):continue
         if kind=='proyectos' and not manual_selection and not getattr(work,'external_input',False) and row.id not in {rid for r in work.receipts.values() if r.get('kind')=='word' for rid in r.get('record_ids',[r.get('record_id')])}:continue
         court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')

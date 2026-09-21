@@ -17,7 +17,7 @@ Se conserva el Asistente y sus cinco áreas. Se corrigen errores de preparación
 | Umbrales poco explicativos y variables escritas de memoria | Etiquetas operativas e inserción de variables; editores con scroll y deshacer | Cambiar contenido sin Python ni recordar marcadores |
 | Incorporar Word pedía escribir tribunal y código en dos diálogos | Selectores de tribunal/tipo, apertura directa en Word y reemplazo validado | Editar la matriz concreta con menos pasos; no inventar Tomé |
 | Cambiar selección después de preparar Word podía generar la selección anterior | Se vuelve a preparar al variar la selección; se conservan ediciones de proyectos con datos iguales | Generar lo seleccionado actualmente |
-| Accesos antiguos podían iniciar otra interfaz | Los dos BAT antiguos y el comando `nurus` remiten al Asistente | Un solo producto visible; conservación interna de dependencias compartidas |
+| Accesos antiguos podían iniciar otra interfaz | Los dos BAT antiguos, el comando `nurus` y `python -m nurus.app` remiten al Asistente | Un solo producto visible; conservación interna de dependencias compartidas |
 
 Referencias de implementación: `src/nurus/personal/outputs.py`, `app.py`, `app_base.py`, `widgets.py`, `config.py`; regresiones en `tests/test_personal_usability_20260921.py` y `tools/smoke_personal_gui.py`.
 

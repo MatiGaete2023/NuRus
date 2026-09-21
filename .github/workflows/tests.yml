@@ -60,11 +60,20 @@ jobs:
         run: python -m compileall -q src tests tools
 
       - name: Tests
-        run: python -m pytest -q
+        timeout-minutes: 8
+        run: python -m pytest -q -o faulthandler_timeout=90
 
       - name: Personal GUI smoke
         if: matrix.python == '3.12'
         run: python tools/smoke_personal_gui.py
+
+      - name: Windows interface captures
+        if: always() && matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSMP-Windows-interface
+          path: artifacts/*.bmp
+          if-no-files-found: ignore
 
       - name: Build Windows distribution
         if: matrix.python == '3.12'
