@@ -5,11 +5,12 @@ from . import ui as ttk
 from collections import Counter
 
 
-class ScrollPane(ctk.CTkScrollableFrame):
+class ScrollPane(ctk.CTkFrame):
     """Panel CTk desplazable con rueda, incluido sobre sus controles hijos."""
     def __init__(self,parent,**kwargs):
         super().__init__(parent,fg_color=ttk.PANEL,**kwargs)
-        self.body=self
+        self.body=ctk.CTkScrollableFrame(self,fg_color=ttk.PANEL)
+        self.body.pack(fill='both',expand=True)
 
 
 

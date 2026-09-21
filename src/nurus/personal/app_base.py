@@ -50,7 +50,7 @@ class App(ctk.CTk):
         statusbar.grid(row=1,column=0,columnspan=2,sticky='ew');statusbar.grid_columnconfigure(0,weight=1)
         self.status_label=ctk.CTkLabel(statusbar,textvariable=self.status,anchor='w',wraplength=760)
         self.status_label.grid(row=0,column=0,sticky='ew',padx=14,pady=6)
-        self.progress=ctk.CTkProgressBar(statusbar,width=120,height=7,mode='indeterminate')
+        self.progress=ctk.CTkProgressBar(statusbar,width=120,height=7,mode='determinate')
         self.progress.grid(row=0,column=1,padx=14);self.progress.set(0)
         self.protocol('WM_DELETE_WINDOW',self._close)
         self.after(100,self._poll)
@@ -68,7 +68,7 @@ class App(ctk.CTk):
 
     def _run(self,label,action,done=None):
         if self.busy:messagebox.showinfo('En curso','Espera a que termine la operación actual.');return
-        self.busy=True;self.status.set(label);self.progress.start()
+        self.busy=True;self.status.set(label);self.progress.configure(mode='indeterminate');self.progress.start()
         def worker():
             try:self.events.put((True,action(),done))
             except Exception as exc:self.events.put((False,exc,None))
@@ -78,7 +78,7 @@ class App(ctk.CTk):
         try:
             while True:
                 ok,result,done=self.events.get_nowait();self.busy=False
-                self.progress.stop();self.progress.set(0)
+                self.progress.stop();self.progress.configure(mode='determinate');self.progress.set(0)
                 if ok:
                     self.status.set('Operación terminada.')
                     if done:

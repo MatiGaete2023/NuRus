@@ -2,6 +2,7 @@
 from tempfile import TemporaryDirectory
 from pathlib import Path
 import base64
+import time
 from PIL import Image
 import customtkinter as ctk
 from nurus.personal.outputs import Draft
@@ -89,5 +90,10 @@ with TemporaryDirectory() as directory:
         app.project_editor.insert('end','Proyecto anterior');app._clear_drafts()
         assert not app.to.get() and not app.body.get('1.0','end-1c')
         assert not app.project_editor.get('1.0','end-1c')
+        app._run('Prueba de progreso real',lambda:True)
+        deadline=time.monotonic()+5
+        while app.busy and time.monotonic()<deadline:
+            app.update();time.sleep(.02)
+        assert not app.busy and app.progress.cget('mode')=='determinate' and app.progress.get()==0
         print('Cinco áreas CTk oscuras; tarjetas seleccionables; adjuntos individuales; botones visibles a 1024x650; cuerpo editable >=100px; plantillas y resoluciones conservadas.')
     finally:app.destroy()
