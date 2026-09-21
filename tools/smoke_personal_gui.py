@@ -3,6 +3,7 @@ from tempfile import TemporaryDirectory
 from pathlib import Path
 from nurus.personal.config import Configuration
 from nurus.personal.app import App
+from nurus.personal.work import Work, Row
 
 def capture_window(app,name):
     import win32gui,win32ui,win32con
@@ -55,5 +56,18 @@ with TemporaryDirectory() as directory:
         assert app.kind_box.get()==app.cfg.data['correos']['plantillas'][app.mail_kind.get()]['nombre']
         app.tabs.select(app.pages['Configuración']);app.update_idletasks();app.update()
         capture_window(app,'configuracion-1024x650')
+        # La vista real conserva un tipo elegido manualmente al reexportar.
+        work=Work(app.cfg.data);work.mode='ESPERA';work.path='prueba.xlsx'
+        work.mapping={'rit':'RIT','tribunal':'TRIBUNAL'}
+        work.rows=[Row('a',2,{'RIT':'X-1','TRIBUNAL':'Jgdo. L. y G. de Laja'},'Ingreso efectivo',[],['PC_IE'],[])]
+        app.work=work;app._show_work();app.words.selection_set('a|PC_IE')
+        app.manual_word.set('NOMENCL');app._assign_word_type()
+        app._show_work(reset_projects=False)
+        assert app.words.get_children()==('a|NOMENCL',)
+        assert app.words.selection()==('a|NOMENCL',)
+        app.to.set('anterior@example.cl');app.body.insert('end','Correo anterior')
+        app.project_editor.insert('end','Proyecto anterior');app._clear_drafts()
+        assert not app.to.get() and not app.body.get('1.0','end-1c')
+        assert not app.project_editor.get('1.0','end-1c')
         print('Cinco pestañas; botones visibles a 1024x650; cuerpo editable >=100px; scroll y guardado de plantillas OK.')
     finally:app.destroy()

@@ -1,4 +1,4 @@
-> Actualización vigente: **0.4.0.dev7**, 21-09-2026. Consultar `REVISION_USABILIDAD_20260921.md` para cambios y comprobaciones posteriores. La evidencia fechada que sigue corresponde a dev6.
+> Actualización vigente: **0.4.0.dev8**, 21-09-2026. `LIMPIEZA_ASISTENTE_20260921.md` registra la limpieza y las correcciones actuales; `VERIFICACION_PERSONAL.md` contiene la evidencia. La descripción funcional fechada que sigue se conserva como referencia dev6; no acredita por sí sola una versión posterior.
 
 # Implementación CSMP Assistant personal — 16 de septiembre de 2026
 

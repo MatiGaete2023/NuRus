@@ -1,10 +1,10 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev7**, estado consolidado al 21 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+Versión **0.4.0.dev8**, estado consolidado al 21 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
 
 ## Cambios de esta actualización
 
-La revisión de uso y sus límites están en [REVISION_USABILIDAD_20260921.md](docs/REVISION_USABILIDAD_20260921.md). Se corrigen plantillas personales sin registros, interrupción del lote por un destinatario inválido, pérdida de textos al cambiar de plantilla y selección Word desactualizada. La interfaz incorpora nombres legibles, controles desplazables y acceso directo a matrices. Los accesos anteriores de NuRus abren el Asistente.
+La [auditoría y limpieza dev8](docs/LIMPIEZA_ASISTENTE_20260921.md) retira la interfaz NuRus y las implementaciones duplicadas del Asistente. Corregimos pérdida de ajustes de resoluciones al actualizar/exportar, productos anteriores visibles después de cambiar de copia, selección de hoja arrastrada entre modos y desactivaciones de reglas perdidas al guardar umbrales. No se agregan aprobaciones ni recargas. La [revisión dev7](docs/REVISION_USABILIDAD_20260921.md) conserva la evidencia de las mejoras previas.
 
 ## Instalación y actualización
 
@@ -47,10 +47,12 @@ Hay seis matrices base: `LAJA/NOMENCL`, `LAJA/PC_IE`, `LAJA/PC_INFO`, `MULCHEN/N
 
 ## Arquitectura y mantenimiento
 
-La versión 0.4.0.dev7 eliminó los cuatro módulos transitorios `runtime_fixes_20260916*`. Las correcciones quedaron incorporadas en los módulos definitivos, por lo que importar `nurus.personal` ya no modifica otros módulos mediante monkey-patching. El núcleo general de NuRus y sus ejecutables históricos se mantienen porque conservan una ruta de entrada y cobertura de pruebas propia; los documentos históricos se mantienen para trazabilidad.
+Solo existe una interfaz operativa: `nurus.personal.app.App`. `app_base` contiene controles compartidos, sin versiones alternativas de los métodos del flujo. `nurus.app`, su acceso por consola y los BAT antiguos redirigen al Asistente; ya no contienen la interfaz NuRus ni los diálogos de aprobación/materialización. Se retira también el benchmark del flujo histórico. El historial Git conserva esas fuentes.
+
+El paquete Python sigue llamándose `nurus` para mantener instalaciones y archivos compatibles. Los componentes compartidos de lectura, exportación, Office, modelos y persistencia permanecen, con sus pruebas; esta limpieza no elimina datos ni migra sesiones. Las columnas técnicas de las planillas conservan sus nombres para poder releer las copias existentes.
 
 ## Estado de verificación
 
-La CI de esta rama se ejecuta en Windows con Python 3.12, 3.13 y 3.14. El cierre del 20-09 (`574955b5…`, run `35535124753`) terminó verde en los tres entornos; Python 3.12 registró 230 pruebas aprobadas y 1 omitida. Verifica instalación, wheel, recursos empaquetados, cinco parches de matrices, seis matrices base, dependencias, compilación, pruebas y contratos de higiene del repositorio; Python 3.12 además ejecuta el smoke de la GUI y construye la distribución Windows `CSMP-Windows-dev6`.
+La CI ejecuta instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev8`. La evidencia exacta del commit y de la ejecución está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md); no se atribuyen los resultados anteriores a cambios nuevos.
 
 La validación automática no reemplaza la prueba final con Excel/Outlook institucionales. Consulta primero `docs/ESTADO_CONSOLIDADO_20260920.md` y `docs/INDICE_DOCUMENTACION.md`; la implementación, verificación, auditorías y documentos históricos quedan enlazados desde ese índice.

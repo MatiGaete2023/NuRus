@@ -11,15 +11,14 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 from tkinter.scrolledtext import ScrolledText
 
-from .config import Configuration, UMBRALES, PARAMETER_LABELS, VARIABLES, atomic_json, validate
+from .config import Configuration, PARAMETER_LABELS, VARIABLES
 from .widgets import ScrollPane, NamedChoice
 from .work import Work
-from .outputs import prepare_drafts, prepare_required_drafts, create_draft, create_drafts, import_contacts, value
-from .resolutions import KINDS, prepare_projects, generate_projects, automatic_project_selections, reviewed_resolution_ids
-from .modalities import MODALITIES
+from .outputs import create_draft, import_contacts
+from .resolutions import KINDS, prepare_projects, generate_projects, automatic_project_selections
 from .importing import SheetChoice
 from nurus.rus.reader import list_workbook_sheets
-from nurus.adapters.sent_mail import count_sent_mail, export_sent_report, SentMailReport
+from nurus.adapters.sent_mail import count_sent_mail, export_sent_report
 
 class App(tk.Tk):
     def __init__(self,configuration=None):
@@ -133,7 +132,9 @@ class App(tk.Tk):
         page=self.pages['Trabajo'];top=ttk.Frame(page);top.pack(fill='x')
         self.mode=tk.StringVar(value='ESPERA');self.file=tk.StringVar();self.sheet=tk.StringVar()
         self.folder=tk.StringVar(value=str(self.cfg.directory/'salidas'))
-        ttk.Combobox(top,textvariable=self.mode,values=['ESPERA','CUMPLIMIENTO','INFORMES'],state='readonly',width=20).grid(row=0,column=0,pady=5)
+        mode_box=ttk.Combobox(top,textvariable=self.mode,values=['ESPERA','CUMPLIMIENTO','INFORMES'],state='readonly',width=20)
+        mode_box.grid(row=0,column=0,pady=5)
+        mode_box.bind('<<ComboboxSelected>>',self._mode_changed)
         self._field(top,'Archivo',self.file,1)
         ttk.Button(top,text='Buscar',command=self._choose).grid(row=1,column=2)
         ttk.Label(top,text='Hoja (automática si está vacía)').grid(row=2,column=0,sticky='w')
@@ -164,62 +165,16 @@ class App(tk.Tk):
         path=filedialog.askdirectory()
         if path:var.set(path)
 
+    def _mode_changed(self,event=None):
+        # Una hoja seleccionada para otro modo no debe anular la detección automática.
+        self.sheet.set('')
+
     def _choose(self):
         if self.busy:return
         path=filedialog.askopenfilename(filetypes=[('Excel','*.xls *.xlsx *.xlsm')])
         if path:
             self.file.set(path);self.sheet.set('')
             self._run('Leyendo nombres de hojas…',lambda:list_workbook_sheets(path),lambda names:self.sheet_box.configure(values=['',*names]))
-
-    def _process(self):
-        if self.busy:raise ValueError('Hay una operación en curso.')
-        path=self.file.get();mode=self.mode.get();sheet=self.sheet.get() or None
-        if not Path(path).is_file():raise ValueError('Selecciona un archivo Excel existente.')
-        cfg=self.cfg.data
-        def done(work):
-            self.work=work;self._clear_drafts();self.observation_id=None;self._show_work()
-            if work.needs_cross:
-                reason=simpledialog.askstring('Excepción de cruce','Falta una hoja de cruce utilizable. Indica el motivo para continuar con Cumplimiento sin C-10:')
-                if not reason:self.status.set('Análisis conservado. Falta documentar excepción para exportar.');return
-                work.document_exception(reason)
-            self._export_current()
-        self._run('Analizando '+mode+'…',lambda:Work(cfg).analyze(path,mode,sheet=sheet),done)
-
-    def _export_current(self):
-        if not self.work:raise ValueError('Primero analiza el archivo.')
-        if self.work.needs_cross and not self.work.exception:
-            reason=simpledialog.askstring('Excepción de cruce','Motivo de revisión sin hoja de cruce:')
-            if not reason:return
-            self.work.document_exception(reason)
-        folder=Path(self.folder.get());folder.mkdir(parents=True,exist_ok=True)
-        path=folder/(Path(self.work.path).stem+' - revisable '+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+Path(self.work.path).suffix)
-        work=self.work
-        def done(result):
-            self._show_work();self._save_session();self.status.set('Excel generado: '+result+' · Disponible en Correos y Resoluciones.')
-        self._run('Exportando copia preservada con Excel…',lambda:work.export(path),done)
-
-    def _show_work(self):
-        if not self.work:return
-        self.mode.set(self.work.mode);self.file.set(self.work.path)
-        self.observation_id=None
-        self.records.delete(*self.records.get_children());self.words.delete(*self.words.get_children())
-        reviewed_res=reviewed_resolution_ids(self.work)
-        automatic=dict();fallback_kind=self.manual_word.get() if hasattr(self,'manual_word') else 'PC_IE'
-        for rid,kind in automatic_project_selections(self.work,fallback_kind):
-            automatic.setdefault(rid,[]).append(kind)
-        for row in self.work.rows:
-            state='Excluido' if row.excluded else 'Revisar aviso' if row.warnings else 'Propuesta'
-            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=('excluded' if row.excluded else 'warning' if row.warnings else '',))
-            for kind in automatic.get(row.id,[]):
-                source='Indicado en archivo (RES)' if reviewed_res is not None else 'Verificar procedencia'
-                self.words.insert('','end',iid=row.id+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,source))
-        n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)
-        self.summary.set(f'{n} registros · {obs} propuestas · {exc} excluidos · {len(self.words.get_children())} proyectos posibles')
-        from .statistics import summarize
-        totals=summarize(self.work)
-        if totals['constancias']:
-            self.summary.set(self.summary.get()+f" · {totals['constancias']} constancias con fecha · {totals['con_carga']} con carga")
-        self.detail.set('\n'.join(dict.fromkeys(self.work.warnings)))
 
     def _capture_observation(self):
         if self.observation_id and self.work:
@@ -245,8 +200,9 @@ class App(tk.Tk):
     def _refresh(self):
         work=self._require_work()
         def done(result):
-            if result:self._clear_drafts()
-            self._show_work();self._save_session();self.status.set('Cambios incorporados. Prepara los correos y proyectos con los datos actualizados.' if result else 'La copia no ha cambiado.')
+            if result:
+                self._clear_drafts();self._show_work()
+            self._save_session();self.status.set('Cambios incorporados. Prepara los correos y proyectos con los datos actualizados.' if result else 'La copia no ha cambiado.')
         self._run('Incorporando cambios de la copia…',work.refresh,done)
 
     def _export_statistics(self):
@@ -264,68 +220,12 @@ class App(tk.Tk):
                 except Exception:
                     work.output=old
                     raise
-            self._run('Comprobando copia localizada…',relocate,lambda result:(self._show_work(),self._save_session()))
-
-    def _mail_page(self):
-        page=self.pages['Correos'];top=ttk.Frame(page);top.pack(fill='x')
-        self.mail_kind=tk.StringVar(value='programa_espera');self.period=tk.StringVar(value=date.today().strftime('%m/%Y'))
-        self.kind_box=ttk.Combobox(top,textvariable=self.mail_kind,values=list(self.cfg.data['correos']['plantillas']),state='readonly',width=27);self.kind_box.grid(row=0,column=0)
-        ttk.Button(top,text='Preparar tipo seleccionado',command=lambda:self._guard(self._prepare_mail)).grid(row=0,column=1,sticky='w',padx=6)
-        ttk.Button(top,text='Preparar TODOS los correos necesarios',command=lambda:self._guard(self._prepare_all_mail)).grid(row=0,column=2,sticky='w',padx=6)
-        ttk.Button(top,text='Cargar planilla modificada / externa',command=lambda:self._guard(self._external)).grid(row=0,column=3)
-        options=ttk.Frame(top);options.grid(row=1,column=0,columnspan=4,sticky='w',pady=5)
-        ttk.Label(options,text='Modalidades:').pack(side='left')
-        self.modality_vars={}
-        for key,label in [('RES','Residencial'),('AMB','Ambulatorio'),('FAE','Familia de acogida'),('DCE','DCE')]:
-            var=tk.BooleanVar(value=True);self.modality_vars[key]=var
-            ttk.Checkbutton(options,text=label,variable=var).pack(side='left',padx=7)
-        self._field(top,'Período',self.period,2)
-        self.manual_mail=tk.BooleanVar()
-        ttk.Checkbutton(top,text='Usar solo la selección de Trabajo (opcional; aplica al tipo seleccionado)',variable=self.manual_mail).grid(row=3,column=0,columnspan=4,sticky='w')
-        split=ttk.Panedwindow(page,orient='horizontal');split.pack(fill='both',expand=True,pady=6)
-        left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=1);split.add(right,weight=4)
-        self.mail_list=tk.Listbox(left,exportselection=False,width=24);self.mail_list.pack(fill='both',expand=True);self.mail_list.bind('<<ListboxSelect>>',self._select_mail)
-        self.to=tk.StringVar();self.cc=tk.StringVar();self.subject=tk.StringVar();self.attach=tk.StringVar()
-        self._field(right,'Para',self.to,0);self._field(right,'CC',self.cc,1);self._field(right,'Asunto',self.subject,2)
-        self.body=ScrolledText(right,height=14,wrap='word',font=('Segoe UI',11));self.body.grid(row=3,column=0,columnspan=2,sticky='nsew');right.rowconfigure(3,weight=1)
-        self._field(right,'Adjuntos',self.attach,4)
-        ttk.Button(right,text='Agregar adjunto',command=self._attachment).grid(row=5,column=0,sticky='w')
-        actions=ttk.Frame(right);actions.grid(row=5,column=1,sticky='e')
-        ttk.Button(actions,text='Guardar este borrador',command=lambda:self._guard(self._send_draft)).pack(side='left')
-        ttk.Button(actions,text='Guardar TODOS los borradores',command=lambda:self._guard(self._send_all)).pack(side='left',padx=5)
-
-    def _prepare_mail(self):
-        work=self._require_work()
-        # La configuración operativa puede cambiar sin alterar el perfil de reglas
-        # que produjo las observaciones del trabajo actual.
-        from copy import deepcopy
-        for key in ('correos','contactos','aliases','cuenta_outlook','firma'):
-            work.config[key]=deepcopy(self.cfg.data[key])
-        kind=self.mail_kind.get();keys=[k for k,v in self.modality_vars.items() if v.get()];modalities=', '.join(MODALITIES[k] for k in keys);period=self.period.get()
-        if not keys:raise ValueError('Selecciona al menos una modalidad.')
-        manual=self.manual_mail.get();selected=list(self.records.selection()) if manual else None
-        if manual and not selected:raise ValueError('Selecciona los registros de esta gestión en la pestaña Trabajo.')
-        def done(drafts):
-            self.drafts=drafts;self.mail_list.delete(0,'end');self.draft_index=None
-            for d in drafts:self.mail_list.insert('end',d.subject)
-            if drafts:self.mail_list.selection_set(0);self._select_mail()
-            self.status.set(f'{len(drafts)} borradores preparados para revisión; todavía no se guardaron en Outlook.')
-        self._run('Preparando textos y adjuntos…',lambda:prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,manual_selection=manual,modality_keys=keys),done)
-
-    def _prepare_all_mail(self):
-        work=self._require_work()
-        from copy import deepcopy
-        for key in ('correos','contactos','aliases','cuenta_outlook','firma'):
-            work.config[key]=deepcopy(self.cfg.data[key])
-        keys=[k for k,v in self.modality_vars.items() if v.get()]
-        if not keys:raise ValueError('Selecciona al menos una modalidad.')
-        modalities=', '.join(MODALITIES[k] for k in keys);period=self.period.get()
-        def done(drafts):
-            self.drafts=drafts;self.mail_list.delete(0,'end');self.draft_index=None
-            for d in drafts:self.mail_list.insert('end',d.subject)
-            if drafts:self.mail_list.selection_set(0);self._select_mail()
-            self.status.set(f'{len(drafts)} correos necesarios preparados: informativo general y gestiones específicas detectadas. Todavía no se guardaron en Outlook.')
-        self._run('Preparando todos los correos necesarios del trabajo…',lambda:prepare_required_drafts(work,modalities=modalities,period=period,modality_keys=keys),done)
+            def done(changed):
+                if changed:
+                    self._clear_drafts();self._show_work()
+                self._save_session()
+                self.status.set('Copia localizada. Cambios incorporados; prepara los productos actualizados.' if changed else 'Copia localizada; los productos preparados se conservan.')
+            self._run('Comprobando copia localizada…',relocate,done)
 
     def _external(self):
         path=filedialog.askopenfilename(filetypes=[('Excel','*.xlsx *.xls *.xlsm')])
@@ -336,7 +236,6 @@ class App(tk.Tk):
         cfg=self.cfg.data;mode=self.mode.get()
         def done(work):
             self.work=work;self._clear_drafts();self.observation_id=None
-            self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
             self._show_work();self._save_session();self.manual_mail.set(False)
             self.status.set(f'{len(work.rows)} registros incorporados desde {work.sheet}, fila {work.header}. Ya disponibles para todos los productos.')
         self._run('Reconociendo hojas, encabezados y observaciones…',lambda:Work.external(path,cfg,mode,sheet=sheet),done)
@@ -352,8 +251,17 @@ class App(tk.Tk):
 
     def _clear_drafts(self):
         self.drafts=[];self.draft_index=None;self.mail_list.delete(0,'end')
+        self._clear_mail_editor();self._clear_projects()
+
+    def _clear_projects(self):
         self.projects=[];self.project_index=None
-        if hasattr(self,'project_list'):self.project_list.delete(0,'end')
+        self.project_list.delete(0,'end');self.project_editor.delete('1.0','end')
+        self._prepared_selection=None
+        self.last_word=''
+
+    def _clear_mail_editor(self):
+        for variable in (self.to,self.cc,self.subject,self.attach):variable.set('')
+        self.body.delete('1.0','end')
 
     def _capture_mail(self):
         if self.draft_index is not None:
@@ -374,16 +282,6 @@ class App(tk.Tk):
         if self.draft_index is None:raise ValueError('Primero prepara una vista previa.')
         draft=replace(self.drafts[self.draft_index])
         self._run('Guardando únicamente un borrador en Outlook…',lambda:create_draft(work,draft,confirmed=True),lambda r:(self._save_session(),self.status.set('Borrador guardado en Outlook. No se envió ningún correo.')))
-
-    def _send_all(self):
-        work=self._require_work();self._capture_mail()
-        if not self.drafts:raise ValueError('Primero prepara los borradores.')
-        drafts=[replace(d) for d in self.drafts]
-        def done(result):
-            self._save_session()
-            self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya procesados; {len(result['errors'])} incidencias.")
-            if result['errors']:messagebox.showwarning('Lote guardado con incidencias','\n'.join(result['errors']))
-        self._run('Guardando el lote de borradores en Outlook…',lambda:create_drafts(work,drafts),done)
 
     def _word_page(self):
         page=self.pages['Resoluciones']
@@ -406,28 +304,6 @@ class App(tk.Tk):
         self.project_list.bind('<<ListboxSelect>>',self._select_project)
         ttk.Label(right,text='Proyecto editable. Los datos ausentes quedan como [COMPLETAR ...].').pack(anchor='w')
         self.project_editor=ScrolledText(right,wrap='word',height=18,font=('Segoe UI',11),undo=True);self.project_editor.pack(fill='both',expand=True)
-
-    def _assign_word_type(self):
-        selected=list(self.words.selection()) or list(self.words.get_children())
-        kind=self.manual_word.get();new=[]
-        for iid in selected:
-            rid=iid.split('|')[0];values=list(self.words.item(iid,'values'));values[2]=kind
-            self.words.delete(iid);target=rid+'|'+kind
-            if not self.words.exists(target):self.words.insert('','end',iid=target,values=values)
-            new.append(target)
-        self.words.selection_set(new)
-        self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
-
-    def _add_words(self):
-        work=self._require_work();kind=self.manual_word.get()
-        selected=list(self.records.selection())
-        if not selected:raise ValueError('Selecciona en Trabajo los registros que quieres agregar manualmente como proyecto.')
-        self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
-        for rid in selected:
-            row=next(r for r in work.rows if r.id==rid)
-            if row.excluded:continue
-            iid=rid+'|'+kind
-            if not self.words.exists(iid):self.words.insert('','end',iid=iid,values=(value(work,row,'rit'),value(work,row,'tribunal'),kind,'Agregado manualmente'))
 
     def _capture_project(self):
         if self.project_index is not None and self.project_index<len(self.projects):
@@ -452,6 +328,7 @@ class App(tk.Tk):
             selections=[item.split('|') for item in selected]
         def done(result):
             self.projects,errors=result;self.project_index=None;self.project_list.delete(0,'end')
+            self.project_editor.delete('1.0','end')
             self._prepared_selection=tuple(selected)
             for p in self.projects:
                 previous=edits.get((p.court,p.rit,p.kind))
@@ -535,7 +412,11 @@ class App(tk.Tk):
 
     def _save_params(self):
         from copy import deepcopy
-        cfg=deepcopy(self.cfg.data);cfg['umbrales']={k:int(v.get()) for k,v in self.param_vars.items()};cfg['desactivadas']=[k for k,v in self.disabled.items() if not v.get()];self.cfg.save(cfg)
+        cfg=deepcopy(self.cfg.data)
+        cfg['umbrales']={k:int(v.get()) for k,v in self.param_vars.items()}
+        hidden=[key for key in cfg['desactivadas'] if key not in self.disabled]
+        cfg['desactivadas']=hidden+[key for key,var in self.disabled.items() if not var.get()]
+        self.cfg.save(cfg)
         self.status.set('Parámetros guardados. Se aplicarán al próximo análisis; el trabajo actual conserva su perfil.')
 
     def _save_before_switch(self, attribute, variable, save):
@@ -684,6 +565,8 @@ class App(tk.Tk):
         if path:export_sent_report(replace(self.report,rows=self.filtered),path);self.status.set('Reporte de Enviados exportado: '+path)
 
 def main():
-    App().mainloop()
+    """Compatibilidad: el módulo base nunca inicia una variante del producto."""
+    from .app import main as personal_main
+    personal_main()
 
 if __name__=='__main__':main()

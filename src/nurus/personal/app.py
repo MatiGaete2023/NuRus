@@ -1,7 +1,6 @@
 """Interfaz CSMP personal.
 
-Mantiene la aplicación base y especializa el flujo operativo CSMP sin monkey-patches
-ni duplicación del motor NuRus.
+Único flujo operativo del producto; app_base contiene sus controles compartidos.
 """
 from copy import deepcopy
 from dataclasses import replace
@@ -161,6 +160,7 @@ class App(_BaseApp):
         self.drafts=drafts;self.mail_list.delete(0,'end');self.draft_index=None
         for draft in drafts:self.mail_list.insert('end',draft.subject)
         if drafts:self.mail_list.selection_set(0);self._select_mail()
+        else:self._clear_mail_editor()
         self.status.set(message.format(count=len(drafts)))
 
     def _prepare_mail(self):
@@ -249,13 +249,15 @@ class App(_BaseApp):
         path=folder/(Path(self.work.path).stem+' - revisable '+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+Path(self.work.path).suffix)
         work=self.work
         def done(result):
-            self._show_work();self._save_session();self.status.set('Excel generado: '+result+' · Disponible en Correos y Resoluciones.')
+            self._show_work(reset_projects=False);self._save_session();self.status.set('Excel generado: '+result+' · Disponible en Correos y Resoluciones.')
         self._run('Exportando copia preservada con Excel…',lambda:work.export(path),done)
 
-    def _show_work(self):
+    def _show_work(self,reset_projects=True):
         if not self.work:return
         self.mode.set(self.work.mode);self.file.set(self.work.path);self.observation_id=None
-        self.records.delete(*self.records.get_children());self.words.delete(*self.words.get_children())
+        self.observation_editor.delete('1.0','end')
+        self.records.delete(*self.records.get_children())
+        if reset_projects:self.words.delete(*self.words.get_children())
         reviewed_res=reviewed_resolution_ids(self.work)
         fallback_kind=self.manual_word.get() if hasattr(self,'manual_word') else 'PC_IE'
         selections=unique_case_selections(self.work,automatic_project_selections(self.work,fallback_kind))
@@ -263,7 +265,7 @@ class App(_BaseApp):
         for row in self.work.rows:
             state='Excluido' if row.excluded else 'Revisar aviso' if row.warnings else 'Propuesta'
             self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=('excluded' if row.excluded else 'warning' if row.warnings else '',))
-        for rid,kind in selections:
+        for rid,kind in selections if reset_projects else []:
             row=by_id[rid]
             source='Indicado/revisado en archivo (RES)' if reviewed_res is not None else 'Sugerencia automática revisable'
             self.words.insert('','end',iid=rid+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,source))
@@ -300,13 +302,13 @@ class App(_BaseApp):
                 if not self.words.exists(target):self.words.insert('','end',iid=target,values=values)
             new.append(target)
         self.words.selection_set(tuple(dict.fromkeys(new)))
-        self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
+        self._clear_projects()
         self.status.set(f'Tipo {kind} aplicado solo a {len(selected)} selección(es).')
 
     def _add_words(self):
         work=self._require_work();kind=self.manual_word.get();selected=list(self.records.selection())
         if not selected:raise ValueError('Selecciona en Trabajo los registros que quieres agregar manualmente como proyecto.')
-        self.projects=[];self.project_index=None;self.project_list.delete(0,'end')
+        self._clear_projects()
         for rid in selected:
             row=next(r for r in work.rows if r.id==rid)
             if row.excluded:continue

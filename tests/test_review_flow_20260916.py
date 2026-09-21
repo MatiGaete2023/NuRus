@@ -153,6 +153,8 @@ def test_individual_resolution_type_edit_changes_only_selected_row():
     from nurus.personal.app import App
     dummy = type('Dummy',(),{})()
     dummy.words = _Words();dummy.manual_word = _Var();dummy.projects=['old'];dummy.project_index=0;dummy.project_list=_List();dummy.status=_Status()
+    dummy.project_editor=_List()
+    dummy._clear_projects=lambda: App._clear_projects(dummy)
     dummy._visible_project_key=App._visible_project_key
     dummy._existing_project_iid=lambda key,exclude=None: App._existing_project_iid(dummy,key,exclude)
     App._assign_word_type(dummy)

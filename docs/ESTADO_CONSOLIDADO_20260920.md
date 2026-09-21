@@ -2,12 +2,19 @@
 
 **Repositorio:** `MatiGaete2023/NuRus`  
 **Producto vigente:** CSMP Assistant personal  
-**Versión:** `0.4.0.dev6`  
+**Versión vigente:** `0.4.0.dev8` (ver actualización siguiente)
+**Checkpoint histórico del cuerpo:** `0.4.0.dev6`
 **Rama de trabajo auditada:** `csmp-personal-2026-09-13`  
 **HEAD al iniciar esta revisión:** `0523f3cb666a7e55b6a4fd64eb92949c89a58e26`  
 **Finalidad de este documento:** dejar una representación canónica del estado del proyecto, las decisiones del usuario, los problemas encontrados, cómo se resolvieron, los límites vigentes y el orden recomendado de los siguientes pasos.
 
 Este documento reemplaza como **estado de navegación** a los resúmenes parciales anteriores. Los informes fechados se conservan como evidencia histórica y no deben reinterpretarse como descripción automática de la versión vigente.
+
+## Actualización vigente — limpieza dev8, 21 de septiembre de 2026
+
+Producto: **CSMP Assistant personal 0.4.0.dev8**. Se retiran la interfaz NuRus, sus diálogos de producto, el benchmark histórico y nueve implementaciones de métodos sustituidas en el Asistente. Se conservan componentes compartidos, formatos y sesiones. Correcciones: hoja al cambiar de modo; resoluciones manuales al actualizar sin cambios y reexportar; limpieza de borradores/proyectos al localizar una copia modificada; editores vacíos al cambiar de trabajo; desactivaciones configuradas fuera de las cuatro casillas.
+
+Referencias: `LIMPIEZA_ASISTENTE_20260921.md` y `VERIFICACION_PERSONAL.md`. Pendientes externos sin cambios: Office institucional, DCE, matrices Tomé y medición del ciclo real. Las secciones anteriores en fecha son historial, no el estado actual del ejecutable.
 
 ## Actualización material — 21 de septiembre de 2026
 

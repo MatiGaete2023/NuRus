@@ -1,3 +1,3 @@
-"""NuRus: revisión local, trazable y con control humano."""
+"""CSMP Assistant personal. El nombre de paquete nurus conserva compatibilidad."""
 
-__version__ = "0.4.0.dev7"
+__version__ = "0.4.0.dev8"
