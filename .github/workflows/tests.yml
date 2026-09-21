@@ -1,11 +1,11 @@
-name: NuRus tests
+name: CSMP Assistant Windows
 
 on:
   push:
     branches:
       - main
-      - implementacion-plan-2026-09-08
       - csmp-personal-2026-09-13
+      - csmp-ux-20260921
   pull_request:
 
 jobs:
@@ -69,14 +69,14 @@ jobs:
       - name: Build Windows distribution
         if: matrix.python == '3.12'
         shell: pwsh
-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev6.zip HEAD
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev7.zip HEAD
 
       - name: Source distribution
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Windows-dev6
-          path: dist/CSMP_Assistant_personal_0.4.0-dev6.zip
+          name: CSMP-Windows-dev7
+          path: dist/CSMP_Assistant_personal_0.4.0-dev7.zip
 
       - name: Wheel artifact
         uses: actions/upload-artifact@v4

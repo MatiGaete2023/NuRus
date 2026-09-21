@@ -1,8 +1,10 @@
 # Índice y vigencia de documentación
 
-Actualizado: 20 de septiembre de 2026. Versión vigente: **0.4.0.dev6**.
+Actualizado: 21 de septiembre de 2026. Versión vigente: **0.4.0.dev7**.
 
 ## Documentos vigentes para CSMP Assistant personal
+
+- `REVISION_USABILIDAD_20260921.md`: cambios posteriores a dev6, hallazgos, uso y comprobación.
 
 - `ESTADO_CONSOLIDADO_20260920.md`: **referencia canónica de estado**; reúne evolución, observaciones del usuario, soluciones, decisiones, conflictos y próximos pasos.
 - `../README.md`: instalación, uso y alcance actual.
@@ -24,4 +26,4 @@ Referencias históricas a CI Linux, versiones dev1/dev2/dev6/dev7 anteriores, ex
 
 La rama `revision-producto-csmp-2026-09-13` conserva una auditoría documental independiente del 13-09; sus conclusiones relevantes están incorporadas en `ESTADO_CONSOLIDADO_20260920.md` y no requieren fusionar su runtime.
 
-El núcleo general de NuRus y sus documentos propios no se clasifican como basura: mantienen componentes, entradas o pruebas distintas del producto personal. La auditoría actual elimina código transitorio ejecutable cuando existe reemplazo definitivo comprobable, pero conserva evidencia histórica.
+El núcleo general de NuRus y sus documentos propios no se clasifican como basura: mantienen componentes compartidos y pruebas de regresión. Los accesos de usuario antiguos ahora abren el Asistente. La auditoría actual elimina código transitorio ejecutable cuando existe reemplazo definitivo comprobable, pero conserva evidencia histórica.

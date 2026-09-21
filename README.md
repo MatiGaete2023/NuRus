@@ -1,6 +1,10 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev6**, estado consolidado al 20 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+Versión **0.4.0.dev7**, estado consolidado al 21 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+
+## Cambios de esta actualización
+
+La revisión de uso y sus límites están en [REVISION_USABILIDAD_20260921.md](docs/REVISION_USABILIDAD_20260921.md). Se corrigen plantillas personales sin registros, interrupción del lote por un destinatario inválido, pérdida de textos al cambiar de plantilla y selección Word desactualizada. La interfaz incorpora nombres legibles, controles desplazables y acceso directo a matrices. Los accesos anteriores de NuRus abren el Asistente.
 
 ## Instalación y actualización
 
@@ -43,7 +47,7 @@ Hay seis matrices base: `LAJA/NOMENCL`, `LAJA/PC_IE`, `LAJA/PC_INFO`, `MULCHEN/N
 
 ## Arquitectura y mantenimiento
 
-La versión 0.4.0.dev6 eliminó los cuatro módulos transitorios `runtime_fixes_20260916*`. Las correcciones quedaron incorporadas en los módulos definitivos, por lo que importar `nurus.personal` ya no modifica otros módulos mediante monkey-patching. El núcleo general de NuRus y sus ejecutables históricos se mantienen porque conservan una ruta de entrada y cobertura de pruebas propia; los documentos históricos se mantienen para trazabilidad.
+La versión 0.4.0.dev7 eliminó los cuatro módulos transitorios `runtime_fixes_20260916*`. Las correcciones quedaron incorporadas en los módulos definitivos, por lo que importar `nurus.personal` ya no modifica otros módulos mediante monkey-patching. El núcleo general de NuRus y sus ejecutables históricos se mantienen porque conservan una ruta de entrada y cobertura de pruebas propia; los documentos históricos se mantienen para trazabilidad.
 
 ## Estado de verificación
 

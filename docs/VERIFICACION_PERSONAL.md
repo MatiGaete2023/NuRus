@@ -1,3 +1,5 @@
+> Actualización vigente: **0.4.0.dev7**, 21-09-2026. Consultar `REVISION_USABILIDAD_20260921.md` para cambios y comprobaciones posteriores. La evidencia fechada que sigue corresponde a dev6.
+
 # Verificación CSMP personal
 
 Versión documental: **0.4.0.dev6**.

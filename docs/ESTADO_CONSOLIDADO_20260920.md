@@ -9,6 +9,10 @@
 
 Este documento reemplaza como **estado de navegación** a los resúmenes parciales anteriores. Los informes fechados se conservan como evidencia histórica y no deben reinterpretarse como descripción automática de la versión vigente.
 
+## Actualización material — 21 de septiembre de 2026
+
+Producto: **CSMP Assistant personal 0.4.0.dev7**. El cuerpo fechado el 20-09 conserva el estado dev6 como referencia. Los cambios posteriores, pruebas y límites están en `REVISION_USABILIDAD_20260921.md`. Las decisiones de dominio permanecen vigentes; se continúa solo la experiencia del Asistente. Los accesos NuRus anteriores pasan a abrirlo.
+
 ---
 
 ## 1. Resumen ejecutivo

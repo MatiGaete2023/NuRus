@@ -12,6 +12,7 @@ from tkinter import ttk, filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 
 from .app_base import App as _BaseApp
+from .widgets import ScrollPane, NamedChoice
 from .mail_controls import alcance_modalidades, selected_court_record_ids
 from .modalities import MODALITIES
 from .outputs import prepare_drafts, prepare_required_drafts, create_drafts, value
@@ -24,23 +25,26 @@ from nurus.rus.columns import normalize
 class App(_BaseApp):
     def __init__(self,configuration=None):
         super().__init__(configuration=configuration)
-        self.geometry('1180x820')
-        self.minsize(1040,700)
+        width=min(1180,self.winfo_screenwidth()-60)
+        height=min(820,self.winfo_screenheight()-110)
+        self.geometry(f'{width}x{height}')
+        self.minsize(min(940,width),min(580,height))
 
     def _mail_page(self):
         page=self.pages['Correos']
         outer=ttk.Panedwindow(page,orient='horizontal');outer.pack(fill='both',expand=True)
-        left=ttk.Frame(outer,padding=(0,0,10,0));right=ttk.Frame(outer)
-        outer.add(left,weight=2);outer.add(right,weight=5)
+        controls=ScrollPane(outer);left=controls.body;right=ttk.Frame(outer)
+        self.mail_controls=controls
+        outer.add(controls,weight=1);outer.add(right,weight=5)
 
         mail_cfg=self.cfg.data['correos']
         self.mail_kind=tk.StringVar(value='programa_espera' if 'programa_espera' in mail_cfg['plantillas'] else next(iter(mail_cfg['plantillas'])))
         self.period=tk.StringVar(value=mail_cfg.get('periodo_default') or date.today().strftime('%m/%Y'))
 
         f_kind=ttk.LabelFrame(left,text='1. Tipo de correo',padding=8);f_kind.pack(fill='x',pady=(0,7))
-        self.kind_box=ttk.Combobox(f_kind,textvariable=self.mail_kind,values=list(mail_cfg['plantillas']),state='readonly',width=31)
+        self.kind_box=NamedChoice(f_kind,keyvariable=self.mail_kind,names=lambda:{k:v['nombre'] for k,v in self.cfg.data['correos']['plantillas'].items()},state='readonly',width=27)
         self.kind_box.pack(fill='x');self.kind_box.bind('<<ComboboxSelected>>',self._mail_kind_changed)
-        self.mail_note=tk.StringVar();ttk.Label(f_kind,textvariable=self.mail_note,wraplength=320).pack(anchor='w',pady=(5,0))
+        self.mail_note=tk.StringVar();ttk.Label(f_kind,textvariable=self.mail_note,wraplength=285).pack(anchor='w',pady=(5,0))
 
         f_court=ttk.LabelFrame(left,text='2. Tribunal(es)',padding=8);f_court.pack(fill='x',pady=(0,7))
         self.mail_court_keys=list(mail_cfg['tribunales'])
@@ -57,11 +61,12 @@ class App(_BaseApp):
         self.modality_vars={}
         for key,label in MODALITIES.items():
             var=tk.BooleanVar(value=label in defaults);self.modality_vars[key]=var
-            ttk.Checkbutton(f_modes,text=label,variable=var,command=self._mail_modality_changed).pack(anchor='w',pady=1)
+            short={'RES':'Residencial','AMB':'Ambulatorio','FAE':'Familia de acogida (FAE / FAS)','DCE':'Diagnóstico clínico (DCE)'}[key]
+            ttk.Checkbutton(f_modes,text=short,variable=var,command=self._mail_modality_changed).pack(anchor='w',pady=1)
         mode_buttons=ttk.Frame(f_modes);mode_buttons.pack(fill='x',pady=(5,0))
         ttk.Button(mode_buttons,text='Todas',command=self._select_all_mail_modalities).pack(side='left',fill='x',expand=True,padx=(0,2))
         ttk.Button(mode_buttons,text='Ninguna',command=self._select_no_mail_modalities).pack(side='left',fill='x',expand=True,padx=(2,0))
-        self.mail_scope=tk.StringVar();ttk.Label(f_modes,textvariable=self.mail_scope,wraplength=320).pack(anchor='w',pady=(5,0))
+        self.mail_scope=tk.StringVar();ttk.Label(f_modes,textvariable=self.mail_scope,wraplength=285).pack(anchor='w',pady=(5,0))
 
         f_period=ttk.LabelFrame(left,text='4. Período',padding=8);f_period.pack(fill='x',pady=(0,7))
         ttk.Entry(f_period,textvariable=self.period).pack(fill='x')
@@ -96,9 +101,11 @@ class App(_BaseApp):
         ttk.Button(attach_actions,text='Quitar de este',command=self._clear_current_attachments).pack(side='left')
 
         actions=ttk.Frame(compose);actions.grid(row=6,column=0,columnspan=2,sticky='ew',pady=(8,0))
-        ttk.Button(actions,text='Vista previa',command=lambda:self._guard(self._preview_mail)).pack(side='left')
-        ttk.Button(actions,text='Guardar este borrador',command=lambda:self._guard(self._send_draft)).pack(side='right',padx=(4,0))
-        ttk.Button(actions,text='Guardar TODOS los borradores',command=lambda:self._guard(self._send_all)).pack(side='right')
+        ttk.Button(actions,text='Vista previa',command=lambda:self._guard(self._preview_mail)).pack(anchor='w',pady=(0,4))
+        save_actions=ttk.Frame(actions);save_actions.pack(fill='x')
+        ttk.Button(save_actions,text='Guardar este borrador',command=lambda:self._guard(self._send_draft)).pack(side='right',padx=(4,0))
+        self.save_all_button=ttk.Button(save_actions,text='Guardar TODOS los borradores',command=lambda:self._guard(self._send_all))
+        self.save_all_button.pack(side='left')
 
         self._mail_kind_changed();self._mail_modality_changed()
 

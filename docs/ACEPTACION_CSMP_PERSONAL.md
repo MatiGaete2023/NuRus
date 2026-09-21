@@ -1,6 +1,6 @@
-# Aceptación institucional — CSMP Assistant personal 0.4.0.dev6
+# Aceptación institucional — CSMP Assistant personal 0.4.0.dev7
 
-Estado al 20 de septiembre de 2026: **PENDIENTE**. No hay resultados institucionales formalmente registrados todavía. Usar copias autorizadas y no enviar mensajes durante la prueba.
+Estado al 21 de septiembre de 2026: **PENDIENTE**. No hay resultados institucionales formalmente registrados todavía. Usar copias autorizadas y no enviar mensajes durante la prueba.
 
 Responsable: ______ Fecha: ______ PC/Windows: ______ Python: ______ Excel: ______ Outlook/cuenta: ______ Commit instalado: ______
 

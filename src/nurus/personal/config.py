@@ -15,6 +15,22 @@ UMBRALES = dict(espera_dce=30, espera_laja=30, espera_mulchen=30, espera_tome=30
                proyecto_tome=60, mayoria=60, oido=45, resolucion_reciente=30,
                ingreso_reciente=30, medida=45, informe=30, ficha_antigua=180,
                ficha_reciente=30, ficha_fae=120)
+PARAMETER_LABELS = {
+    'espera_dce':'Espera DCE: consultar ingreso desde',
+    'espera_laja':'Espera Laja: proyecto y correo desde',
+    'espera_mulchen':'Espera Mulchén: proyecto y correo desde',
+    'espera_tome':'Espera Tomé: correo desde',
+    'proyecto_tome':'Espera Tomé: proyecto desde',
+    'mayoria':'Avisar mayoría de edad dentro de',
+    'oido':'Oído: considerar reciente hasta',
+    'resolucion_reciente':'Resolución reciente: menos de',
+    'ingreso_reciente':'Ingreso reciente: hasta',
+    'medida':'Avisar medida por vencer dentro de',
+    'informe':'Avisar informe por vencer dentro de',
+    'ficha_antigua':'Ficha individual antigua: más de',
+    'ficha_reciente':'Ficha individual reciente: hasta',
+    'ficha_fae':'Ficha FAE ausente: ingreso hace más de',
+}
 CORREO_REVISION = 2
 LEGACY_CORREO_BODIES = {
     'espera': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Espera del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',

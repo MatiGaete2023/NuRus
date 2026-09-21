@@ -11,7 +11,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 from tkinter.scrolledtext import ScrolledText
 
-from .config import Configuration, UMBRALES, atomic_json, validate
+from .config import Configuration, UMBRALES, PARAMETER_LABELS, VARIABLES, atomic_json, validate
+from .widgets import ScrollPane, NamedChoice
 from .work import Work
 from .outputs import prepare_drafts, prepare_required_drafts, create_draft, create_drafts, import_contacts, value
 from .resolutions import KINDS, prepare_projects, generate_projects, automatic_project_selections, reviewed_resolution_ids
@@ -89,6 +90,10 @@ class App(tk.Tk):
 
     def _close(self):
         if self.busy:messagebox.showinfo('Operación en curso','Espera a que termine antes de cerrar.');return
+        try:
+            self._save_text(notify=False);self._save_tpl(notify=False)
+        except ValueError as exc:
+            messagebox.showerror('Configuración pendiente',str(exc));return
         self._save_session();self.destroy()
 
     def _require_work(self):
@@ -136,11 +141,12 @@ class App(tk.Tk):
         self._field(top,'Carpeta de salida',self.folder,3)
         ttk.Button(top,text='Cambiar',command=lambda:self._select_folder(self.folder)).grid(row=3,column=2)
         buttons=ttk.Frame(page);buttons.pack(fill='x',pady=5)
+        extra=ttk.Frame(page);extra.pack(fill='x')
         ttk.Button(buttons,text='PROCESAR',command=lambda:self._guard(self._process)).pack(side='left',padx=3)
         ttk.Button(buttons,text='Abrir Excel',command=lambda:self._guard(lambda:self._open(self._require_work().output))).pack(side='left',padx=3)
         ttk.Button(buttons,text='Actualizar cambios',command=lambda:self._guard(self._refresh)).pack(side='left',padx=3)
-        ttk.Button(buttons,text='Localizar copia movida',command=lambda:self._guard(self._locate)).pack(side='left',padx=3)
-        ttk.Button(buttons,text='Reintentar exportación',command=lambda:self._guard(lambda:self._export_current())).pack(side='left',padx=3)
+        ttk.Button(extra,text='Localizar copia movida',command=lambda:self._guard(self._locate)).pack(side='left',padx=3)
+        ttk.Button(extra,text='Exportar copia con mis cambios',command=lambda:self._guard(lambda:self._export_current())).pack(side='left',padx=3)
         self.summary=tk.StringVar();ttk.Label(page,textvariable=self.summary).pack(anchor='w')
         ttk.Button(page,text='Exportar resumen de constancias',command=lambda:self._guard(self._export_statistics)).pack(anchor='w')
         split=ttk.Panedwindow(page,orient='vertical');split.pack(fill='both',expand=True)
@@ -150,9 +156,9 @@ class App(tk.Tk):
         self.records.bind('<<TreeviewSelect>>',self._detail)
         self.detail=tk.StringVar();ttk.Label(edit,textvariable=self.detail,wraplength=1000).pack(fill='x')
         ttk.Label(edit,text='Observación editable del registro seleccionado (se incorpora a los productos)').pack(anchor='w')
-        self.observation_editor=ScrolledText(edit,wrap='word',height=5,font=('Segoe UI',10));self.observation_editor.pack(fill='both',expand=True)
+        self.observation_editor=ScrolledText(edit,wrap='word',height=5,font=('Segoe UI',10),undo=True);self.observation_editor.pack(fill='both',expand=True)
         ttk.Button(edit,text='Aplicar edición',command=lambda:self._guard(self._apply_observation)).pack(anchor='e')
-        ttk.Button(buttons,text='Cargar planilla modificada',command=lambda:self._guard(self._external)).pack(side='left')
+        ttk.Button(extra,text='Cargar planilla modificada',command=lambda:self._guard(self._external)).pack(side='left')
 
     def _select_folder(self,var):
         path=filedialog.askdirectory()
@@ -399,7 +405,7 @@ class App(tk.Tk):
         self.project_list=tk.Listbox(left,height=5,exportselection=False);self.project_list.pack(fill='x')
         self.project_list.bind('<<ListboxSelect>>',self._select_project)
         ttk.Label(right,text='Proyecto editable. Los datos ausentes quedan como [COMPLETAR ...].').pack(anchor='w')
-        self.project_editor=ScrolledText(right,wrap='word',height=18,font=('Segoe UI',11));self.project_editor.pack(fill='both',expand=True)
+        self.project_editor=ScrolledText(right,wrap='word',height=18,font=('Segoe UI',11),undo=True);self.project_editor.pack(fill='both',expand=True)
 
     def _assign_word_type(self):
         selected=list(self.words.selection()) or list(self.words.get_children())
@@ -435,6 +441,8 @@ class App(tk.Tk):
 
     def _prepare_words(self,then_generate=False):
         work=self._require_work()
+        self._capture_project()
+        edits={(p.court,p.rit,p.kind):(p.values,p.text) for p in self.projects if p.text!=p.original_text}
         selected=list(self.words.selection()) or list(self.words.get_children())
         if not selected:
             selections=automatic_project_selections(work,self.manual_word.get())
@@ -444,6 +452,10 @@ class App(tk.Tk):
             selections=[item.split('|') for item in selected]
         def done(result):
             self.projects,errors=result;self.project_index=None;self.project_list.delete(0,'end')
+            self._prepared_selection=tuple(selected)
+            for p in self.projects:
+                previous=edits.get((p.court,p.rit,p.kind))
+                if previous and previous[0]==p.values:p.text=previous[1]
             for p in self.projects:self.project_list.insert('end',p.rit+' · '+p.kind+' · '+str(len(p.record_ids))+' registros')
             if self.projects:self.project_list.selection_set(0);self._select_project()
             self.status.set(f'{len(self.projects)} proyectos agrupados; {len(errors)} matrices pendientes.')
@@ -453,7 +465,8 @@ class App(tk.Tk):
 
     def _generate_words(self):
         work=self._require_work()
-        if not self.projects:self._prepare_words(then_generate=True);return
+        selected=tuple(self.words.selection() or self.words.get_children())
+        if not self.projects or selected!=getattr(self,'_prepared_selection',None):self._prepare_words(then_generate=True);return
         self._capture_project()
         path=Path(work.output).parent/('Resoluciones_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+'.docx')
         projects=deepcopy(self.projects)
@@ -463,11 +476,11 @@ class App(tk.Tk):
 
     def _config_page(self):
         page=self.pages['Configuración'];nb=ttk.Notebook(page);nb.pack(fill='both',expand=True)
-        params=ttk.Frame(nb,padding=8);nb.add(params,text='Umbrales')
+        params_scroll=ScrollPane(nb);nb.add(params_scroll,text='Reglas y umbrales');params=params_scroll.body
         self.param_vars={}
         for i,(key,number) in enumerate(self.cfg.data['umbrales'].items()):
             var=tk.StringVar(value=str(number));self.param_vars[key]=var
-            ttk.Label(params,text=key.replace('_',' ').capitalize()+' (días)').grid(row=i//2,column=(i%2)*2,sticky='w',padx=8,pady=4)
+            ttk.Label(params,text=PARAMETER_LABELS[key]+' (días)').grid(row=i//2,column=(i%2)*2,sticky='w',padx=8,pady=4)
             ttk.Entry(params,textvariable=var,width=8).grid(row=i//2,column=(i%2)*2+1)
         ttk.Button(params,text='Guardar umbrales',command=lambda:self._guard(self._save_params)).grid(row=8,column=0,pady=12)
         self.disabled={}
@@ -477,16 +490,23 @@ class App(tk.Tk):
         texts=ttk.Frame(nb,padding=8);nb.add(texts,text='Observaciones')
         keys=[s+'.'+k for s,d in self.cfg.data['textos'].items() if not s.startswith('_') for k in d]
         self.text_key=tk.StringVar(value=keys[0]);box=ttk.Combobox(texts,textvariable=self.text_key,values=keys,state='readonly',width=55);box.pack(anchor='w');box.bind('<<ComboboxSelected>>',self._load_text)
-        self.text_editor=tk.Text(texts,wrap='word');self.text_editor.pack(fill='both',expand=True,pady=6)
-        ttk.Button(texts,text='Guardar texto (conserva las variables entre llaves)',command=lambda:self._guard(self._save_text)).pack(anchor='w');self._load_text()
+        self.text_variable=tk.StringVar();self.text_variables=ttk.Combobox(texts,textvariable=self.text_variable,state='readonly',width=28);self.text_variables.pack(anchor='w',pady=3)
+        ttk.Button(texts,text='Insertar variable en el texto',command=lambda:self.text_editor.insert('insert',self.text_variable.get())).pack(anchor='w')
+        self.text_editor=ScrolledText(texts,wrap='word',undo=True,font=('Segoe UI',11));self.text_editor.pack(fill='both',expand=True,pady=6)
+        ttk.Button(texts,text='Guardar texto · También se guarda al cambiar de regla',command=lambda:self._guard(self._save_text)).pack(anchor='w');self._load_text()
         mail=ttk.Frame(nb,padding=8);nb.add(mail,text='Plantillas correo')
-        self.tpl_key=tk.StringVar(value='espera');box=ttk.Combobox(mail,textvariable=self.tpl_key,values=list(self.cfg.data['correos']['plantillas']),state='readonly');box.grid(row=0,column=0);box.bind('<<ComboboxSelected>>',self._load_tpl)
+        self.tpl_key=tk.StringVar(value='espera');box=NamedChoice(mail,keyvariable=self.tpl_key,names=lambda:{k:v['nombre'] for k,v in self.cfg.data['correos']['plantillas'].items()},state='readonly',width=35);box.grid(row=0,column=0);box.bind('<<ComboboxSelected>>',self._load_tpl)
         self.tpl_name=tk.StringVar();self.tpl_subject=tk.StringVar();self.tpl_req=tk.BooleanVar();self.tpl_modes=tk.BooleanVar()
         self._field(mail,'Nombre',self.tpl_name,1);self._field(mail,'Asunto',self.tpl_subject,2)
-        self.tpl_body=tk.Text(mail,wrap='word',height=7);self.tpl_body.grid(row=3,column=0,columnspan=2,sticky='nsew');mail.rowconfigure(3,weight=1)
+        self.tpl_body=ScrolledText(mail,wrap='word',height=7,undo=True,font=('Segoe UI',11));self.tpl_body.grid(row=3,column=0,columnspan=2,sticky='nsew');mail.rowconfigure(3,weight=1)
         ttk.Checkbutton(mail,text='Adjunto obligatorio',variable=self.tpl_req).grid(row=4,column=0)
         ttk.Checkbutton(mail,text='Usa modalidades',variable=self.tpl_modes).grid(row=4,column=1)
         ttk.Button(mail,text='Guardar plantilla',command=lambda:self._guard(self._save_tpl)).grid(row=5,column=0)
+        self.tpl_variable=tk.StringVar(value='{TRIBUNAL}')
+        variable_bar=ttk.Frame(mail);variable_bar.grid(row=6,column=0,columnspan=2,sticky='ew',pady=5)
+        ttk.Combobox(variable_bar,textvariable=self.tpl_variable,values=['{'+v+'}' for v in sorted(VARIABLES)],state='readonly',width=24).pack(side='left')
+        ttk.Button(variable_bar,text='Insertar en cuerpo',command=lambda:self.tpl_body.insert('insert',self.tpl_variable.get())).pack(side='left',padx=4)
+        ttk.Label(mail,text='Los cambios se guardan también al cambiar de plantilla o cerrar.').grid(row=7,column=0,columnspan=2,sticky='w')
         self.tpl_box=box
         ttk.Button(mail,text='Nueva plantilla',command=lambda:self._guard(self._new_tpl)).grid(row=5,column=1,sticky='w');self._load_tpl()
         contacts=ttk.Frame(nb,padding=8);nb.add(contacts,text='Contactos y alias')
@@ -504,7 +524,12 @@ class App(tk.Tk):
         ttk.Label(office,text='Copia institucional siempre incluida: ucc_concepcion@pjud.cl').grid(row=3,column=0,columnspan=2,sticky='w',pady=10)
         ttk.Button(office,text='Guardar Outlook',command=lambda:self._guard(self._save_office)).grid(row=4,column=0)
         ttk.Button(office,text='Abrir plantillas Word',command=lambda:self._guard(lambda:self._open(self.template_dir))).grid(row=5,column=0,pady=12)
-        ttk.Button(office,text='Incorporar plantilla Word',command=lambda:self._guard(self._import_word)).grid(row=5,column=1)
+        self.word_court=tk.StringVar(value='LAJA');self.word_kind=tk.StringVar(value='PC_IE')
+        matrix=ttk.Frame(office);matrix.grid(row=8,column=0,columnspan=2,sticky='w',pady=5)
+        ttk.Combobox(matrix,textvariable=self.word_court,values=['LAJA','MULCHEN','TOME'],state='readonly',width=12).pack(side='left')
+        ttk.Combobox(matrix,textvariable=self.word_kind,values=list(KINDS),state='readonly',width=12).pack(side='left',padx=4)
+        ttk.Button(matrix,text='Editar matriz en Word',command=lambda:self._guard(lambda:self._open(self.template_dir/self.word_court.get()/(self.word_kind.get()+'.docx')))).pack(side='left')
+        ttk.Button(matrix,text='Reemplazar matriz…',command=lambda:self._guard(self._import_word)).pack(side='left',padx=4)
         ttk.Button(office,text='Importar paquete de plantillas ZIP',command=lambda:self._guard(self._import_templates_zip)).grid(row=7,column=0,pady=8)
         ttk.Label(office,text='Carpetas LAJA, MULCHEN y TOME; tipos PC_IE.docx, PC_INFO.docx y NOMENCL.docx.',wraplength=640).grid(row=6,column=0,columnspan=2,sticky='w')
 
@@ -513,23 +538,58 @@ class App(tk.Tk):
         cfg=deepcopy(self.cfg.data);cfg['umbrales']={k:int(v.get()) for k,v in self.param_vars.items()};cfg['desactivadas']=[k for k,v in self.disabled.items() if not v.get()];self.cfg.save(cfg)
         self.status.set('Parámetros guardados. Se aplicarán al próximo análisis; el trabajo actual conserva su perfil.')
 
-    def _load_text(self,event=None):
-        s,k=self.text_key.get().split('.');self.text_editor.delete('1.0','end');self.text_editor.insert('1.0',self.cfg.data['textos'][s][k]['texto'])
+    def _save_before_switch(self, attribute, variable, save):
+        previous=getattr(self,attribute,None)
+        if previous and previous!=variable.get():
+            try:save(notify=False)
+            except ValueError as exc:
+                variable.set(previous)
+                messagebox.showerror('No se guardó el cambio',str(exc))
+                return False
+        return True
 
-    def _save_text(self):
-        from copy import deepcopy
-        cfg=deepcopy(self.cfg.data);s,k=self.text_key.get().split('.');cfg['textos'][s][k]['texto']=self.text_editor.get('1.0','end-1c');self.cfg.save(cfg);self.status.set('Texto guardado para próximos análisis.')
+    def _load_text(self,event=None):
+        if not self._save_before_switch('_editing_text_key',self.text_key,self._save_text):return
+        self._editing_text_key=self.text_key.get()
+        s,k=self._editing_text_key.split('.')
+        text=self.cfg.data['textos'][s][k]['texto']
+        self.text_editor.delete('1.0','end');self.text_editor.insert('1.0',text);self.text_editor.edit_reset()
+        from string import Formatter
+        fields=sorted({'{'+f+'}' for _,f,_,_ in Formatter().parse(text) if f})
+        self.text_variables.configure(values=fields);self.text_variable.set(fields[0] if fields else '')
+
+    def _save_text(self,notify=True):
+        key=getattr(self,'_editing_text_key',None)
+        if not key:return
+        cfg=deepcopy(self.cfg.data);s,k=key.split('.')
+        text=self.text_editor.get('1.0','end-1c')
+        if text!=cfg['textos'][s][k]['texto']:
+            cfg['textos'][s][k]['texto']=text;self.cfg.save(cfg)
+        if notify:self.status.set('Texto guardado para próximos análisis; la revisión actual se conserva.')
 
     def _load_tpl(self,event=None):
-        tpl=self.cfg.data['correos']['plantillas'][self.tpl_key.get()];self.tpl_name.set(tpl['nombre']);self.tpl_subject.set(tpl['asunto']);self.tpl_body.delete('1.0','end');self.tpl_body.insert('1.0',tpl['cuerpo']);self.tpl_req.set(tpl['adjunto']=='obligatorio');self.tpl_modes.set(tpl.get('usa_modalidades',False))
+        if not self._save_before_switch('_editing_tpl_key',self.tpl_key,self._save_tpl):return
+        self._editing_tpl_key=self.tpl_key.get()
+        tpl=self.cfg.data['correos']['plantillas'][self._editing_tpl_key]
+        self.tpl_name.set(tpl['nombre']);self.tpl_subject.set(tpl['asunto'])
+        self.tpl_body.delete('1.0','end');self.tpl_body.insert('1.0',tpl['cuerpo']);self.tpl_body.edit_reset()
+        self.tpl_req.set(tpl['adjunto']=='obligatorio');self.tpl_modes.set(tpl.get('usa_modalidades',False))
 
-    def _save_tpl(self):
-        from copy import deepcopy
-        cfg=deepcopy(self.cfg.data);tpl=cfg['correos']['plantillas'][self.tpl_key.get()];tpl.update(nombre=self.tpl_name.get(),asunto=self.tpl_subject.get(),cuerpo=self.tpl_body.get('1.0','end-1c'),adjunto='obligatorio' if self.tpl_req.get() else 'opcional',usa_modalidades=self.tpl_modes.get());self.cfg.save(cfg);self.status.set('Plantilla guardada.')
+    def _save_tpl(self,notify=True):
+        key=getattr(self,'_editing_tpl_key',None)
+        if not key:return
+        cfg=deepcopy(self.cfg.data);tpl=cfg['correos']['plantillas'][key]
+        tpl.update(nombre=self.tpl_name.get().strip(),asunto=self.tpl_subject.get(),cuerpo=self.tpl_body.get('1.0','end-1c'),adjunto='obligatorio' if self.tpl_req.get() else 'opcional',usa_modalidades=self.tpl_modes.get())
+        if not tpl['nombre']:raise ValueError('La plantilla necesita un nombre.')
+        if cfg!=self.cfg.data:self.cfg.save(cfg)
+        keys=list(cfg['correos']['plantillas'])
+        self.tpl_box.configure(values=keys);self.kind_box.configure(values=keys)
+        if notify:self.status.set('Plantilla guardada; se aplica al preparar correos nuevos.')
 
     def _new_tpl(self):
         from copy import deepcopy
         from uuid import uuid4
+        self._save_tpl(notify=False)
         name=simpledialog.askstring('Nueva plantilla','Nombre de la comunicación:')
         if not name:return
         cfg=deepcopy(self.cfg.data);key='particular_'+uuid4().hex[:6]
@@ -585,10 +645,12 @@ class App(tk.Tk):
         if result['unmatched']:messagebox.showinfo('Asignación pendiente','Estos archivos deben incorporarse indicando tribunal y tipo:\n'+'\n'.join(result['unmatched']))
 
     def _import_word(self):
-        court=simpledialog.askstring('Tribunal','LAJA, MULCHEN o TOME:');kind=simpledialog.askstring('Tipo','PC_IE, PC_INFO o NOMENCL:')
+        court=self.word_court.get();kind=self.word_kind.get()
         if court not in ('LAJA','MULCHEN','TOME') or kind not in ('PC_IE','PC_INFO','NOMENCL'):return
         path=filedialog.askopenfilename(filetypes=[('Word','*.docx')])
         if not path:return
+        from docx import Document
+        Document(path)  # Verificar antes de reemplazar la matriz vigente.
         target=self.template_dir/court/(kind+'.docx');target.parent.mkdir(parents=True,exist_ok=True)
         if target.exists():shutil.copyfile(target,target.with_suffix('.bak.docx'))
         shutil.copyfile(path,target);self.status.set('Plantilla incorporada: '+str(target))

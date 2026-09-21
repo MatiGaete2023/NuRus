@@ -153,7 +153,9 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
     groups=defaultdict(list)
     for row in work.rows:
         if row.excluded or (selected is not None and row.id not in selected) or not selected_row(work,row,modality_keys):continue
-        if not general and kind not in {'especial','proyectos'} and kind not in row.actions and not (manual_selection or getattr(work,'external_input',False)):continue
+        # Las comunicaciones personalizadas no tienen una regla del motor.
+        automatic_kind=kind in {'programa_espera','programa_vencido','programa_por_vencer','medidas'}
+        if automatic_kind and kind not in row.actions and not (manual_selection or getattr(work,'external_input',False)):continue
         if kind=='proyectos' and not manual_selection and not getattr(work,'external_input',False) and row.id not in {rid for r in work.receipts.values() if r.get('kind')=='word' for rid in r.get('record_ids',[r.get('record_id')])}:continue
         court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
         program=value(work,row,'programa') if kind.startswith('programa_') else ''
@@ -220,13 +222,14 @@ def create_drafts(work,drafts):
     """Un clic guarda el lote. Los resultados parciales se conservan sin repetir Save."""
     result={'created':0,'skipped':0,'errors':[]}
     for draft in drafts:
-        draft.key=draft_fingerprint(draft)
-        if draft.key in work.receipts:
-            state=work.receipts[draft.key].get('state')
-            result['skipped']+=1
-            if state!='created':result['errors'].append(draft.subject+': guardado previo incierto; revisa Borradores.')
-            continue
-        try:create_draft(work,draft,confirmed=True);result['created']+=1
+        try:
+            draft.key=draft_fingerprint(draft)
+            if draft.key in work.receipts:
+                state=work.receipts[draft.key].get('state')
+                result['skipped']+=1
+                if state!='created':result['errors'].append(draft.subject+': guardado previo incierto; revisa Borradores.')
+                continue
+            create_draft(work,draft,confirmed=True);result['created']+=1
         except Exception as exc:result['errors'].append(draft.subject+': '+str(exc))
     return result
 
