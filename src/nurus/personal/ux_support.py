@@ -73,8 +73,13 @@ def _resolution_codes(row):
     return codes
 
 
+def resume_available(work):
+    output=getattr(work,'output','')
+    return bool(output and Path(output).is_file())
+
+
 def product_indicators(work,row,drafts=None):
-    items=['Excel ✓' if getattr(work,'output','') else 'Excel pendiente']
+    items=['Excel ✓' if resume_available(work) else 'Excel pendiente']
     mail=_mail_state(work,row.id,drafts)
     if mail=='created':
         items.append('Correo ✓')
