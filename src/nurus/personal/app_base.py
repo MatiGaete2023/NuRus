@@ -15,7 +15,7 @@ from .ui import Textbox as ScrolledText
 
 from .config import Configuration, PARAMETER_LABELS, VARIABLES
 from .widgets import ScrollPane, NamedChoice, CaseDetailPanel, ComparisonPanel, Tooltip
-from .ux_support import case_detail_text, grouped_draft_detail, edited_pair, incident_ids, resume_description, RES_HELP
+from .ux_support import case_detail_text, grouped_draft_detail, edited_pair, incident_ids, resume_available, resume_description, RES_HELP
 from .work import Work
 from .outputs import create_draft, import_contacts
 from .resolutions import KINDS, KIND_LABELS, kind_code, kind_label, prepare_projects, generate_projects, automatic_project_selections
@@ -65,9 +65,13 @@ class App(ctk.CTk):
         saved=self.cfg.directory/'sesion/trabajo.json'
         if saved.exists():
             try:
-                self._resume_work=Work.load(saved.parent)
-                self._show_resume_offer(saved)
-                self.status.set('Hay un trabajo anterior disponible para continuar.')
+                recovered=Work.load(saved.parent)
+                if resume_available(recovered):
+                    self._resume_work=recovered
+                    self._show_resume_offer(saved)
+                    self.status.set('Hay un trabajo anterior disponible para continuar.')
+                else:
+                    self.status.set('La sesión anterior existe, pero su copia Excel ya no está disponible. Elige otro archivo.')
             except Exception as exc:self.status.set('No se pudo recuperar el trabajo anterior: '+str(exc))
 
     def _install_templates(self):
