@@ -2,13 +2,17 @@
 
 **Repositorio:** `MatiGaete2023/NuRus`  
 **Producto vigente:** CSMP Assistant personal  
-**Versión vigente:** `0.4.0.dev11` (ver actualización siguiente)
+**Versión candidata de la rama UX:** `0.4.0.dev12`; `main` permanece en dev11 hasta validación
 **Checkpoint histórico del cuerpo:** `0.4.0.dev6`
 **Rama candidata dev9:** `csmp-ux-20260921` (destinada a fast-forward de `main` y de la rama personal tras el cierre)  
 **HEAD al iniciar esta revisión:** `0523f3cb666a7e55b6a4fd64eb92949c89a58e26`  
 **Finalidad de este documento:** dejar una representación canónica del estado del proyecto, las decisiones del usuario, los problemas encontrados, cómo se resolvieron, los límites vigentes y el orden recomendado de los siguientes pasos.
 
 Este documento reemplaza como **estado de navegación** a los resúmenes parciales anteriores. Los informes fechados se conservan como evidencia histórica y no deben reinterpretarse como descripción automática de la versión vigente.
+
+## Evolución controlada dev12 — 22 de septiembre de 2026
+
+A solicitud expresa del usuario se abre la rama `ux-observaciones-20260922` desde el checkpoint congelado dev11. El alcance se limita a redacciones ya aprobadas y UX orientada a reducir clics/carga mental. No se modifica la arquitectura ni los umbrales sustantivos. Dev12 no se integra a `main` mientras no exista CI verde y validación real mínima. Referencia: `UX_OBSERVACIONES_DEV12_20260922.md`.
 
 ## Congelamiento funcional — 22 de septiembre de 2026
 
