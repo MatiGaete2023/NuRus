@@ -10,6 +10,10 @@
 
 Este documento reemplaza como **estado de navegación** a los resúmenes parciales anteriores. Los informes fechados se conservan como evidencia histórica y no deben reinterpretarse como descripción automática de la versión vigente.
 
+## Congelamiento funcional — 22 de septiembre de 2026
+
+Dev11 queda **congelada como candidata funcional** después de prueba real satisfactoria del flujo principal: Excel, RES categórico, resoluciones, borradores de correo y parámetros/configuración. Durante uno o dos ciclos normales solo se corregirán errores reproducibles o fricciones materiales observadas; no se añadirán funciones nuevas ni `.exe`. Referencia: `CONGELAMIENTO_CANDIDATA_20260922.md`.
+
 ## Actualización vigente — UX final dev11
 
 Se aplica el pulido final solicitado para uso personal: búsqueda y filtros en Trabajo/Resoluciones; códigos de resolución con descripción legible; color por origen; botón para abrir carpeta de salida; barra de contexto persistente; atajos `Ctrl+O`, `Ctrl+F`, `F5` y `Ctrl+Enter`; y visualización centrada en excepciones. Los filtros son solo visuales y no eliminan ni reducen silenciosamente los registros o proyectos. Se excluyen deliberadamente los contadores laterales y el empaquetado `.exe`. Ver `UX_FINAL_20260922.md`.
@@ -52,7 +56,7 @@ El estado vigente es una aplicación Windows con cinco áreas:
 4. **Configuración**: umbrales, textos, plantillas de correo, contactos, alias, Outlook y matrices Word.
 5. **Enviados**: consulta Outlook en modo solo lectura y permite exportar resultados.
 
-El producto sigue siendo **candidato a aceptación**, no una release productiva institucional. Falta la aceptación formal con Excel 2010/Outlook clásico y resolver un conflicto sustantivo DCE.
+El producto es **candidata funcional congelada**, validada en el flujo principal por el usuario. No es todavía una release 1.0 productiva: quedan casos institucionales específicos, el conflicto DCE, matrices Tomé y la fase breve de uso cotidiano.
 
 ---
 
