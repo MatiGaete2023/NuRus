@@ -85,13 +85,15 @@ def resolution_selection_source(work,row,kind):
     return 'Sugerencia automática revisable'
 
 def reviewed_resolution_ids(work):
-    """Devuelve None si RES no fue usado; si fue usado, la selección humana es autoritativa."""
-    explicit=False;selected=set()
+    """None si la planilla no tenía RES; si existe, incluso vacío, manda la selección humana."""
+    explicit=any('RES' in (row.review or {}) for row in work.rows)
+    if not explicit:return None
+    selected=set()
     for row in work.rows:
-        if 'RES' not in row.review or not _has_explicit_value(row.review.get('RES')):continue
-        explicit=True
-        if resolution_marked(row.review.get('RES')):selected.add(row.id)
-    return selected if explicit else None
+        if 'RES' not in (row.review or {}):continue
+        value=row.review.get('RES')
+        if _has_explicit_value(value) and resolution_marked(value):selected.add(row.id)
+    return selected
 
 
 def observation_resolution_kind(row):
