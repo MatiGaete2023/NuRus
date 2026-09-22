@@ -177,3 +177,12 @@ def test_res_categorical_values_and_legacy_marks_are_distinguished():
     legacy=_row('legacy','Se remite proyecto de resolución pidiendo cuenta respecto del informe.',[],'X')
     work=_fake_work([legacy])
     assert resolution_selection_source(work,legacy,'PC_INFO')=='RES antiguo · tipo inferido'
+
+
+def test_blank_res_column_explicitly_means_no_project():
+    from nurus.personal.resolutions import reviewed_resolution_ids
+    row=_row('r1','Se remite proyecto de resolución pidiendo cuenta respecto del ingreso efectivo.',['PC_IE'])
+    row.review={'RES':''}
+    work=_fake_work([row])
+    assert reviewed_resolution_ids(work)==set()
+    assert automatic_project_selections(work,'PC_IE')==[]
