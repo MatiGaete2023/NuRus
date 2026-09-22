@@ -1,6 +1,6 @@
 # RES categórico y cierre de Resoluciones — 22 de septiembre de 2026
 
-Versión: **0.4.0.dev10**.
+Introducido en **0.4.0.dev10** y vigente en **0.4.0.dev11**.
 
 ## Decisión
 
