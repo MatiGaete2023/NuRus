@@ -187,8 +187,11 @@ class App(_BaseApp):
         if not self.work:return
         self.mode.set(self.work.mode);self.file.set(self.work.path);self.observation_id=None
         self.observation_editor.delete('1.0','end')
-        self.records.delete(*self.records.get_children())
-        if reset_projects:self.words.delete(*self.words.get_children())
+        for iid in list(getattr(self,'_work_all_iids',self.records.get_children())):
+            if self.records.exists(iid):self.records.delete(iid)
+        if reset_projects:
+            for iid in list(getattr(self,'_resolution_all_iids',self.words.get_children())):
+                if self.words.exists(iid):self.words.delete(iid)
         fallback_kind=(kind_code(self.manual_word.get()) if hasattr(self,'manual_word') else 'PC_IE') or 'PC_IE'
         selections=unique_case_selections(self.work,automatic_project_selections(self.work,fallback_kind))
         resolution_ids={rid for rid,_ in selections}
@@ -230,7 +233,8 @@ class App(_BaseApp):
         return normalize(values[1]),normalize(values[0]),kind_code(values[2]) or str(values[2]).strip().upper()
 
     def _existing_project_iid(self,key,exclude=None):
-        for iid in self.words.get_children():
+        for iid in getattr(self,'_resolution_all_iids',self.words.get_children()):
+            if not self.words.exists(iid):continue
             if iid==exclude:continue
             values=self.words.item(iid,'values')
             if len(values)>=3 and self._visible_project_key(values)==key:return iid
