@@ -1,27 +1,18 @@
-# Verificación vigente — CSMP Assistant personal 0.4.0.dev10
+# Verificación vigente — CSMP Assistant personal 0.4.0.dev11
 
-Estado: **candidato dev10 validado por CI Windows**. El cambio final incorpora `RES` categórico, validación Excel y origen visible en Resoluciones.
+Estado: **CI de dev11 pendiente de cierre**. Esta iteración modifica únicamente experiencia de usuario y documentación; no agrega `.exe` ni cambia los invariantes Office/RUS.
 
-## Evidencia vigente
+Base previa acreditada: dev10, commit `8546dab08ae9976c2e0f26810e2e49d5fee30ced`, run `35729404913`: Windows Python 3.12/3.13/3.14 success, 256 passed y 1 skipped por versión, smoke CustomTkinter y construcción de distribución Windows correctos.
 
-Commit funcional y contrato: `8546dab08ae9976c2e0f26810e2e49d5fee30ced`. GitHub Actions run `35729404913`: **success** en Windows con Python 3.12, 3.13 y 3.14.
+Dev11 debe comprobar además:
+- búsqueda y filtros no destructivos en Trabajo y Resoluciones;
+- búsqueda por campos no visibles como nombre y RUT;
+- descripciones legibles de PC_IE, PC_INFO y NOMENCL sin cambiar los códigos internos;
+- origen visual de resoluciones y ajuste manual;
+- barra de contexto persistente;
+- acceso a carpeta de salida;
+- atajos Ctrl+O, Ctrl+F, F5 y Ctrl+Enter;
+- interfaz utilizable a 1024×650, con capturas adicionales de Trabajo y Resoluciones;
+- distribución Windows dev11 correctamente referenciada.
 
-Resultados:
-- Python 3.12: **256 passed, 1 skipped**; smoke CustomTkinter correcto; construcción de distribución Windows correcta.
-- Python 3.13: **256 passed, 1 skipped**.
-- Python 3.14: **256 passed, 1 skipped**.
-
-Dev10 comprueba:
-- desplegable `PC_IE / PC_INFO / NOMENCL` en la columna RES de las copias nuevas;
-- `RES` vacío como decisión autoritativa de no generar proyecto al reimportar una copia revisada;
-- lectura compatible de marcas antiguas como `1` o `X`;
-- advertencia por valores RES desconocidos, sin corrección automática;
-- etiqueta `Definido en RES` cuando el tipo es explícito;
-- ajuste manual en Resoluciones preservado como corrección final;
-- invariantes existentes de Excel, Outlook solo borradores, Word y configuración.
-
-Python 3.12 también produjo las capturas de interfaz `CSMP-Windows-interface`. El job construyó la distribución `CSMP-Windows-dev10` y los tres wheels del paquete.
-
-## Límites
-
-CI usa Windows Server y datos sintéticos. No acredita todavía Excel 2010 ni Outlook clásico con cuenta/firma institucional, corrección jurídica de cada proyecto ni ahorro real de tiempo. Esos puntos siguen en `ACEPTACION_CSMP_PERSONAL.md`. El producto no envía correos y no escribe en RUS/SATURNO.
+La aceptación con Excel 2010 y Outlook institucional sigue definida en `ACEPTACION_CSMP_PERSONAL.md`.
