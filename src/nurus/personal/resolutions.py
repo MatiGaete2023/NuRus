@@ -16,6 +16,25 @@ from .outputs import value,word_values,template_variables,fill_docx
 
 
 KINDS=('PC_IE','PC_INFO','NOMENCL')
+KIND_LABELS={
+    'PC_IE':'PC_IE — Pide cuenta ingreso efectivo',
+    'PC_INFO':'PC_INFO — Pide cuenta informe',
+    'NOMENCL':'NOMENCL — Nomenclatura',
+}
+
+
+def kind_code(value):
+    raw=str(value or '').strip()
+    upper=raw.upper()
+    for code in KINDS:
+        if upper==code or upper.startswith(code+' ' ) or upper.startswith(code+' —') or upper.startswith(code+' -'):
+            return code
+    return resolution_kind(value)
+
+
+def kind_label(value):
+    code=kind_code(value)
+    return KIND_LABELS.get(code, str(value or ''))
 
 
 @dataclass
