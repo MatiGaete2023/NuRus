@@ -132,7 +132,7 @@ class _Words:
     def item(self,iid,what): return {'values':self.data[iid]}[what]
     def delete(self,iid): self.data.pop(iid)
     def exists(self,iid): return iid in self.data
-    def insert(self,parent,where,iid,values): self.data[iid]=list(values)
+    def insert(self,parent,where,iid,values,tags=()): self.data[iid]=list(values)
     def selection_set(self,items): self.selected=tuple(items)
     def get_children(self): return tuple(self.data)
 
