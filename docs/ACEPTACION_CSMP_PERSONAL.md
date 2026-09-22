@@ -1,4 +1,4 @@
-# Aceptación institucional — CSMP Assistant personal 0.4.0.dev10
+# Aceptación institucional — CSMP Assistant personal 0.4.0.dev11
 
 Estado al 22 de septiembre de 2026: **PENDIENTE**. No hay resultados institucionales formalmente registrados todavía. Usar copias autorizadas y no enviar mensajes durante la prueba.
 
@@ -18,6 +18,7 @@ Responsable: ______ Fecha: ______ PC/Windows: ______ Python: ______ Excel: _____
 | ACEP-10 | Generar Word Laja/Mulchén | Un Word; una resolución por grupo tribunal/RIT/tipo; varios NNA junto a su cédula; saltos de página; fechas en palabras | Pendiente |
 | ACEP-11 | Matrices | Seis matrices Laja/Mulchén disponibles; Tomé se informa como faltante sin sustituto automático | Pendiente |
 | ACEP-12 | Enviados/estadísticas y reinicio | Consulta solo lectura, exportación correcta, sesión recuperable y tiempos/clics registrados | Pendiente |
+| ACEP-13 | UX final | Búsqueda por RIT/nombre/programa, filtros no destructivos, tipos RES legibles, barra de contexto, carpeta de salida y atajos funcionan a 1024×650 sin ocultar acciones críticas | Pendiente |
 
 Ante un error, registrar ID, operación, mensaje completo, versión/commit y archivo de prueba; conservar original y salida. Ante guardado Outlook incierto, revisar Borradores antes de repetir.
 
