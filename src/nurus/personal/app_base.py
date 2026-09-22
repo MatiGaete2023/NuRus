@@ -20,6 +20,7 @@ from .outputs import create_draft, import_contacts
 from .resolutions import KINDS, KIND_LABELS, kind_code, kind_label, prepare_projects, generate_projects, automatic_project_selections
 from .importing import SheetChoice
 from nurus.rus.reader import list_workbook_sheets
+from nurus.rus.columns import normalize
 from nurus.adapters.sent_mail import count_sent_mail, export_sent_report
 
 class App(ctk.CTk):
