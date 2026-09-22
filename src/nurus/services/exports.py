@@ -22,6 +22,9 @@ class ExportError(ValueError):
     pass
 
 
+RESOLUTION_TYPES = ("PC_IE", "PC_INFO", "NOMENCL")
+
+
 @dataclass(frozen=True)
 class ExportResult:
     path: Path
@@ -270,6 +273,31 @@ def _reviewed_fields(record: dict) -> dict[str, object]:
     }
 
 
+def _portable_resolution_validation(sheet, column: int, first_row: int, last_row: int) -> None:
+    """Lista cerrada para RES; Excel 2010 la muestra como desplegable y permite vacío."""
+    if last_row < first_row:
+        return
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    letter = get_column_letter(column)
+    validation = DataValidation(
+        type="list",
+        formula1='"' + ','.join(RESOLUTION_TYPES) + '"',
+        allow_blank=True,
+        errorStyle="stop",
+        errorTitle="Tipo RES no válido",
+        error="Usa PC_IE, PC_INFO o NOMENCL, o deja la celda vacía.",
+        promptTitle="Tipo de resolución",
+        prompt="Selecciona PC_IE, PC_INFO o NOMENCL. Vacío significa que no corresponde proyecto.",
+        showErrorMessage=True,
+        showInputMessage=True,
+    )
+    sheet.add_data_validation(validation)
+    validation.add(f"{letter}{first_row}:{letter}{last_row}")
+    current = sheet.column_dimensions[letter].width or 0
+    sheet.column_dimensions[letter].width = max(current, 14)
+
 def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
     from copy import copy
 
@@ -331,6 +359,7 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
 
         sheet.column_dimensions[get_column_letter(columns["NURUS_REGLAS"])].hidden = True
         first_data_row = header_row + 1
+        _portable_resolution_validation(sheet, columns["RES"], first_data_row, source_last_row)
         last_column = max(sheet.max_column, state_column)
         status_letter = get_column_letter(state_column)
         highlight = FormulaRule(
@@ -372,6 +401,28 @@ def _native_write_column(sheet, column: int, updates: list[tuple[int, object]], 
                 region.NumberFormat = "@"
                 region.Value2 = tuple((value,) for _, value in block)
 
+
+def _native_resolution_validation(app, sheet, column: int, first_row: int, last_row: int) -> None:
+    """Crea el desplegable RES con el separador local de Excel, incluido Excel 2010."""
+    if last_row < first_row:
+        return
+    region = sheet.Range(sheet.Cells(first_row, column), sheet.Cells(last_row, column))
+    try:
+        region.Validation.Delete()
+    except Exception:
+        pass
+    separator = str(app.International(5) or ',')
+    formula = separator.join(RESOLUTION_TYPES)
+    region.Validation.Add(3, 1, 1, formula)
+    region.Validation.IgnoreBlank = True
+    region.Validation.InCellDropdown = True
+    region.Validation.ShowError = True
+    region.Validation.ErrorTitle = "Tipo RES no válido"
+    region.Validation.ErrorMessage = "Usa PC_IE, PC_INFO o NOMENCL, o deja la celda vacía."
+    region.Validation.ShowInput = True
+    region.Validation.InputTitle = "Tipo de resolución"
+    region.Validation.InputMessage = "Selecciona PC_IE, PC_INFO o NOMENCL. Vacío: sin proyecto."
+    sheet.Columns(column).ColumnWidth = max(float(sheet.Columns(column).ColumnWidth or 0), 14)
 
 def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
     import platform
@@ -468,6 +519,9 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             _native_write_column(sheet, columns[title], updates,
                                  keep_existing=stage == "proposal" and title == "OBSERVACION")
         sheet.Columns(columns["NURUS_REGLAS"]).Hidden = True
+
+        operation = "configurar selector RES"
+        _native_resolution_validation(app, sheet, columns["RES"], header_row + 1, last_row)
 
         operation = "marcar filas excluidas"
         last_column = max(used_last, *columns.values())
