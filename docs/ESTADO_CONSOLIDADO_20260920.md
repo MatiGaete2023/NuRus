@@ -14,6 +14,10 @@ Este documento reemplaza como **estado de navegación** a los resúmenes parcial
 
 La revisión final de Resoluciones reemplaza el uso recomendado de números en `RES` por tres valores explícitos: `PC_IE`, `PC_INFO` y `NOMENCL`. Las copias nuevas presentan lista desplegable compatible con Excel; vacío significa sin proyecto. El lector conserva marcas antiguas (`1`, `X`, etc.) para no romper planillas anteriores. Un valor escrito pero desconocido produce advertencia visible y no se adivina. En Resoluciones se diferencia `Definido en RES`, compatibilidad antigua y sugerencia automática; un cambio manual queda marcado como ajuste en la interfaz. Ver `RES_CATEGORICO_20260922.md`.
 
+### Cierre de verificación dev10
+
+Commit `8546dab08ae9976c2e0f26810e2e49d5fee30ced`, GitHub Actions run `35729404913`: **success** en Windows Python 3.12/3.13/3.14, con **256 passed, 1 skipped** en cada versión. Python 3.12 aprobó además el smoke CustomTkinter y construyó la distribución Windows dev10.
+
 ## Checkpoint anterior — panel y correos dev9
 
 Se integra CustomTkinter (dependencia nueva en el entorno aislado Windows), navegación lateral y tarjetas de borradores con datos reales. Destinatarios y filtro de tribunal se separan: solo programas, solo tribunales o ambos. `Preparar todos` mantiene la naturaleza de cada comunicación: `programa_*` va a programas; el informativo general y `medidas` van a tribunales. La migración de correos revisión 3 recupera el texto del manual de Informes por vencer sin reemplazar textos personales. No existe botón Enviar; solo guardar uno/todos. Se conserva la limpieza dev8 validada en `bab202e9533e88b5130a277f01b90b816e98940e`, run `35620647820`. El cierre dev9 está validado en `c262321e227302cc9349061a941c06af29879219`, run `35646164874`: Windows 3.12/3.13/3.14 success, 254 passed y 1 skipped por versión, smoke CustomTkinter y distribución dev9 correctos. Los pendientes institucionales continúan.
@@ -505,8 +509,8 @@ D07. Revisión humana por excepción, sin aprobación fila por fila.
 
 [G-ESTADO]
 Versión: 0.4.0.dev10.
-CI vigente: run 35646164874, Windows 3.12/3.13/3.14 verde;
-254 passed, 1 skipped por versión; smoke CustomTkinter y distribución Windows OK en 3.12.
+CI vigente: run 35729404913, Windows 3.12/3.13/3.14 verde;
+256 passed, 1 skipped por versión; smoke CustomTkinter y construcción de distribución Windows OK en 3.12.
 Código transitorio e interfaz NuRus paralela eliminados.
 Excel preservado, correos con alcance programa/tribunal, Word, configuración y Enviados integrados.
 
