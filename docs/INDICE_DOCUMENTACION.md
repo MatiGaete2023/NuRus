@@ -1,9 +1,10 @@
 # Índice y vigencia de documentación
 
-Actualizado: 22 de septiembre de 2026. Versión vigente: **0.4.0.dev10**.
+Actualizado: 22 de septiembre de 2026. Versión vigente: **0.4.0.dev11**.
 
 ## Documentos vigentes para CSMP Assistant personal
 
+- `UX_FINAL_20260922.md`: pulido final de búsqueda, filtros, contexto, atajos y visualización por excepción.
 - `RES_CATEGORICO_20260922.md`: cierre funcional de `RES` como tipo explícito, validación, compatibilidad y UX de Resoluciones.
 - `PANEL_CORREOS_20260921.md`: panel oscuro dev9, alcance de destinatarios, plantilla del manual y verificación.
 - `LIMPIEZA_ASISTENTE_20260921.md`: auditoría dev8, código retirado, errores corregidos y verificación.
@@ -25,7 +26,7 @@ Actualizado: 22 de septiembre de 2026. Versión vigente: **0.4.0.dev10**.
 - `CAMBIOS_USO_20260914.md`: estado consolidado de la versión 0.4.0.dev5 al 14-09-2026. Se conserva como trazabilidad y no describe la release vigente.
 - Los documentos fechados entre el 8 y el 13 de septiembre (`AUDITORIA_*`, `CHECKPOINT_*`, `REVISION_*`, `EJECUCION_*`, `RENDIMIENTO_*`, `README_NURUS_DEV7.md`, `INSTALACION_Y_EXCEPCION_*` y equivalentes) describen estados anteriores. Se conservan para trazabilidad y **no sustituyen** los documentos vigentes anteriores.
 
-Referencias históricas a CI Linux, versiones dev1/dev2/dev6/dev7 anteriores, excepción obligatoria de cruce o arquitecturas previas deben interpretarse dentro de su fecha. La coincidencia del identificador “dev6” con documentación histórica no convierte aquella documentación en vigente: la release actual se identifica por el paquete 0.4.0.dev10 y el SHA registrado en `VERIFICACION_PERSONAL.md`.
+Referencias históricas a CI Linux, versiones dev1/dev2/dev6/dev7 anteriores, excepción obligatoria de cruce o arquitecturas previas deben interpretarse dentro de su fecha. La coincidencia del identificador “dev6” con documentación histórica no convierte aquella documentación en vigente: la release actual se identifica por el paquete 0.4.0.dev11 y el SHA registrado en `VERIFICACION_PERSONAL.md`.
 
 La rama `revision-producto-csmp-2026-09-13` conserva una auditoría documental independiente del 13-09; sus conclusiones relevantes están incorporadas en `ESTADO_CONSOLIDADO_20260920.md` y no requieren fusionar su runtime.
 
