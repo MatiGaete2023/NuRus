@@ -1,6 +1,6 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev12** en rama de evolución UX/reglas. Parte desde la candidata funcional congelada **0.4.0.dev11** y aplica únicamente cambios expresamente aprobados. La referencia de implementación y límites está en [`docs/EVOLUCION_UX_REGLAS_20260922.md`](docs/EVOLUCION_UX_REGLAS_20260922.md). Dev11 permanece como checkpoint funcional previo hasta que dev12 complete CI y prueba real.
+Versión **0.4.0.dev12** en rama de evolución UX/reglas, actualizada el 22 de septiembre de 2026. Parte desde la candidata funcional congelada **0.4.0.dev11** y aplica únicamente cambios expresamente aprobados. La referencia de implementación y límites está en [`docs/EVOLUCION_UX_REGLAS_20260922.md`](docs/EVOLUCION_UX_REGLAS_20260922.md). Dev11 permanece como checkpoint funcional previo hasta que dev12 complete CI y prueba real.
 
 ## Estado de congelamiento
 
