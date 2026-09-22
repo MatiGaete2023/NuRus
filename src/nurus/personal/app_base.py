@@ -170,7 +170,7 @@ class App(ctk.CTk):
     @staticmethod
     def _tree_text(tree,iid,extra=''):
         values=tree.item(iid,'values')
-        return ' '.join([str(extra or ''),*(str(value or '') for value in values)]).casefold()
+        return normalize(' '.join([str(extra or ''),*(str(value or '') for value in values)]))
 
     @staticmethod
     def _show_tree_item(tree,iid):
@@ -178,7 +178,7 @@ class App(ctk.CTk):
 
     def _apply_work_filter(self,*_):
         if not hasattr(self,'records'):return
-        search=(self.work_search.get() if hasattr(self,'work_search') else '').strip().casefold()
+        search=normalize(self.work_search.get() if hasattr(self,'work_search') else '')
         mode=self.work_filter.get() if hasattr(self,'work_filter') else 'Todos'
         for iid in list(getattr(self,'_work_all_iids',[])):
             if not self.records.exists(iid):continue
@@ -193,7 +193,7 @@ class App(ctk.CTk):
 
     def _apply_resolution_filter(self,*_):
         if not hasattr(self,'words'):return
-        search=(self.resolution_search.get() if hasattr(self,'resolution_search') else '').strip().casefold()
+        search=normalize(self.resolution_search.get() if hasattr(self,'resolution_search') else '')
         mode=self.resolution_filter.get() if hasattr(self,'resolution_filter') else 'Todos'
         for iid in list(getattr(self,'_resolution_all_iids',[])):
             if not self.words.exists(iid):continue
