@@ -51,3 +51,56 @@ class NamedChoice(ttk.Combobox):
         index = self.current()
         if index >= 0:
             self.keyvariable.set(self.keys[index])
+
+
+class CaseDetailPanel(ctk.CTkFrame):
+    """Panel reutilizable y compacto de contexto de causa."""
+    def __init__(self,parent,title='Detalle de causa',**kwargs):
+        super().__init__(parent,fg_color=ttk.FIELD,corner_radius=8,border_width=1,border_color='#394451',**kwargs)
+        self.grid_columnconfigure(0,weight=1)
+        ctk.CTkLabel(self,text=title,font=('Segoe UI',13,'bold'),anchor='w').grid(row=0,column=0,sticky='ew',padx=10,pady=(7,2))
+        self.variable=tk.StringVar(value='Selecciona un registro.')
+        ctk.CTkLabel(self,textvariable=self.variable,anchor='w',justify='left',wraplength=560,text_color=ttk.MUTED).grid(row=1,column=0,sticky='ew',padx=10,pady=(0,8))
+
+    def set_text(self,text):
+        self.variable.set(str(text or 'Selecciona un registro.'))
+
+
+class ComparisonPanel(ctk.CTkFrame):
+    """Comparación simple; la pantalla decide cuándo mostrarla."""
+    def __init__(self,parent,**kwargs):
+        super().__init__(parent,fg_color=ttk.FIELD,corner_radius=8,border_width=1,border_color='#394451',**kwargs)
+        self.grid_columnconfigure((0,1),weight=1)
+        ctk.CTkLabel(self,text='Original / propuesta del motor',font=('Segoe UI',12,'bold')).grid(row=0,column=0,sticky='w',padx=8,pady=(6,2))
+        ctk.CTkLabel(self,text='Versión editada / final',font=('Segoe UI',12,'bold')).grid(row=0,column=1,sticky='w',padx=8,pady=(6,2))
+        self.original=ctk.CTkTextbox(self,height=86,wrap='word',fg_color=ttk.PANEL)
+        self.edited=ctk.CTkTextbox(self,height=86,wrap='word',fg_color=ttk.PANEL)
+        self.original.grid(row=1,column=0,sticky='nsew',padx=(8,4),pady=(0,8))
+        self.edited.grid(row=1,column=1,sticky='nsew',padx=(4,8),pady=(0,8))
+        for box in (self.original,self.edited):box.configure(state='disabled')
+
+    def set_pair(self,original,edited):
+        for box,text in ((self.original,original),(self.edited,edited)):
+            box.configure(state='normal');box.delete('1.0','end');box.insert('1.0',str(text or ''));box.configure(state='disabled')
+
+
+class Tooltip:
+    """Tooltip mínimo; no altera el foco ni la acción del control."""
+    def __init__(self,widget,text):
+        self.widget=widget;self.text=text;self.tip=None
+        widget.bind('<Enter>',self._show,add='+');widget.bind('<Leave>',self._hide,add='+')
+
+    def _show(self,event=None):
+        if self.tip or not self.text:return
+        try:
+            x=self.widget.winfo_rootx()+16;y=self.widget.winfo_rooty()+self.widget.winfo_height()+4
+            self.tip=tk.Toplevel(self.widget);self.tip.wm_overrideredirect(True);self.tip.wm_geometry(f'+{x}+{y}')
+            tk.Label(self.tip,text=self.text,justify='left',background='#fffbe6',foreground='#202020',relief='solid',borderwidth=1,font=('Segoe UI',9)).pack(ipadx=6,ipady=4)
+        except tk.TclError:
+            self.tip=None
+
+    def _hide(self,event=None):
+        if self.tip:
+            try:self.tip.destroy()
+            except tk.TclError:pass
+            self.tip=None
