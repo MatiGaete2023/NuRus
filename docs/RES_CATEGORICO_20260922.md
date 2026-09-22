@@ -11,7 +11,7 @@ La columna humana `RES` deja de recomendar números para las copias nuevas y pas
 - `PC_INFO`: pide cuenta por informe;
 - `NOMENCL`: proyecto de nomenclatura.
 
-La copia Excel generada agrega una lista desplegable compatible con Excel 2010. La decisión humana de `RES` tiene prioridad sobre la inferencia desde observación o regla.
+La copia Excel generada agrega una lista desplegable compatible con Excel 2010. Al volver a incorporar una copia que contiene la columna `RES`, esa columna es autoritativa incluso si todas sus celdas están vacías: vacío significa expresamente que no corresponde proyecto. La decisión humana de `RES` tiene prioridad sobre la inferencia desde observación o regla.
 
 ## Compatibilidad
 
