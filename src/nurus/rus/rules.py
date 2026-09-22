@@ -202,6 +202,16 @@ def _curator_and_heard(
     return fragments, ids
 
 
+def _split_curator_and_heard(fragments: list[str], ids: list[str]) -> tuple[list[str], list[str], list[str], list[str]]:
+    heard_fragments, heard_ids, curator_fragments, curator_ids = [], [], [], []
+    for fragment, rule_id in zip(fragments, ids):
+        if rule_id == "T-02":
+            heard_fragments.append(fragment); heard_ids.append(rule_id)
+        else:
+            curator_fragments.append(fragment); curator_ids.append(rule_id)
+    return heard_fragments, heard_ids, curator_fragments, curator_ids
+
+
 def _audience(
     record: SourceRecord,
     columns: Mapping[str, str],
@@ -233,11 +243,14 @@ def evaluate_waiting(
         fragments.append(render(catalog, "COMUN", "MAYORIA_EDAD", PNOMBRE=first, FECHA_MAYORIA=format_date(_adult_date(birth))))
         ids.append("E-02")
         extra, extra_ids = _curator_and_heard(record, columns, catalog, today, excel_epoch)
-        fragments += extra
-        ids += extra_ids
+        heard, heard_ids, curator, curator_ids = _split_curator_and_heard(extra, extra_ids)
+        fragments += heard
+        ids += heard_ids
         audience, audience_ids = _audience(record, columns, catalog, today, excel_epoch)
         fragments += audience
         ids += audience_ids
+        fragments += curator
+        ids += curator_ids
         return _compose(prefix(row, columns), fragments), tuple(ids), tuple(issues)
     if birth and 1 <= (_adult_date(birth) - today).days <= 60:
         fragments.append(render(catalog, "COMUN", "PROXIMA_MAYORIA", PNOMBRE=first, FECHA_MAYORIA=format_date(_adult_date(birth))))
@@ -272,11 +285,14 @@ def evaluate_waiting(
         fragments.append(render(catalog, "ESPERA", "E06_SIN_RESOLUCION", PROGRAMA=program_title(program)))
         ids.append("E-06")
     extra, extra_ids = _curator_and_heard(record, columns, catalog, today, excel_epoch)
-    fragments += extra
-    ids += extra_ids
+    heard, heard_ids, curator, curator_ids = _split_curator_and_heard(extra, extra_ids)
+    fragments += heard
+    ids += heard_ids
     audience, audience_ids = _audience(record, columns, catalog, today, excel_epoch)
     fragments += audience
     ids += audience_ids
+    fragments += curator
+    ids += curator_ids
     return _compose(prefix(row, columns), fragments), tuple(ids), tuple(issues)
 
 
@@ -329,11 +345,14 @@ def evaluate_compliance(
         fragments.append(render(catalog, "COMUN", "MAYORIA_EDAD", PNOMBRE=first, FECHA_MAYORIA=format_date(_adult_date(birth))))
         ids.append("C-01")
         extra, extra_ids = _curator_and_heard(record, columns, catalog, today, excel_epoch)
-        fragments += extra
-        ids += extra_ids
+        heard, heard_ids, curator, curator_ids = _split_curator_and_heard(extra, extra_ids)
+        fragments += heard
+        ids += heard_ids
         audience, audience_ids = _audience(record, columns, catalog, today, excel_epoch)
         fragments += audience
         ids += audience_ids
+        fragments += curator
+        ids += curator_ids
         return _compose(prefix(row, columns), fragments), tuple(ids), tuple(issues)
 
     if birth and 1 <= (_adult_date(birth) - today).days <= 60:
@@ -394,8 +413,14 @@ def evaluate_compliance(
         principal = True
 
     extra, extra_ids = _curator_and_heard(record, columns, catalog, today, excel_epoch)
-    fragments += extra
-    ids += extra_ids
+    heard, heard_ids, curator, curator_ids = _split_curator_and_heard(extra, extra_ids)
+    fragments += heard
+    ids += heard_ids
+    audience, audience_ids = _audience(record, columns, catalog, today, excel_epoch)
+    fragments += audience
+    ids += audience_ids
+    fragments += curator
+    ids += curator_ids
 
     program_normalized = normalize(program)
     individual_column = columns.get("ficha_ind")
@@ -423,15 +448,7 @@ def evaluate_compliance(
             fragments.append(render(catalog, "CUMPLIMIENTO", "C08_FICHA_FAE", PNOMBRE=first))
             ids.append("C-08")
 
-    audience, audience_ids = _audience(record, columns, catalog, today, excel_epoch)
-    fragments += audience
-    ids += audience_ids
-
-    if not principal and not issues:
-        if fragments:
-            fragments.insert(0, render(catalog, "CUMPLIMIENTO", "C09_BASE_BREVE"))
-            ids.insert(0, "C-09")
-        else:
-            fragments.append(render(catalog, "CUMPLIMIENTO", "C09_SIN_OBSERVACIONES"))
-            ids.append("C-09")
+    if not principal and not issues and not fragments:
+        fragments.append(render(catalog, "CUMPLIMIENTO", "C09_SIN_OBSERVACIONES"))
+        ids.append("C-09")
     return _compose(prefix(row, columns), fragments), tuple(ids), tuple(issues)
