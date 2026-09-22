@@ -565,8 +565,14 @@ class App(ctk.CTk):
         self._run('Generando un Word con los proyectos…',lambda:generate_projects(work,projects,path),done)
 
     def _config_page(self):
-        page=self.pages['Configuración'];nb=ttk.Notebook(page);nb.pack(fill='both',expand=True)
-        params_scroll=ScrollPane(nb);nb.add(params_scroll,text='Reglas y umbrales');params=params_scroll.body
+        page=self.pages['Configuración']
+        level=ttk.Notebook(page);level.pack(fill='both',expand=True)
+        basic=ttk.Frame(level,padding=5);advanced=ttk.Frame(level,padding=5)
+        level.add(basic,text='Básico');level.add(advanced,text='Avanzado')
+        basic_nb=ttk.Notebook(basic);basic_nb.pack(fill='both',expand=True)
+        advanced_nb=ttk.Notebook(advanced);advanced_nb.pack(fill='both',expand=True)
+
+        params_scroll=ScrollPane(basic_nb);basic_nb.add(params_scroll,text='Parámetros');params=params_scroll.body
         self.param_vars={}
         for i,(key,number) in enumerate(self.cfg.data['umbrales'].items()):
             var=tk.StringVar(value=str(number));self.param_vars[key]=var
@@ -577,14 +583,8 @@ class App(ctk.CTk):
         for i,key in enumerate(['COMUN.CURADOR','COMUN.OIDO','COMUN.PROX_AUDIENCIA','COMUN.PROXIMA_MAYORIA']):
             v=tk.BooleanVar(value=key not in self.cfg.data['desactivadas']);self.disabled[key]=v
             ttk.Checkbutton(params,text='Advertir '+key.split('.')[1].replace('_',' ').lower(),variable=v).grid(row=9+i,column=0,columnspan=4,sticky='w')
-        texts=ttk.Frame(nb,padding=8);nb.add(texts,text='Observaciones')
-        keys=[s+'.'+k for s,d in self.cfg.data['textos'].items() if not s.startswith('_') for k in d]
-        self.text_key=tk.StringVar(value=keys[0]);box=ttk.Combobox(texts,textvariable=self.text_key,values=keys,state='readonly',width=55);box.pack(anchor='w');box.bind('<<ComboboxSelected>>',self._load_text)
-        self.text_variable=tk.StringVar();self.text_variables=ttk.Combobox(texts,textvariable=self.text_variable,state='readonly',width=28);self.text_variables.pack(anchor='w',pady=3)
-        ttk.Button(texts,text='Insertar variable en el texto',command=lambda:self.text_editor.insert('insert',self.text_variable.get())).pack(anchor='w')
-        self.text_editor=ScrolledText(texts,wrap='word',undo=True,font=('Segoe UI',11));self.text_editor.pack(fill='both',expand=True,pady=6)
-        ttk.Button(texts,text='Guardar texto · También se guarda al cambiar de regla',command=lambda:self._guard(self._save_text)).pack(anchor='w');self._load_text()
-        mail=ttk.Frame(nb,padding=8);nb.add(mail,text='Plantillas correo')
+
+        mail=ttk.Frame(basic_nb,padding=8);basic_nb.add(mail,text='Plantillas correo')
         self.tpl_key=tk.StringVar(value='espera');box=NamedChoice(mail,keyvariable=self.tpl_key,names=lambda:{k:v['nombre'] for k,v in self.cfg.data['correos']['plantillas'].items()},state='readonly',width=35);box.grid(row=0,column=0);box.bind('<<ComboboxSelected>>',self._load_tpl)
         self.tpl_name=tk.StringVar();self.tpl_subject=tk.StringVar();self.tpl_req=tk.BooleanVar();self.tpl_modes=tk.BooleanVar()
         self._field(mail,'Nombre',self.tpl_name,1);self._field(mail,'Asunto',self.tpl_subject,2)
@@ -599,7 +599,8 @@ class App(ctk.CTk):
         ttk.Label(mail,text='Los cambios se guardan también al cambiar de plantilla o cerrar.').grid(row=7,column=0,columnspan=2,sticky='w')
         self.tpl_box=box
         ttk.Button(mail,text='Nueva plantilla',command=lambda:self._guard(self._new_tpl)).grid(row=5,column=1,sticky='w');self._load_tpl()
-        contacts=ttk.Frame(nb,padding=8);nb.add(contacts,text='Contactos y alias')
+
+        contacts=ttk.Frame(basic_nb,padding=8);basic_nb.add(contacts,text='Contactos')
         self.contact_name=tk.StringVar();self.contact_mail=tk.StringVar();self.contact_alias=tk.StringVar()
         self._field(contacts,'Programa / tribunal',self.contact_name,0);self._field(contacts,'Correos (; separados)',self.contact_mail,1);self._field(contacts,'Alias opcional',self.contact_alias,2)
         ttk.Button(contacts,text='Guardar contacto',command=lambda:self._guard(self._save_contact)).grid(row=3,column=0)
@@ -608,20 +609,32 @@ class App(ctk.CTk):
         self.contact_list.bind('<<ListboxSelect>>',self._select_contact)
         ttk.Button(contacts,text='Eliminar contacto seleccionado',command=lambda:self._guard(self._delete_contact)).grid(row=5,column=0)
         self._list_contacts()
-        office=ttk.Frame(nb,padding=8);nb.add(office,text='Word y Outlook')
+
+        office=ttk.Frame(basic_nb,padding=8);basic_nb.add(office,text='Outlook y CC')
         self.account=tk.StringVar(value=self.cfg.data.get('cuenta_outlook',''));self.signature=tk.StringVar(value=self.cfg.data.get('firma',''));self.additional=tk.StringVar(value=self.cfg.data['correos'].get('cc_adicional',''))
         self._field(office,'Cuenta Outlook (vacío: predeterminada)',self.account,0);self._field(office,'Firma de texto adicional',self.signature,1);self._field(office,'CC adicional',self.additional,2)
         ttk.Label(office,text='Copia institucional siempre incluida: ucc_concepcion@pjud.cl').grid(row=3,column=0,columnspan=2,sticky='w',pady=10)
-        ttk.Button(office,text='Guardar Outlook',command=lambda:self._guard(self._save_office)).grid(row=4,column=0)
-        ttk.Button(office,text='Abrir plantillas Word',command=lambda:self._guard(lambda:self._open(self.template_dir))).grid(row=5,column=0,pady=12)
+        ttk.Button(office,text='Guardar Outlook y CC',command=lambda:self._guard(self._save_office)).grid(row=4,column=0)
+
+        texts=ttk.Frame(advanced_nb,padding=8);advanced_nb.add(texts,text='Textos de observación')
+        keys=[s+'.'+k for s,d in self.cfg.data['textos'].items() if not s.startswith('_') for k in d]
+        self.text_key=tk.StringVar(value=keys[0]);box=ttk.Combobox(texts,textvariable=self.text_key,values=keys,state='readonly',width=55);box.pack(anchor='w');box.bind('<<ComboboxSelected>>',self._load_text)
+        self.text_variable=tk.StringVar();self.text_variables=ttk.Combobox(texts,textvariable=self.text_variable,state='readonly',width=28);self.text_variables.pack(anchor='w',pady=3)
+        ttk.Button(texts,text='Insertar variable en el texto',command=lambda:self.text_editor.insert('insert',self.text_variable.get())).pack(anchor='w')
+        self.text_editor=ScrolledText(texts,wrap='word',undo=True,font=('Segoe UI',11));self.text_editor.pack(fill='both',expand=True,pady=6)
+        ttk.Button(texts,text='Guardar texto · También se guarda al cambiar de regla',command=lambda:self._guard(self._save_text)).pack(anchor='w');self._load_text()
+
+        matrices=ttk.Frame(advanced_nb,padding=8);advanced_nb.add(matrices,text='Matrices Word')
+        ttk.Button(matrices,text='Abrir plantillas Word',command=lambda:self._guard(lambda:self._open(self.template_dir))).grid(row=0,column=0,pady=12,sticky='w')
         self.word_court=tk.StringVar(value='LAJA');self.word_kind=tk.StringVar(value='PC_IE')
-        matrix=ttk.Frame(office);matrix.grid(row=8,column=0,columnspan=2,sticky='w',pady=5)
+        matrix=ttk.Frame(matrices);matrix.grid(row=2,column=0,columnspan=2,sticky='w',pady=5)
         ttk.Combobox(matrix,textvariable=self.word_court,values=['LAJA','MULCHEN','TOME'],state='readonly',width=12).pack(side='left')
-        ttk.Combobox(matrix,textvariable=self.word_kind,values=list(KINDS),state='readonly',width=12).pack(side='left',padx=4)
+        word_kind_box=ttk.Combobox(matrix,textvariable=self.word_kind,values=list(KINDS),state='readonly',width=12);word_kind_box.pack(side='left',padx=4)
+        Tooltip(word_kind_box,'PC_IE: '+RES_HELP['PC_IE']+'\nPC_INFO: '+RES_HELP['PC_INFO']+'\nNOMENCL: '+RES_HELP['NOMENCL'])
         ttk.Button(matrix,text='Editar matriz en Word',command=lambda:self._guard(lambda:self._open(self.template_dir/self.word_court.get()/(self.word_kind.get()+'.docx')))).pack(side='left')
         ttk.Button(matrix,text='Reemplazar matriz…',command=lambda:self._guard(self._import_word)).pack(side='left',padx=4)
-        ttk.Button(office,text='Importar paquete de plantillas ZIP',command=lambda:self._guard(self._import_templates_zip)).grid(row=7,column=0,pady=8)
-        ttk.Label(office,text='Carpetas LAJA, MULCHEN y TOME; tipos PC_IE.docx, PC_INFO.docx y NOMENCL.docx.',wraplength=640).grid(row=6,column=0,columnspan=2,sticky='w')
+        ttk.Button(matrices,text='Importar paquete de plantillas ZIP',command=lambda:self._guard(self._import_templates_zip)).grid(row=4,column=0,pady=8,sticky='w')
+        ttk.Label(matrices,text='Carpetas LAJA, MULCHEN y TOME; tipos PC_IE.docx, PC_INFO.docx y NOMENCL.docx.',wraplength=640).grid(row=3,column=0,columnspan=2,sticky='w')
 
     def _save_params(self):
         from copy import deepcopy
