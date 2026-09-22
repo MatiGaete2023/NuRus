@@ -402,18 +402,41 @@ def _native_write_column(sheet, column: int, updates: list[tuple[int, object]], 
                 region.Value2 = tuple((value,) for _, value in block)
 
 
-def _native_resolution_validation(app, sheet, column: int, first_row: int, last_row: int) -> None:
-    """Crea el desplegable RES con el separador local de Excel, incluido Excel 2010."""
+def _native_resolution_validation(book, sheet, column: int, first_row: int, last_row: int) -> None:
+    """Crea el desplegable RES sin depender del separador regional de Excel.
+
+    Excel 2010 admite una lista de validación basada en un nombre de libro.
+    La fuente vive en una hoja técnica oculta para evitar Application.International,
+    cuya exposición vía COM/pywin32 no es uniforme.
+    """
     if last_row < first_row:
         return
+
+    list_sheet_name = "NURUS_LISTAS"
+    list_name = "NURUS_RES_TIPOS"
+    try:
+        list_sheet = book.Worksheets(list_sheet_name)
+    except Exception:
+        list_sheet = book.Worksheets.Add()
+        list_sheet.Name = list_sheet_name
+
+    list_sheet.Visible = 0
+    list_sheet.Cells(1, 1).Value2 = "TIPOS_RES"
+    for index, value in enumerate(RESOLUTION_TYPES, start=2):
+        list_sheet.Cells(index, 1).Value2 = value
+
+    try:
+        book.Names(list_name).Delete()
+    except Exception:
+        pass
+    book.Names.Add(list_name, f"='{list_sheet_name}'!$A$2:$A$4")
+
     region = sheet.Range(sheet.Cells(first_row, column), sheet.Cells(last_row, column))
     try:
         region.Validation.Delete()
     except Exception:
         pass
-    separator = str(app.International(5) or ',')
-    formula = separator.join(RESOLUTION_TYPES)
-    region.Validation.Add(3, 1, 1, formula)
+    region.Validation.Add(3, 1, 1, f"={list_name}")
     region.Validation.IgnoreBlank = True
     region.Validation.InCellDropdown = True
     region.Validation.ShowError = True
@@ -521,7 +544,7 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         sheet.Columns(columns["NURUS_REGLAS"]).Hidden = True
 
         operation = "configurar selector RES"
-        _native_resolution_validation(app, sheet, columns["RES"], header_row + 1, last_row)
+        _native_resolution_validation(book, sheet, columns["RES"], header_row + 1, last_row)
 
         operation = "marcar filas excluidas"
         last_column = max(used_last, *columns.values())
