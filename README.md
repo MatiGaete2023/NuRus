@@ -1,6 +1,10 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev11**, estado consolidado al 22 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+Versión **0.4.0.dev11**, estado consolidado al 22 de septiembre de 2026. **Candidata funcional congelada** para uso cotidiano controlado; no se agregan nuevas funciones durante esta fase. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+
+## Estado de congelamiento
+
+La prueba real del 22-09 confirmó procesamiento/modificación de Excel, RES categórico, generación de resoluciones, creación/edición de borradores y parámetros. Ver [`docs/CONGELAMIENTO_CANDIDATA_20260922.md`](docs/CONGELAMIENTO_CANDIDATA_20260922.md). La próxima fase es usar esta candidata durante uno o dos ciclos normales y registrar solo incidencias reales; aún no se genera `.exe` ni se promueve a 1.0.
 
 ## Cambios de esta actualización
 
