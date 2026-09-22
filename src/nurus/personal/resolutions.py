@@ -54,7 +54,7 @@ def _case_key(work,row):
 
 
 def resolution_marked(value):
-    """Interpreta la columna humana RES sin convertir valores dudosos en proyectos."""
+    """Compatibilidad: reconoce tipos nuevos y marcas usadas en planillas antiguas."""
     if resolution_kind(value):return True
     if isinstance(value,bool):return value
     if isinstance(value,(int,float)):
@@ -67,6 +67,22 @@ def resolution_marked(value):
     if text in {'si','s','x','true','verdadero','res','resolucion','con resolucion'}:return True
     return False
 
+
+def resolution_review_issue(value):
+    """Advierte un RES escrito pero desconocido; nunca intenta corregirlo por aproximación."""
+    if not _has_explicit_value(value):return ''
+    if resolution_kind(value) or resolution_marked(value):return ''
+    shown=str(value).strip()
+    return f"RES no reconocido: {shown!r}. Usa PC_IE, PC_INFO o NOMENCL, o deja la celda vacía."
+
+
+def resolution_selection_source(work,row,kind):
+    """Explica si el tipo procede de RES, de compatibilidad antigua o del motor."""
+    case=_case_key(work,row)
+    peers=[item for item in work.rows if not item.excluded and _case_key(work,item)==case]
+    if any(resolution_kind((item.review or {}).get('RES'))==kind for item in peers):return 'Definido en RES'
+    if any(_has_explicit_value((item.review or {}).get('RES')) and resolution_marked((item.review or {}).get('RES')) for item in peers):return 'RES antiguo · tipo inferido'
+    return 'Sugerencia automática revisable'
 
 def reviewed_resolution_ids(work):
     """Devuelve None si RES no fue usado; si fue usado, la selección humana es autoritativa."""
