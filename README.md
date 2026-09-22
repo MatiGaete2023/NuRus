@@ -1,10 +1,12 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev10**, estado consolidado al 22 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+Versión **0.4.0.dev11**, estado consolidado al 22 de septiembre de 2026. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
 
 ## Cambios de esta actualización
 
-La [actualización dev10](docs/RES_CATEGORICO_20260922.md) convierte `RES` en una instrucción explícita: las copias nuevas ofrecen un desplegable `PC_IE / PC_INFO / NOMENCL`; vacío significa que no corresponde proyecto. Un valor desconocido se advierte y nunca se adivina. Las marcas antiguas (`1`, `X`, etc.) siguen siendo legibles para compatibilidad. Resoluciones muestra `Definido en RES` cuando el tipo proviene de esa columna y conserva el cambio manual como corrección final.
+El [pulido final dev11](docs/UX_FINAL_20260922.md) agrega búsqueda y filtros en Trabajo/Resoluciones, descripciones legibles de tipos de resolución, color por origen, barra de contexto, acceso a carpeta de salida y atajos mínimos. La visualización prioriza excepciones y mantiene los registros ocultos por filtro fuera de cualquier eliminación o cambio. No se agregan contadores laterales ni empaquetado `.exe`.
+
+La [actualización dev10, vigente en dev11](docs/RES_CATEGORICO_20260922.md) convierte `RES` en una instrucción explícita: las copias nuevas ofrecen un desplegable `PC_IE / PC_INFO / NOMENCL`; vacío significa que no corresponde proyecto. Un valor desconocido se advierte y nunca se adivina. Las marcas antiguas (`1`, `X`, etc.) siguen siendo legibles para compatibilidad. Resoluciones muestra `Definido en RES` cuando el tipo proviene de esa columna y conserva el cambio manual como corrección final.
 
 La [actualización dev9](docs/PANEL_CORREOS_20260921.md) incorpora CustomTkinter en modo oscuro, navegación lateral, tarjetas de programas y adjuntos individuales. **Solo programas / Solo tribunales / Ambos** define los destinatarios al preparar; el tribunal de las causas es un filtro opcional independiente. Se recupera el texto del manual de Informes por vencer mediante migración que conserva ediciones personales.
 
@@ -57,6 +59,6 @@ El paquete Python sigue llamándose `nurus` para mantener instalaciones y archiv
 
 ## Estado de verificación
 
-La CI ejecuta instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev10`. La evidencia exacta del commit y de la ejecución está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md); no se atribuyen los resultados anteriores a cambios nuevos.
+La CI ejecuta instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev11`. La evidencia exacta del commit y de la ejecución está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md); no se atribuyen los resultados anteriores a cambios nuevos.
 
 La validación automática no reemplaza la prueba final con Excel/Outlook institucionales. Consulta primero `docs/ESTADO_CONSOLIDADO_20260920.md` y `docs/INDICE_DOCUMENTACION.md`; la implementación, verificación, auditorías y documentos históricos quedan enlazados desde ese índice.
