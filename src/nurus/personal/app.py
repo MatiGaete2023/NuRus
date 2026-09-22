@@ -87,6 +87,9 @@ class App(_BaseApp):
         if not keep_source:self._draft_scope_source=list(drafts)
         target=self.mail_target.get() if hasattr(self,'mail_target') else 'todos'
         drafts=drafts_for_scope(drafts,target)
+        originals=getattr(self,'_draft_originals',{})
+        for draft in drafts:originals.setdefault(draft.key,draft.body)
+        self._draft_originals=originals
         self.drafts=drafts;self.mail_list.delete(0,'end');self.draft_index=None
         self.mail_list.set_drafts(drafts,getattr(getattr(self,'work',None),'receipts',{}))
         if drafts:self.mail_list.selection_set(0);self._select_mail()
@@ -226,7 +229,7 @@ class App(_BaseApp):
         totals=summarize(self.work)
         if totals['constancias']:self.summary.set(self.summary.get()+f" · {totals['constancias']} constancias con fecha · {totals['con_carga']} con carga")
         self.detail.set('\n'.join(dict.fromkeys(self.work.warnings)))
-        self._update_context()
+        self._refresh_incident_counter();self._update_context()
 
     @staticmethod
     def _visible_project_key(values):

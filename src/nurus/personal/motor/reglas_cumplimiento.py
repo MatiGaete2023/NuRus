@@ -67,6 +67,6 @@ def generar_observacion_cumplimiento(row, tribunal, cols, fecha_hoja2=None, inci
         frags.append(render('CUMPLIMIENTO','C08_FICHA_FAE', PNOMBRE=pn))
     aud=_audiencia(row, cols)
     if aud: frags.append(aud)
-    if not principal:
-        return componer(pfx, [render('CUMPLIMIENTO','C09_SIN_OBSERVACIONES')] if not frags else [render('CUMPLIMIENTO','C09_BASE_BREVE')] + frags)
+    if not principal and not frags:
+        return componer(pfx, [render('CUMPLIMIENTO','C09_SIN_OBSERVACIONES')])
     return componer(pfx, frags)

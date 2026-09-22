@@ -1,8 +1,10 @@
 # Índice y vigencia de documentación
 
-Actualizado: 22 de septiembre de 2026. Versión vigente: **0.4.0.dev11**.
+Actualizado: 22 de septiembre de 2026. Rama de evolución vigente: **0.4.0.dev12**; dev11 permanece como candidata funcional congelada previa.
 
 ## Documentos vigentes para CSMP Assistant personal
+
+- `EVOLUCION_UX_REGLAS_20260922.md`: cambios dev12 de UX y redacciones/reglas aprobadas sobre la candidata congelada dev11.
 
 - `CONGELAMIENTO_CANDIDATA_20260922.md`: checkpoint funcional congelado, política de cambios y criterio para avanzar hacia 1.0.
 - `UX_FINAL_20260922.md`: pulido final de búsqueda, filtros, contexto, atajos y visualización por excepción.
