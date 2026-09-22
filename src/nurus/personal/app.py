@@ -244,23 +244,30 @@ class App(_BaseApp):
         selected=list(self.words.selection())
         if not selected:raise ValueError('Selecciona una o más filas concretas de Resoluciones antes de cambiar su tipo.')
         kind=kind_code(self.manual_word.get()) or 'PC_IE';new=[]
+        registry=getattr(self,'_resolution_all_iids',None)
+        if registry is None:
+            registry=list(self.words.get_children());self._resolution_all_iids=registry
+        search_map=getattr(self,'_resolution_search_text',None)
+        if search_map is None:
+            search_map={};self._resolution_search_text=search_map
         for iid in selected:
             rid=iid.split('|')[0];values=list(self.words.item(iid,'values'));values[2]=kind_label(kind);values[3]='Ajustado manualmente en Resoluciones'
             key=self._visible_project_key(values)
             existing=self._existing_project_iid(key,exclude=iid)
-            if iid in getattr(self,'_resolution_all_iids',[]):self._resolution_all_iids.remove(iid)
-            getattr(self,'_resolution_search_text',{}).pop(iid,None)
+            if iid in registry:registry.remove(iid)
+            search_map.pop(iid,None)
             self.words.delete(iid)
             if existing:
                 target=existing
             else:
                 target=rid+'|'+kind
                 if not self.words.exists(target):self.words.insert('','end',iid=target,values=values,tags=('res_manual',))
-                if target not in self._resolution_all_iids:self._resolution_all_iids.append(target)
-                row=next((r for r in self.work.rows if r.id==rid),None)
-                self._resolution_search_text[target]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa')) if row else ''
+                if target not in registry:registry.append(target)
+                work=getattr(self,'work',None)
+                row=next((r for r in work.rows if r.id==rid),None) if work else None
+                search_map[target]=' '.join(str(value(work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa')) if row else ''
             new.append(target)
-        self._apply_resolution_filter()
+        if hasattr(self,'_apply_resolution_filter'):self._apply_resolution_filter()
         self.words.selection_set(tuple(iid for iid in dict.fromkeys(new) if self.words.exists(iid)))
         self._clear_projects()
         self.status.set(f'{kind_label(kind)} aplicado solo a {len(selected)} selección(es).')
