@@ -62,8 +62,15 @@ class App(ctk.CTk):
         self.after(100,self._poll)
         saved=self.cfg.directory/'sesion/trabajo.json'
         if saved.exists():
-            try:self.work=Work.load(saved.parent);self._show_work();self.status.set('Trabajo anterior recuperado. Su copia Excel sigue disponible.')
+            try:self.work=Work.load(saved.parent);self._show_work();self.status.set('Trabajo anterior recuperado. Su copia Excel sigue disponible.');self._show_resume_banner()
             except Exception as exc:self.status.set('No se pudo recuperar el trabajo anterior: '+str(exc))
+
+    def _show_resume_banner(self):
+        if not self.work or not hasattr(self,'resume_bar'):return
+        source=Path(getattr(self.work,'path','') or '').name or 'archivo'
+        mode=str(getattr(self.work,'mode','') or 'TRABAJO')
+        self.resume_text.set(f'Último trabajo: {mode} · {source}')
+        self.resume_bar.pack(fill='x',pady=(0,5))
 
     def _install_templates(self):
         source=Path(__file__).parent/'plantillas_word'
@@ -298,7 +305,7 @@ class App(ctk.CTk):
         frame.rowconfigure(0,weight=1);frame.columnconfigure(0,weight=1);return tree
 
     def _work_page(self):
-        page=self.pages['Trabajo'];top=ttk.Frame(page);top.pack(fill='x')
+        page=self.pages['Trabajo'];self.resume_bar=ttk.Frame(page);self.resume_text=tk.StringVar();ttk.Label(self.resume_bar,textvariable=self.resume_text,text_color=ttk.MUTED).pack(side='left',padx=6);ttk.Button(self.resume_bar,text='Continuar',width=85,command=lambda:self.resume_bar.pack_forget()).pack(side='left',padx=3);ttk.Button(self.resume_bar,text='Elegir otro archivo',width=115,command=self._choose).pack(side='left',padx=3);top=ttk.Frame(page);top.pack(fill='x')
         self.mode=tk.StringVar(value='ESPERA');self.file=tk.StringVar();self.sheet=tk.StringVar()
         self.folder=tk.StringVar(value=str(self.cfg.directory/'salidas'))
         mode_box=ttk.Combobox(top,textvariable=self.mode,values=['ESPERA','CUMPLIMIENTO','INFORMES'],state='readonly',width=20)
@@ -433,7 +440,7 @@ class App(ctk.CTk):
         ttk.Button(window,text='Usar hoja',command=apply).pack(pady=15)
 
     def _clear_drafts(self):
-        self.drafts=[];self._draft_scope_source=[];self.draft_index=None;self.mail_list.delete(0,'end')
+        self.drafts=[];self._draft_scope_source=[];self._draft_originals={};self.draft_index=None;self.mail_list.delete(0,'end')
         self._clear_mail_editor();self._clear_projects()
 
     def _clear_projects(self):
@@ -446,15 +453,29 @@ class App(ctk.CTk):
         for variable in (self.to,self.cc,self.subject,self.attach):variable.set('')
         self.body.delete('1.0','end')
 
+    def _update_mail_comparison(self,draft=None):
+        if not hasattr(self,'mail_compare'):return
+        if draft is None and self.draft_index is not None and self.draft_index<len(self.drafts):
+            draft=self.drafts[self.draft_index]
+        if not draft:self.mail_compare.set('');return
+        original=getattr(self,'_draft_originals',{}).get(draft.key,draft.body)
+        current=self.body.get('1.0','end-1c') if hasattr(self,'body') else draft.body
+        if str(current)!=str(original):
+            self.mail_compare.set('ORIGINAL / MOTOR:\n'+str(original)+'\n\nVERSIÓN EDITADA / FINAL:\n'+str(current))
+        else:self.mail_compare.set('')
+
     def _capture_mail(self):
         if self.draft_index is not None:
-            d=self.drafts[self.draft_index];d.to=self.to.get();d.cc=self.cc.get();d.subject=self.subject.get();d.body=self.body.get('1.0','end-1c');d.attachments=[p for p in self.attach.get().split('\n') if p]
+            d=self.drafts[self.draft_index];d.to=self.to.get();d.cc=self.cc.get();d.subject=self.subject.get();d.body=self.body.get('1.0','end-1c');d.attachments=[p for p in self.attach.get().split('\n') if p];self._update_mail_comparison(d)
 
     def _select_mail(self,event=None):
         self._capture_mail()
         if not self.mail_list.curselection():return
         self.draft_index=self.mail_list.curselection()[0];d=self.drafts[self.draft_index]
-        self.to.set(d.to);self.cc.set(d.cc);self.subject.set(d.subject);self.body.delete('1.0','end');self.body.insert('1.0',d.body);self.attach.set('\n'.join(d.attachments))
+        self.to.set(d.to);self.cc.set(d.cc);self.subject.set(d.subject);self.body.delete('1.0','end');self.body.insert('1.0',d.body);self.attach.set('\n'.join(d.attachments));self._update_mail_comparison(d)
+        if hasattr(self,'mail_detail'):
+            record_id=d.record_ids[0] if getattr(d,'record_ids',None) else ''
+            self._set_case_detail(record_id,self.mail_detail)
 
     def _attachment(self):
         paths=filedialog.askopenfilenames()
