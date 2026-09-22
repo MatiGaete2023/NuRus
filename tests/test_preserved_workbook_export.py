@@ -83,7 +83,9 @@ def test_preserved_export_uses_archived_bytes_and_marks_excluded(tmp_path):
         assert sheet.column_dimensions["B"].width == 31
         assert sheet["A1"].font.bold is True
         assert sheet["C2"].fill.fgColor.rgb == "0092D050"
-        assert len(sheet.data_validations.dataValidation) == 1
+        validations=sheet.data_validations.dataValidation
+        assert len(validations) == 2
+        assert any('PC_IE,PC_INFO,NOMENCL' in str(item.formula1) for item in validations)
         headers = [cell.value for cell in sheet[1]]
         observation = headers.index("NURUS_OBSERVACION_FINAL") + 1
         state = headers.index("NURUS_ESTADO_REVISION") + 1
