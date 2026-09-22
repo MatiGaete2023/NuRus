@@ -2,7 +2,7 @@
 
 **Repositorio:** `MatiGaete2023/NuRus`  
 **Producto vigente:** CSMP Assistant personal  
-**Versión vigente:** `0.4.0.dev10` (ver actualización siguiente)
+**Versión vigente:** `0.4.0.dev11` (ver actualización siguiente)
 **Checkpoint histórico del cuerpo:** `0.4.0.dev6`
 **Rama candidata dev9:** `csmp-ux-20260921` (destinada a fast-forward de `main` y de la rama personal tras el cierre)  
 **HEAD al iniciar esta revisión:** `0523f3cb666a7e55b6a4fd64eb92949c89a58e26`  
@@ -10,7 +10,11 @@
 
 Este documento reemplaza como **estado de navegación** a los resúmenes parciales anteriores. Los informes fechados se conservan como evidencia histórica y no deben reinterpretarse como descripción automática de la versión vigente.
 
-## Actualización vigente — RES categórico dev10
+## Actualización vigente — UX final dev11
+
+Se aplica el pulido final solicitado para uso personal: búsqueda y filtros en Trabajo/Resoluciones; códigos de resolución con descripción legible; color por origen; botón para abrir carpeta de salida; barra de contexto persistente; atajos `Ctrl+O`, `Ctrl+F`, `F5` y `Ctrl+Enter`; y visualización centrada en excepciones. Los filtros son solo visuales y no eliminan ni reducen silenciosamente los registros o proyectos. Se excluyen deliberadamente los contadores laterales y el empaquetado `.exe`. Ver `UX_FINAL_20260922.md`.
+
+## Checkpoint anterior — RES categórico dev10
 
 La revisión final de Resoluciones reemplaza el uso recomendado de números en `RES` por tres valores explícitos: `PC_IE`, `PC_INFO` y `NOMENCL`. Las copias nuevas presentan lista desplegable compatible con Excel; vacío significa sin proyecto. El lector conserva marcas antiguas (`1`, `X`, etc.) para no romper planillas anteriores. Un valor escrito pero desconocido produce advertencia visible y no se adivina. En Resoluciones se diferencia `Definido en RES`, compatibilidad antigua y sugerencia automática; un cambio manual queda marcado como ajuste en la interfaz. Ver `RES_CATEGORICO_20260922.md`.
 
@@ -508,7 +512,7 @@ D06. Resoluciones agrupadas por tribunal/RIT/tipo en un Word.
 D07. Revisión humana por excepción, sin aprobación fila por fila.
 
 [G-ESTADO]
-Versión: 0.4.0.dev10.
+Versión: 0.4.0.dev11.
 CI vigente: run 35729404913, Windows 3.12/3.13/3.14 verde;
 256 passed, 1 skipped por versión; smoke CustomTkinter y construcción de distribución Windows OK en 3.12.
 Código transitorio e interfaz NuRus paralela eliminados.
