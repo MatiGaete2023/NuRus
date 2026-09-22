@@ -1,6 +1,6 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev12**, candidata de evolución UX en la rama `ux-observaciones-20260922`. Parte de la candidata funcional dev11 validada en uso real y conserva sus invariantes. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+Versión **0.4.0.dev12**, candidata de evolución UX al 22 de septiembre de 2026 en la rama `ux-observaciones-20260922`. Parte de la candidata funcional dev11 validada en uso real y conserva sus invariantes. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
 
 ## Evolución dev12 en validación
 
@@ -67,6 +67,6 @@ El paquete Python sigue llamándose `nurus` para mantener instalaciones y archiv
 
 ## Estado de verificación
 
-La CI ejecuta instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev11`. La evidencia exacta del commit y de la ejecución está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md); no se atribuyen los resultados anteriores a cambios nuevos.
+La CI ejecuta instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev12`. La evidencia exacta del commit y de la ejecución está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md); no se atribuyen los resultados anteriores a cambios nuevos.
 
 La validación automática no reemplaza la prueba final con Excel/Outlook institucionales. Consulta primero `docs/ESTADO_CONSOLIDADO_20260920.md` y `docs/INDICE_DOCUMENTACION.md`; la implementación, verificación, auditorías y documentos históricos quedan enlazados desde ese índice.
