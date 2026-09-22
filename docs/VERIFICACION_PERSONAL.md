@@ -1,6 +1,10 @@
-# Verificación vigente — CSMP Assistant personal 0.4.0.dev11
+# Verificación vigente — CSMP Assistant personal 0.4.0.dev12
 
-Estado: **CANDIDATA FUNCIONAL CONGELADA** para uso cotidiano controlado. No se agregan nuevas funciones durante esta fase; solo se corrigen defectos reproducibles o fricciones observadas en trabajo real.
+Estado de la rama dev12: **CANDIDATA DE EVOLUCIÓN EN VERIFICACIÓN**. Dev11 sigue siendo la última candidata con prueba real satisfactoria hasta que dev12 complete CI y prueba de uso.
+
+## Verificación dev12
+
+Rama: `ux-observaciones-20260922`. Se incorporaron pruebas específicas de redacción, PC_INFO y UX. La ejecución Windows/Python 3.12–3.14 se registrará aquí al cerrar la rama. No se atribuye a dev12 la evidencia real de dev11.
 
 ## Evidencia automatizada
 
