@@ -37,6 +37,7 @@ def actions_for(events):
     if any(e.endswith(('E05_SOLO_CORREO','E05_PROYECTO_Y_CORREO')) for e in events):actions.append('programa_espera')
     if 'ESPERA.E05_PROYECTO_Y_CORREO' in events:actions.append('PC_IE')
     if any(e.startswith('INFORMES.I01_') for e in events):actions.extend(['programa_vencido','PC_INFO'])
+    # I02 por vencer solo genera correo preventivo; nunca PC_INFO.
     if any(e.startswith('INFORMES.I02_') for e in events):actions.append('programa_por_vencer')
     if any(e.startswith(('CUMPLIMIENTO.C04_','CUMPLIMIENTO.C05_')) for e in events):actions.append('medidas')
     return actions
