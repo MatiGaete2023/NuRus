@@ -14,7 +14,7 @@ from .app_base import App as _BaseApp
 from .mail_view import build_mail_page
 from .mail_controls import alcance_modalidades, selected_court_record_ids
 from .outputs import prepare_drafts, prepare_required_drafts, create_drafts, drafts_for_scope, value
-from .resolutions import automatic_project_selections, unique_case_selections, resolution_selection_source
+from .resolutions import automatic_project_selections, unique_case_selections, resolution_selection_source, kind_code, kind_label
 from .statistics import summarize
 from .work import Work
 from nurus.rus.columns import normalize
@@ -180,7 +180,7 @@ class App(_BaseApp):
         path=folder/(Path(self.work.path).stem+' - revisable '+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+Path(self.work.path).suffix)
         work=self.work
         def done(result):
-            self._show_work(reset_projects=False);self._save_session();self.status.set('Excel generado: '+result+' · Disponible en Correos y Resoluciones.')
+            self._show_work(reset_projects=False);self._save_session();self._update_context();self.status.set('Excel generado: '+result+' · Disponible en Correos y Resoluciones.')
         self._run('Exportando copia preservada con Excel…',lambda:work.export(path),done)
 
     def _show_work(self,reset_projects=True):
@@ -189,27 +189,45 @@ class App(_BaseApp):
         self.observation_editor.delete('1.0','end')
         self.records.delete(*self.records.get_children())
         if reset_projects:self.words.delete(*self.words.get_children())
-        fallback_kind=self.manual_word.get() if hasattr(self,'manual_word') else 'PC_IE'
+        fallback_kind=(kind_code(self.manual_word.get()) if hasattr(self,'manual_word') else 'PC_IE') or 'PC_IE'
         selections=unique_case_selections(self.work,automatic_project_selections(self.work,fallback_kind))
+        resolution_ids={rid for rid,_ in selections}
         by_id={row.id:row for row in self.work.rows}
+        self._work_all_iids=[];self._work_search_text={}
+        if reset_projects:
+            self._resolution_all_iids=[];self._resolution_search_text={}
         for row in self.work.rows:
             state='Excluido' if row.excluded else 'Revisar aviso' if row.warnings else 'Propuesta'
-            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=('excluded' if row.excluded else 'warning' if row.warnings else '',))
+            tags=[]
+            if row.excluded:tags.append('excluded')
+            elif row.warnings:tags.append('warning')
+            if row.id in resolution_ids:tags.append('resolution')
+            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=tuple(tags))
+            self._work_all_iids.append(row.id)
+            self._work_search_text[row.id]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa'))
         for rid,kind in selections if reset_projects else []:
             row=by_id[rid]
             source=resolution_selection_source(self.work,row,kind)
-            self.words.insert('','end',iid=rid+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,source))
+            origin_tag={'Definido en RES':'res_explicit','RES antiguo · tipo inferido':'res_legacy','Sugerencia automática revisable':'res_auto'}.get(source,'res_auto')
+            iid=rid+'|'+kind
+            self.words.insert('','end',iid=iid,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind_label(kind),source),tags=(origin_tag,))
+            self._resolution_all_iids.append(iid)
+            self._resolution_search_text[iid]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa'))
+        self._apply_work_filter()
+        if reset_projects:self._apply_resolution_filter()
         n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)
         invalid_res=sum(any(str(w).startswith('RES no reconocido:') for w in r.warnings) for r in self.work.rows)
-        self.summary.set(f'{n} registros · {obs} propuestas · {exc} excluidos · {len(self.words.get_children())} proyectos posibles')
+        projects=len(getattr(self,'_resolution_all_iids',self.words.get_children()))
+        self.summary.set(f'{n} registros · {obs} propuestas · {exc} excluidos · {projects} proyectos posibles')
         if invalid_res:self.summary.set(self.summary.get()+f' · {invalid_res} RES por corregir')
         totals=summarize(self.work)
         if totals['constancias']:self.summary.set(self.summary.get()+f" · {totals['constancias']} constancias con fecha · {totals['con_carga']} con carga")
         self.detail.set('\n'.join(dict.fromkeys(self.work.warnings)))
+        self._update_context()
 
     @staticmethod
     def _visible_project_key(values):
-        return normalize(values[1]),normalize(values[0]),str(values[2]).strip().upper()
+        return normalize(values[1]),normalize(values[0]),kind_code(values[2]) or str(values[2]).strip().upper()
 
     def _existing_project_iid(self,key,exclude=None):
         for iid in self.words.get_children():
@@ -221,34 +239,44 @@ class App(_BaseApp):
     def _assign_word_type(self):
         selected=list(self.words.selection())
         if not selected:raise ValueError('Selecciona una o más filas concretas de Resoluciones antes de cambiar su tipo.')
-        kind=self.manual_word.get();new=[]
+        kind=kind_code(self.manual_word.get()) or 'PC_IE';new=[]
         for iid in selected:
-            rid=iid.split('|')[0];values=list(self.words.item(iid,'values'));values[2]=kind;values[3]='Ajustado manualmente en Resoluciones'
+            rid=iid.split('|')[0];values=list(self.words.item(iid,'values'));values[2]=kind_label(kind);values[3]='Ajustado manualmente en Resoluciones'
             key=self._visible_project_key(values)
             existing=self._existing_project_iid(key,exclude=iid)
+            if iid in getattr(self,'_resolution_all_iids',[]):self._resolution_all_iids.remove(iid)
+            getattr(self,'_resolution_search_text',{}).pop(iid,None)
             self.words.delete(iid)
             if existing:
                 target=existing
             else:
                 target=rid+'|'+kind
-                if not self.words.exists(target):self.words.insert('','end',iid=target,values=values)
+                if not self.words.exists(target):self.words.insert('','end',iid=target,values=values,tags=('res_manual',))
+                if target not in self._resolution_all_iids:self._resolution_all_iids.append(target)
+                row=next((r for r in self.work.rows if r.id==rid),None)
+                self._resolution_search_text[target]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa')) if row else ''
             new.append(target)
-        self.words.selection_set(tuple(dict.fromkeys(new)))
+        self._apply_resolution_filter()
+        self.words.selection_set(tuple(iid for iid in dict.fromkeys(new) if self.words.exists(iid)))
         self._clear_projects()
-        self.status.set(f'Tipo {kind} aplicado solo a {len(selected)} selección(es).')
+        self.status.set(f'{kind_label(kind)} aplicado solo a {len(selected)} selección(es).')
 
     def _add_words(self):
-        work=self._require_work();kind=self.manual_word.get();selected=list(self.records.selection())
+        work=self._require_work();kind=kind_code(self.manual_word.get()) or 'PC_IE';selected=list(self.records.selection())
         if not selected:raise ValueError('Selecciona en Trabajo los registros que quieres agregar manualmente como proyecto.')
         self._clear_projects()
         for rid in selected:
             row=next(r for r in work.rows if r.id==rid)
             if row.excluded:continue
-            values=(value(work,row,'rit'),value(work,row,'tribunal'),kind,'Agregado manualmente')
+            values=(value(work,row,'rit'),value(work,row,'tribunal'),kind_label(kind),'Agregado manualmente')
             key=self._visible_project_key(values)
             if self._existing_project_iid(key):continue
             iid=rid+'|'+kind
-            if not self.words.exists(iid):self.words.insert('','end',iid=iid,values=values)
+            if not self.words.exists(iid):
+                self.words.insert('','end',iid=iid,values=values,tags=('res_manual',))
+                self._resolution_all_iids.append(iid)
+                self._resolution_search_text[iid]=' '.join(str(value(work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa'))
+        self._apply_resolution_filter()
 
 
 def main():
