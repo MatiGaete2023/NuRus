@@ -14,7 +14,8 @@ from . import ui as ttk
 from .ui import Textbox as ScrolledText
 
 from .config import Configuration, PARAMETER_LABELS, VARIABLES
-from .widgets import ScrollPane, NamedChoice
+from .widgets import ScrollPane, NamedChoice, CaseDetailPanel, ComparisonPanel, Tooltip
+from .ux_support import case_detail_text, grouped_draft_detail, edited_pair, incident_ids, resume_description, RES_HELP
 from .work import Work
 from .outputs import create_draft, import_contacts
 from .resolutions import KINDS, KIND_LABELS, kind_code, kind_label, prepare_projects, generate_projects, automatic_project_selections
@@ -45,7 +46,8 @@ class App(ctk.CTk):
         self.tabs=ttk.PageStack(self,sidebar);self.tabs.grid(row=0,column=1,sticky='nsew',padx=12,pady=12)
         self.pages={}
         for name in ('Trabajo','Correos','Resoluciones','Configuración','Enviados'):
-            frame=ttk.Frame(self.tabs,padding=10);self.tabs.add(frame,text=name);self.pages[name]=frame
+            frame=ttk.Frame(self.tabs,padding=10)
+            self.tabs.add(frame,text='Historial' if name=='Enviados' else name);self.pages[name]=frame
         ctk.CTkLabel(sidebar,text='Uso personal\nSolo borradores',text_color=ttk.MUTED,justify='left').pack(side='bottom',padx=16,pady=18)
         self._work_page();self._mail_page();self._word_page();self._config_page();self._sent_page()
         contextbar=ctk.CTkFrame(self,corner_radius=0,fg_color='#1a2028')
@@ -62,7 +64,10 @@ class App(ctk.CTk):
         self.after(100,self._poll)
         saved=self.cfg.directory/'sesion/trabajo.json'
         if saved.exists():
-            try:self.work=Work.load(saved.parent);self._show_work();self.status.set('Trabajo anterior recuperado. Su copia Excel sigue disponible.')
+            try:
+                self._resume_work=Work.load(saved.parent)
+                self._show_resume_offer(saved)
+                self.status.set('Hay un trabajo anterior disponible para continuar.')
             except Exception as exc:self.status.set('No se pudo recuperar el trabajo anterior: '+str(exc))
 
     def _install_templates(self):
@@ -73,7 +78,7 @@ class App(ctk.CTk):
                 if not dst.exists():shutil.copyfile(path,dst)
 
     def _run(self,label,action,done=None):
-        if self.busy:messagebox.showinfo('En curso','Espera a que termine la operación actual.');return
+        if self.busy:self.status.set('Hay una operación en curso.');return
         self.busy=True;self.status.set(label);self.progress.configure(mode='indeterminate');self.progress.start()
         def worker():
             try:self.events.put((True,action(),done))
@@ -222,51 +227,138 @@ class App(ctk.CTk):
         frame.rowconfigure(0,weight=1);frame.columnconfigure(0,weight=1);return tree
 
     def _work_page(self):
-        page=self.pages['Trabajo'];top=ttk.Frame(page);top.pack(fill='x')
+        page=self.pages['Trabajo']
+        self.resume_frame=ctk.CTkFrame(page,fg_color='#25303a',corner_radius=8,border_width=1,border_color='#4d5c6b')
+        self.resume_text=tk.StringVar()
+        ctk.CTkLabel(self.resume_frame,text='Último trabajo',font=('Segoe UI',13,'bold'),anchor='w').pack(side='left',padx=(10,5),pady=7)
+        ctk.CTkLabel(self.resume_frame,textvariable=self.resume_text,anchor='w',text_color=ttk.MUTED).pack(side='left',fill='x',expand=True,pady=7)
+        ttk.Button(self.resume_frame,text='Continuar',width=90,command=lambda:self._guard(self._continue_resume)).pack(side='right',padx=(4,8),pady=5)
+        ttk.Button(self.resume_frame,text='Elegir otro archivo',width=125,fg_color='transparent',border_width=1,command=self._choose_other_resume).pack(side='right',padx=4,pady=5)
+        self.work_top=top=ttk.Frame(page);top.pack(fill='x')
         self.mode=tk.StringVar(value='ESPERA');self.file=tk.StringVar();self.sheet=tk.StringVar()
         self.folder=tk.StringVar(value=str(self.cfg.directory/'salidas'))
         mode_box=ttk.Combobox(top,textvariable=self.mode,values=['ESPERA','CUMPLIMIENTO','INFORMES'],state='readonly',width=20)
         mode_box.grid(row=0,column=0,pady=5)
         mode_box.bind('<<ComboboxSelected>>',self._mode_changed)
         self._field(top,'Archivo',self.file,1)
-        ttk.Button(top,text='Buscar',command=self._choose).grid(row=1,column=2)
+        ttk.Button(top,text='Buscar',fg_color='transparent',border_width=1,command=self._choose).grid(row=1,column=2)
         ttk.Label(top,text='Hoja (automática si está vacía)').grid(row=2,column=0,sticky='w')
         self.sheet_box=ttk.Combobox(top,textvariable=self.sheet,state='readonly');self.sheet_box.grid(row=2,column=1,sticky='ew',padx=6)
         self._field(top,'Carpeta de salida',self.folder,3)
-        ttk.Button(top,text='Cambiar',command=lambda:self._select_folder(self.folder)).grid(row=3,column=2)
+        ttk.Button(top,text='Cambiar',fg_color='transparent',border_width=1,command=lambda:self._select_folder(self.folder)).grid(row=3,column=2)
         buttons=ttk.Frame(page);buttons.pack(fill='x',pady=5)
         extra=ttk.Frame(page);extra.pack(fill='x')
-        ttk.Button(buttons,text='PROCESAR',command=lambda:self._guard(self._process)).pack(side='left',padx=3)
-        ttk.Button(buttons,text='Abrir Excel',command=lambda:self._guard(lambda:self._open(self._require_work().output))).pack(side='left',padx=3)
-        ttk.Button(buttons,text='Actualizar cambios · F5',command=lambda:self._guard(self._refresh)).pack(side='left',padx=3)
-        ttk.Button(buttons,text='Abrir carpeta de salida',command=lambda:self._guard(self._open_output_folder)).pack(side='left',padx=3)
-        ttk.Button(extra,text='Localizar copia movida',command=lambda:self._guard(self._locate)).pack(side='left',padx=3)
-        ttk.Button(extra,text='Exportar copia con mis cambios',command=lambda:self._guard(lambda:self._export_current())).pack(side='left',padx=3)
+        ttk.Button(buttons,text='Procesar Excel',fg_color='transparent',border_width=1,command=lambda:self._guard(self._process)).pack(side='left',padx=3)
+        ttk.Button(buttons,text='Abrir Excel',fg_color='transparent',border_width=1,command=lambda:self._guard(lambda:self._open(self._require_work().output))).pack(side='left',padx=3)
+        self.work_primary_button=ttk.Button(buttons,text='Actualizar desde Excel · F5',command=lambda:self._guard(self._refresh));self.work_primary_button.pack(side='left',padx=3)
+        ttk.Button(buttons,text='Abrir carpeta de salida',fg_color='transparent',border_width=1,command=lambda:self._guard(self._open_output_folder)).pack(side='left',padx=3)
+        ttk.Button(extra,text='Localizar copia movida',fg_color='transparent',border_width=1,command=lambda:self._guard(self._locate)).pack(side='left',padx=3)
+        ttk.Button(extra,text='Exportar copia con mis cambios',fg_color='transparent',border_width=1,command=lambda:self._guard(lambda:self._export_current())).pack(side='left',padx=3)
         self.summary=tk.StringVar();ttk.Label(page,textvariable=self.summary).pack(anchor='w')
-        ttk.Button(page,text='Exportar resumen de constancias',command=lambda:self._guard(self._export_statistics)).pack(anchor='w')
+        ttk.Button(page,text='Exportar resumen de constancias',fg_color='transparent',border_width=1,command=lambda:self._guard(self._export_statistics)).pack(anchor='w')
         split=ttk.Panedwindow(page,orient='vertical');split.pack(fill='both',expand=True)
         table=ttk.Frame(split);edit=ttk.Frame(split);split.add(table,weight=3);split.add(edit,weight=2)
         work_filterbar=ttk.Frame(table);work_filterbar.pack(fill='x')
-        self.work_search=tk.StringVar();self.work_filter=tk.StringVar(value='Todos')
+        self.work_search=tk.StringVar();self.work_filter=tk.StringVar(value='Todos');self.incident_text=tk.StringVar(value='0 incidencias')
         ttk.Label(work_filterbar,text='Buscar:').pack(side='left')
-        self.work_search_entry=ttk.Entry(work_filterbar,textvariable=self.work_search,width=30);self.work_search_entry.pack(side='left',padx=(5,10))
+        self.work_search_entry=ttk.Entry(work_filterbar,textvariable=self.work_search,width=26);self.work_search_entry.pack(side='left',padx=(5,8))
         ttk.Label(work_filterbar,text='Mostrar:').pack(side='left')
-        work_filter_box=ttk.Combobox(work_filterbar,textvariable=self.work_filter,values=['Todos','Con aviso','Con resolución','Excluidos','Sin incidencias'],state='readonly',width=20);work_filter_box.pack(side='left',padx=5)
+        work_filter_box=ttk.Combobox(work_filterbar,textvariable=self.work_filter,values=['Todos','Con aviso','Con resolución','Excluidos','Sin incidencias'],state='readonly',width=18);work_filter_box.pack(side='left',padx=5)
         self.work_search.trace_add('write',self._apply_work_filter);work_filter_box.bind('<<ComboboxSelected>>',self._apply_work_filter)
+        ttk.Label(work_filterbar,textvariable=self.incident_text,text_color=ttk.MUTED).pack(side='left',padx=(8,4))
+        ttk.Button(work_filterbar,text='Anterior',width=75,fg_color='transparent',border_width=1,command=lambda:self._next_incident(-1)).pack(side='left',padx=2)
+        ttk.Button(work_filterbar,text='Siguiente incidencia',width=125,command=lambda:self._next_incident(1)).pack(side='left',padx=2)
         ttk.Label(work_filterbar,text='Ctrl+F',text_color=ttk.MUTED).pack(side='right')
         self.records=self._tree(table,('Estado','RIT','Tribunal','Programa','Observación'))
         self.records.column('Observación',width=520);self.records.tag_configure('excluded',background='#665220',foreground='#fff2cc');self.records.tag_configure('warning',background='#653b29',foreground='#ffe2cd')
         self.records.bind('<<TreeviewSelect>>',self._detail)
         self.detail=tk.StringVar();ttk.Label(edit,textvariable=self.detail,wraplength=1000).pack(fill='x')
+        self.work_case_detail=CaseDetailPanel(edit);self.work_case_detail.pack(fill='x',pady=(2,5))
         ttk.Label(edit,text='Observación editable del registro seleccionado (se incorpora a los productos)').pack(anchor='w')
         self.observation_editor=ScrolledText(edit,wrap='word',height=5,font=('Segoe UI',10),undo=True);self.observation_editor.pack(fill='both',expand=True)
         self.observation_editor.bind('<Control-Return>',lambda event:(self._guard(self._apply_observation),'break')[1])
         ttk.Button(edit,text='Aplicar edición · Ctrl+Enter',command=lambda:self._guard(self._apply_observation)).pack(anchor='e')
-        ttk.Button(extra,text='Cargar planilla modificada',command=lambda:self._guard(self._external)).pack(side='left')
-
+        self.work_compare=ComparisonPanel(edit);self.work_compare.pack(fill='x',pady=4);self.work_compare.pack_forget()
+        ttk.Button(extra,text='Cargar planilla modificada',fg_color='transparent',border_width=1,command=lambda:self._guard(self._external)).pack(side='left')
     def _select_folder(self,var):
         path=filedialog.askdirectory()
         if path:var.set(path)
+
+    def _show_resume_offer(self,saved):
+        work=getattr(self,'_resume_work',None)
+        if not work:return
+        self.resume_text.set(resume_description(work,saved))
+        self.resume_frame.pack(fill='x',pady=(0,6),before=self.work_top)
+
+    def _continue_resume(self):
+        work=getattr(self,'_resume_work',None)
+        if not work:raise ValueError('No hay un trabajo recuperable.')
+        self.work=work;self._resume_work=None;self.resume_frame.pack_forget()
+        self._show_work();self.status.set('Trabajo anterior recuperado. Revisa la copia antes de continuar.')
+
+    def _choose_other_resume(self):
+        self._resume_work=None;self.resume_frame.pack_forget();self._choose()
+
+    def _next_incident(self,direction=1):
+        work=getattr(self,'work',None)
+        if not work:return self.status.set('No hay un trabajo activo.')
+        ids=incident_ids(work)
+        self.incident_text.set(f'{len(ids)} incidencia'+('s' if len(ids)!=1 else ''))
+        if not ids:return self.status.set('No hay incidencias reconocidas en los registros.')
+        current=self.records.selection()[0] if self.records.selection() else None
+        try:index=ids.index(current)
+        except ValueError:index=-1 if direction>0 else 0
+        target=ids[(index+direction)%len(ids)]
+        self.work_search.set('');self.work_filter.set('Con aviso');self._apply_work_filter()
+        self.records.selection_set(target);self.records.focus(target);self.records.see(target);self._detail()
+        self.status.set(f'Incidencia {ids.index(target)+1} de {len(ids)}.')
+
+    def _set_work_comparison(self,row):
+        pair=edited_pair(getattr(row,'observation',''),(getattr(row,'review',{}) or {}).get('OBSERVACION',getattr(row,'observation','')))
+        if pair:
+            self.work_compare.set_pair(*pair)
+            if not self.work_compare.winfo_manager():self.work_compare.pack(fill='x',pady=4)
+        elif self.work_compare.winfo_manager():self.work_compare.pack_forget()
+
+    def _update_work_case_detail(self,row):
+        self.work_case_detail.set_text(case_detail_text(self.work,row,getattr(self,'drafts',[])))
+
+    def _resolution_detail(self,event=None):
+        if not getattr(self,'work',None) or not self.words.selection():return
+        rid=self.words.selection()[0].split('|',1)[0]
+        row=next((r for r in self.work.rows if r.id==rid),None)
+        if row:self.resolution_case_detail.set_text(case_detail_text(self.work,row,getattr(self,'drafts',[])))
+
+    def _update_resolution_comparison(self):
+        if self.project_index is None or self.project_index>=len(self.projects):
+            if self.resolution_compare.winfo_manager():self.resolution_compare.pack_forget()
+            return
+        project=self.projects[self.project_index]
+        pair=edited_pair(project.original_text,project.text)
+        if pair:
+            self.resolution_compare.set_pair(*pair)
+            if not self.resolution_compare.winfo_manager():self.resolution_compare.pack(fill='x',pady=4)
+        elif self.resolution_compare.winfo_manager():self.resolution_compare.pack_forget()
+
+    def _update_mail_case_detail(self):
+        if not hasattr(self,'mail_case_detail'):return
+        if self.draft_index is None or self.draft_index>=len(self.drafts):
+            self.mail_case_detail.set_text('Selecciona un borrador.')
+            return
+        self.mail_case_detail.set_text(grouped_draft_detail(self.work,self.drafts[self.draft_index],self.drafts))
+
+    def _update_mail_comparison(self):
+        if not hasattr(self,'mail_compare'):return
+        if self.draft_index is None or self.draft_index>=len(self.drafts):
+            self.mail_compare.grid_remove();return
+        draft=self.drafts[self.draft_index]
+        original=getattr(self,'_draft_originals',{}).get(id(draft))
+        if not original:self.mail_compare.grid_remove();return
+        before='Para: '+original['to']+'\nCC: '+original['cc']+'\nAsunto: '+original['subject']+'\n\n'+original['body']
+        after='Para: '+draft.to+'\nCC: '+draft.cc+'\nAsunto: '+draft.subject+'\n\n'+draft.body
+        pair=edited_pair(before,after)
+        if pair:self.mail_compare.set_pair(*pair);self.mail_compare.grid()
+        else:self.mail_compare.grid_remove()
 
     def _mode_changed(self,event=None):
         # Una hoja seleccionada para otro modo no debe anular la detección automática.
@@ -287,7 +379,7 @@ class App(ctk.CTk):
                 if text!=row.review.get('OBSERVACION',row.observation):
                     row.review['OBSERVACION']=text
                     if self.records.exists(row.id):self.records.set(row.id,'Observación',text)
-
+                self._set_work_comparison(row);self._update_work_case_detail(row)
     def _apply_observation(self):
         self._capture_observation();self._save_session()
         self.status.set('Edición incorporada a esta sesión y a sus productos.')
@@ -299,7 +391,7 @@ class App(ctk.CTk):
             self.observation_id=row.id
             self.detail.set('; '.join(row.warnings))
             self.observation_editor.delete('1.0','end');self.observation_editor.insert('1.0',row.review.get('OBSERVACION',row.observation))
-
+            self._update_work_case_detail(row);self._set_work_comparison(row)
     def _refresh(self):
         work=self._require_work()
         def done(result):
@@ -353,9 +445,8 @@ class App(ctk.CTk):
         ttk.Button(window,text='Usar hoja',command=apply).pack(pady=15)
 
     def _clear_drafts(self):
-        self.drafts=[];self._draft_scope_source=[];self.draft_index=None;self.mail_list.delete(0,'end')
+        self.drafts=[];self._draft_scope_source=[];self._draft_originals={};self.draft_index=None;self.mail_list.delete(0,'end')
         self._clear_mail_editor();self._clear_projects()
-
     def _clear_projects(self):
         self.projects=[];self.project_index=None
         self.project_list.delete(0,'end');self.project_editor.delete('1.0','end')
@@ -365,17 +456,18 @@ class App(ctk.CTk):
     def _clear_mail_editor(self):
         for variable in (self.to,self.cc,self.subject,self.attach):variable.set('')
         self.body.delete('1.0','end')
-
+        if hasattr(self,'mail_case_detail'):self.mail_case_detail.set_text('Selecciona un borrador.')
+        if hasattr(self,'mail_compare'):self.mail_compare.grid_remove()
     def _capture_mail(self):
         if self.draft_index is not None:
             d=self.drafts[self.draft_index];d.to=self.to.get();d.cc=self.cc.get();d.subject=self.subject.get();d.body=self.body.get('1.0','end-1c');d.attachments=[p for p in self.attach.get().split('\n') if p]
-
+            self._update_mail_case_detail();self._update_mail_comparison()
     def _select_mail(self,event=None):
         self._capture_mail()
         if not self.mail_list.curselection():return
         self.draft_index=self.mail_list.curselection()[0];d=self.drafts[self.draft_index]
         self.to.set(d.to);self.cc.set(d.cc);self.subject.set(d.subject);self.body.delete('1.0','end');self.body.insert('1.0',d.body);self.attach.set('\n'.join(d.attachments))
-
+        self._update_mail_case_detail();self._update_mail_comparison()
     def _attachment(self):
         paths=filedialog.askopenfilenames()
         if paths:self.attach.set('\n'.join([p for p in self.attach.get().split('\n') if p]+list(paths)))
@@ -391,15 +483,16 @@ class App(ctk.CTk):
         actions=ttk.Frame(page);actions.pack(fill='x')
         self.manual_word=tk.StringVar(value=KIND_LABELS['PC_IE'])
         ttk.Label(actions,text='Tipo:').pack(side='left')
-        ttk.Combobox(actions,textvariable=self.manual_word,values=[KIND_LABELS[k] for k in KINDS],state='readonly',width=43).pack(side='left',padx=6)
-        ttk.Button(actions,text='Aplicar tipo a la selección',command=lambda:self._guard(self._assign_word_type)).pack(side='left')
-        ttk.Button(actions,text='Agregar desde Trabajo',command=lambda:self._guard(self._add_words)).pack(side='left',padx=4)
-        ttk.Button(actions,text='Cargar planilla modificada',command=lambda:self._guard(self._external)).pack(side='right')
+        self.word_type_box=ttk.Combobox(actions,textvariable=self.manual_word,values=[KIND_LABELS[k] for k in KINDS],state='readonly',width=43);self.word_type_box.pack(side='left',padx=6)
+        Tooltip(self.word_type_box,'PC_IE: '+RES_HELP['PC_IE']+'\nPC_INFO: '+RES_HELP['PC_INFO']+'\nNOMENCL: '+RES_HELP['NOMENCL'])
+        ttk.Button(actions,text='Aplicar tipo a la selección',fg_color='transparent',border_width=1,command=lambda:self._guard(self._assign_word_type)).pack(side='left')
+        ttk.Button(actions,text='Agregar desde Trabajo',fg_color='transparent',border_width=1,command=lambda:self._guard(self._add_words)).pack(side='left',padx=4)
+        ttk.Button(actions,text='Cargar planilla modificada',fg_color='transparent',border_width=1,command=lambda:self._guard(self._external)).pack(side='right')
         actions2=ttk.Frame(page);actions2.pack(fill='x',pady=5)
-        ttk.Button(actions2,text='Seleccionar todos',command=lambda:self.words.selection_set(self.words.get_children())).pack(side='left')
-        ttk.Button(actions2,text='Preparar / actualizar proyectos',command=lambda:self._guard(self._prepare_words)).pack(side='left',padx=5)
-        ttk.Button(actions2,text='Generar UN Word',command=lambda:self._guard(self._generate_words)).pack(side='right')
-        ttk.Button(actions2,text='Abrir Word generado',command=lambda:self._guard(lambda:self._open(self.last_word))).pack(side='right',padx=5)
+        ttk.Button(actions2,text='Seleccionar todos',fg_color='transparent',border_width=1,command=lambda:self.words.selection_set(self.words.get_children())).pack(side='left')
+        ttk.Button(actions2,text='Preparar / actualizar proyectos',fg_color='transparent',border_width=1,command=lambda:self._guard(self._prepare_words)).pack(side='left',padx=5)
+        ttk.Button(actions2,text='Generar Word',command=lambda:self._guard(self._generate_words)).pack(side='right')
+        ttk.Button(actions2,text='Abrir Word generado',fg_color='transparent',border_width=1,command=lambda:self._guard(lambda:self._open(self.last_word))).pack(side='right',padx=5)
         resolution_filterbar=ttk.Frame(page);resolution_filterbar.pack(fill='x',pady=(0,4))
         self.resolution_search=tk.StringVar();self.resolution_filter=tk.StringVar(value='Todos')
         ttk.Label(resolution_filterbar,text='Buscar:').pack(side='left')
@@ -410,25 +503,31 @@ class App(ctk.CTk):
         split=ttk.Panedwindow(page,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=2);split.add(right,weight=3)
         self.words=self._tree(left,('RIT','Tribunal','Tipo','Origen'))
+        self.words.bind('<<TreeviewSelect>>',self._resolution_detail)
         self.words.column('Tipo',width=245)
         self.words.tag_configure('res_explicit',background='#1f3b2d',foreground='#d9fbe7')
         self.words.tag_configure('res_manual',background='#234047',foreground='#d8f6fa')
         self.words.tag_configure('res_legacy',background='#4a3b20',foreground='#fff0c2')
         self.project_list=tk.Listbox(left,height=5,exportselection=False);self.project_list.pack(fill='x')
         self.project_list.bind('<<ListboxSelect>>',self._select_project)
+        self.resolution_case_detail=CaseDetailPanel(right);self.resolution_case_detail.pack(fill='x',pady=(0,5))
         ttk.Label(right,text='Proyecto editable. Los datos ausentes quedan como [COMPLETAR ...].').pack(anchor='w')
         self.project_editor=ScrolledText(right,wrap='word',height=18,font=('Segoe UI',11),undo=True);self.project_editor.pack(fill='both',expand=True)
-
+        self.resolution_compare=ComparisonPanel(right);self.resolution_compare.pack(fill='x',pady=4);self.resolution_compare.pack_forget()
     def _capture_project(self):
         if self.project_index is not None and self.project_index<len(self.projects):
             self.projects[self.project_index].text=self.project_editor.get('1.0','end-1c')
-
+            self._update_resolution_comparison()
     def _select_project(self,event=None):
         self._capture_project()
         if self.project_list.curselection():
             self.project_index=self.project_list.curselection()[0]
-            self.project_editor.delete('1.0','end');self.project_editor.insert('1.0',self.projects[self.project_index].text)
-
+            project=self.projects[self.project_index]
+            self.project_editor.delete('1.0','end');self.project_editor.insert('1.0',project.text)
+            rid=project.record_ids[0] if project.record_ids else None
+            row=next((r for r in self.work.rows if r.id==rid),None) if rid and self.work else None
+            if row:self.resolution_case_detail.set_text(case_detail_text(self.work,row,getattr(self,'drafts',[])))
+            self._update_resolution_comparison()
     def _prepare_words(self,then_generate=False):
         work=self._require_work()
         self._capture_project()
