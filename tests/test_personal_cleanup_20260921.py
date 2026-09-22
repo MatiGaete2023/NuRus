@@ -42,7 +42,7 @@ def test_mode_change_restores_automatic_sheet_without_discarding_work():
 
 def test_unchanged_refresh_keeps_manual_projects_and_mail():
     work=SimpleNamespace(refresh=lambda:False)
-    app=SimpleNamespace(_require_work=lambda:work,_clear_drafts=Mock(),_show_work=Mock(),_save_session=Mock(),status=Var(''))
+    app=SimpleNamespace(_require_work=lambda:work,_clear_drafts=Mock(),_show_work=Mock(),_save_session=Mock(),_update_context=Mock(),status=Var(''))
     app._run=lambda label,action,done:done(action())
     BaseApp._refresh(app)
     app._clear_drafts.assert_not_called();app._show_work.assert_not_called()
@@ -72,7 +72,7 @@ def test_failed_relocation_preserves_previous_path_and_products(monkeypatch):
 
 def test_reexport_does_not_reset_manual_resolution_choices(tmp_path):
     work=SimpleNamespace(path='input.xlsx',export=Mock(return_value='copy.xlsx'))
-    app=SimpleNamespace(work=work,folder=Var(str(tmp_path)),_capture_observation=Mock(),_show_work=Mock(),_save_session=Mock(),status=Var(''))
+    app=SimpleNamespace(work=work,folder=Var(str(tmp_path)),_capture_observation=Mock(),_show_work=Mock(),_save_session=Mock(),_update_context=Mock(),status=Var(''))
     app._run=lambda label,action,done:done(action())
     App._export_current(app)
     app._show_work.assert_called_once_with(reset_projects=False)
