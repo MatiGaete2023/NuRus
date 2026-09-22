@@ -32,3 +32,7 @@ El selector manual permanece como corrección final y afecta únicamente las fil
 ## Criterio de diseño
 
 Este cambio reduce inferencia y mantiene el flujo personal: Motor → revisión Excel → RES explícito → proyecto Word. No agrega un diseñador de reglas ni un nuevo paso obligatorio.
+
+## Compatibilidad Excel nativa
+
+La validación nativa no consulta `Application.International`, porque pywin32 puede exponer esa propiedad de forma no invocable en algunas instalaciones de Excel. La lista se alimenta mediante una hoja técnica oculta y el nombre de libro `NURUS_RES_TIPOS`, evitando depender del separador regional y manteniendo compatibilidad con Excel 2010.
