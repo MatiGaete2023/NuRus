@@ -1,5 +1,5 @@
 """Contrato de rangos simulado: preservación de celdas y límite de llamadas."""
-from nurus.services.exports import _native_write_column
+from nurus.services.exports import _native_resolution_validation, _native_write_column
 
 
 class Sheet:
@@ -69,3 +69,93 @@ def test_fill_proposal_only_in_empty_cells_including_scalar_range():
     assert sheet.values[4, 2] == sheet.values[5, 2] == "propuesta"
     assert sheet.values[7, 2] == "otra propuesta"
     assert (2, 2) not in sheet.formats and (3, 2) not in sheet.formats
+
+
+def test_res_validation_uses_hidden_named_range_without_locale_call():
+    class Cell:
+        def __init__(self):
+            self.Value2 = None
+
+    class Validation:
+        def __init__(self):
+            self.deleted = False
+            self.added = None
+            self.IgnoreBlank = self.InCellDropdown = self.ShowError = self.ShowInput = None
+            self.ErrorTitle = self.ErrorMessage = self.InputTitle = self.InputMessage = None
+
+        def Delete(self):
+            self.deleted = True
+
+        def Add(self, *args):
+            self.added = args
+
+    class Range:
+        def __init__(self):
+            self.Validation = Validation()
+
+    class Columns:
+        def __call__(self, column):
+            class Column:
+                ColumnWidth = 10
+            return Column()
+
+    class Sheet:
+        def __init__(self, name='Espera'):
+            self.Name = name
+            self.Visible = -1
+            self._cells = {}
+            self.Columns = Columns()
+            self.range = Range()
+
+        def Cells(self, row, column):
+            self._cells.setdefault((row, column), Cell())
+            return self._cells[(row, column)]
+
+        def Range(self, first, last):
+            return self.range
+
+    class Worksheets:
+        def __init__(self):
+            self.items = {'Espera': Sheet('Espera')}
+
+        def __call__(self, name):
+            if name not in self.items:
+                raise KeyError(name)
+            return self.items[name]
+
+        def Add(self):
+            sheet = Sheet()
+            self.items['NURUS_LISTAS'] = sheet
+            return sheet
+
+    class Name:
+        def Delete(self):
+            raise KeyError('not created yet')
+
+    class Names:
+        def __init__(self):
+            self.added = None
+
+        def __call__(self, name):
+            return Name()
+
+        def Add(self, name, reference):
+            self.added = (name, reference)
+
+    class Book:
+        def __init__(self):
+            self.Worksheets = Worksheets()
+            self.Names = Names()
+            # Reproduce la forma que provocó el error real: una tupla no invocable.
+            self.International = ('no debe usarse',)
+
+    book = Book()
+    sheet = book.Worksheets('Espera')
+    _native_resolution_validation(book, sheet, 8, 2, 20)
+
+    technical = book.Worksheets('NURUS_LISTAS')
+    assert technical.Visible == 0
+    assert [technical.Cells(row, 1).Value2 for row in range(2, 5)] == ['PC_IE', 'PC_INFO', 'NOMENCL']
+    assert book.Names.added == ('NURUS_RES_TIPOS', "='NURUS_LISTAS'!$A$2:$A$4")
+    assert sheet.range.Validation.added == (3, 1, 1, '=NURUS_RES_TIPOS')
+    assert sheet.range.Validation.InCellDropdown is True
