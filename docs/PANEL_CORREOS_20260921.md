@@ -1,4 +1,4 @@
-> Componente incorporado y vigente en **0.4.0.dev10**. Este documento describe específicamente el panel de Correos introducido en dev9.
+> Componente incorporado y vigente en **0.4.0.dev11**. Este documento describe específicamente el panel de Correos introducido en dev9.
 
 # Panel personal y alcance de correos — CSMP Assistant 0.4.0.dev9
 
