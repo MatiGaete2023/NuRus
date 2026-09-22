@@ -5,7 +5,7 @@ import tkinter as tk
 import customtkinter as ctk
 
 from . import ui
-from .widgets import NamedChoice
+from .widgets import NamedChoice, CaseDetailPanel, ComparisonPanel
 from .modalities import MODALITIES
 
 
@@ -94,15 +94,15 @@ def build_mail_page(app):
     app.mail_kind=tk.StringVar(value='programa_por_vencer')
     app.kind_box=NamedChoice(top,keyvariable=app.mail_kind,names=lambda:{k:v['nombre'] for k,v in app.cfg.data['correos']['plantillas'].items()},state='readonly',width=32)
     app.kind_box.grid(row=0,column=1,sticky='ew');app.kind_box.bind('<<ComboboxSelected>>',app._mail_kind_changed)
-    ui.Button(top,text='Preparar tipo',command=lambda:app._guard(app._prepare_mail)).grid(row=0,column=2,padx=7)
+    ui.Button(top,text='Preparar tipo',fg_color='transparent',border_width=1,command=lambda:app._guard(app._prepare_mail)).grid(row=0,column=2,padx=7)
     options=ctk.CTkFrame(page,fg_color='#28313c');options.grid(row=2,column=0,sticky='ew',padx=8,pady=4);options.grid_remove()
     def toggle():
         if options.winfo_manager():options.grid_remove()
         else:options.grid()
-    ui.Button(top,text='Filtros / opciones',command=toggle).grid(row=0,column=3)
+    ui.Button(top,text='Filtros / opciones',fg_color='transparent',border_width=1,command=toggle).grid(row=0,column=3)
     toolbar=ctk.CTkFrame(page,fg_color='transparent');toolbar.grid(row=1,column=0,sticky='ew',padx=8,pady=(2,6))
-    ui.Button(toolbar,text='Preparar todos',command=lambda:app._guard(app._prepare_all_mail)).pack(side='left')
-    ui.Button(toolbar,text='Cargar planilla',command=lambda:app._guard(app._external)).pack(side='left',padx=7)
+    ui.Button(toolbar,text='Preparar todos',fg_color='transparent',border_width=1,command=lambda:app._guard(app._prepare_all_mail)).pack(side='left')
+    ui.Button(toolbar,text='Cargar planilla',fg_color='transparent',border_width=1,command=lambda:app._guard(app._external)).pack(side='left',padx=7)
     app.mail_note=tk.StringVar();ui.Label(toolbar,textvariable=app.mail_note,wraplength=380,text_color=ui.MUTED).pack(side='left',padx=7)
 
     # Filtrar causas por tribunal es independiente de elegir a quién se dirige el correo.
@@ -124,7 +124,7 @@ def build_mail_page(app):
     app.mail_scope=tk.StringVar();ui.Label(modes,textvariable=app.mail_scope,wraplength=300,text_color=ui.MUTED).pack(anchor='w')
     app.manual_mail=tk.BooleanVar()
     ui.Checkbutton(modes,text='Solo filas seleccionadas en Trabajo',variable=app.manual_mail).pack(anchor='w',pady=4)
-    ui.Button(modes,text='Adjuntar a todos…',command=lambda:app._guard(app._attachment_all)).pack(anchor='w')
+    ui.Button(modes,text='Adjuntar a todos…',fg_color='transparent',border_width=1,command=lambda:app._guard(app._attachment_all)).pack(anchor='w')
 
     content=ctk.CTkFrame(page,fg_color='transparent');content.grid(row=3,column=0,sticky='nsew',padx=8,pady=(0,8))
     content.grid_rowconfigure(0,weight=1);content.grid_columnconfigure(1,weight=1)
@@ -133,7 +133,7 @@ def build_mail_page(app):
     compose=ctk.CTkFrame(content,fg_color=ui.PANEL,corner_radius=12,border_width=1,border_color='#394451')
     compose.grid(row=0,column=1,sticky='nsew');compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1,minsize=120)
     ui.Label(compose,text='Correo editable',font=('Segoe UI',16,'bold')).grid(row=0,column=0,columnspan=2,sticky='w',padx=12,pady=(8,4))
-    ui.Button(compose,text='Vista previa',width=100,command=lambda:app._guard(app._preview_mail)).grid(row=0,column=1,sticky='e',padx=12,pady=5)
+    ui.Button(compose,text='Vista previa',width=100,fg_color='transparent',border_width=1,command=lambda:app._guard(app._preview_mail)).grid(row=0,column=1,sticky='e',padx=12,pady=5)
     app.to=tk.StringVar();app.cc=tk.StringVar();app.subject=tk.StringVar();app.attach=tk.StringVar()
     for row,label,var in [(1,'Para',app.to),(2,'CC',app.cc),(3,'Asunto',app.subject)]:
         ui.Label(compose,text=label).grid(row=row,column=0,sticky='w',padx=(12,5))
@@ -142,7 +142,9 @@ def build_mail_page(app):
     app.body.grid(row=4,column=0,columnspan=2,sticky='nsew',padx=12,pady=7)
     app.attachment_chips=AttachmentChips(compose,app.attach);app.attachment_chips.grid(row=5,column=0,columnspan=2,sticky='ew',padx=12,pady=(0,4))
     actions=ctk.CTkFrame(compose,fg_color='transparent');actions.grid(row=6,column=0,columnspan=2,sticky='ew',padx=12,pady=(3,10))
-    ui.Button(actions,text='Adjuntar…',width=82,command=app._attachment).pack(side='left')
-    ui.Button(actions,text='Guardar este',width=106,command=lambda:app._guard(app._send_draft)).pack(side='left',padx=5)
-    app.save_all_button=ui.Button(actions,text='Guardar todos',width=115,command=lambda:app._guard(app._send_all));app.save_all_button.pack(side='right')
+    ui.Button(actions,text='Adjuntar…',width=82,fg_color='transparent',border_width=1,command=app._attachment).pack(side='left')
+    ui.Button(actions,text='Guardar este',width=106,fg_color='transparent',border_width=1,command=lambda:app._guard(app._send_draft)).pack(side='left',padx=5)
+    app.save_all_button=ui.Button(actions,text='Guardar borradores',width=145,command=lambda:app._guard(app._send_all));app.save_all_button.pack(side='right')
+    app.mail_case_detail=CaseDetailPanel(compose);app.mail_case_detail.grid(row=7,column=0,columnspan=2,sticky='ew',padx=12,pady=(0,6))
+    app.mail_compare=ComparisonPanel(compose);app.mail_compare.grid(row=8,column=0,columnspan=2,sticky='ew',padx=12,pady=(0,8));app.mail_compare.grid_remove()
     app._mail_kind_changed();app._mail_modality_changed()
