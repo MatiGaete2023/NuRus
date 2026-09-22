@@ -161,3 +161,19 @@ def test_individual_resolution_type_edit_changes_only_selected_row():
     assert 'a|PC_INFO' in dummy.words.data
     assert 'b|PC_IE' in dummy.words.data
     assert 'b|PC_INFO' not in dummy.words.data
+
+
+def test_res_categorical_values_and_legacy_marks_are_distinguished():
+    from nurus.personal.resolutions import resolution_kind,resolution_review_issue,resolution_selection_source
+    assert resolution_kind('PC_IE')=='PC_IE'
+    assert resolution_kind('PC_INFO')=='PC_INFO'
+    assert resolution_kind('NOMENCL')=='NOMENCL'
+    assert resolution_review_issue('X')==''
+    assert resolution_review_issue(1)==''
+    assert 'RES no reconocido' in resolution_review_issue('PC_INOF')
+    explicit=_row('typed','Texto cualquiera',[],'PC_INFO')
+    work=_fake_work([explicit])
+    assert resolution_selection_source(work,explicit,'PC_INFO')=='Definido en RES'
+    legacy=_row('legacy','Se remite proyecto de resolución pidiendo cuenta respecto del informe.',[],'X')
+    work=_fake_work([legacy])
+    assert resolution_selection_source(work,legacy,'PC_INFO')=='RES antiguo · tipo inferido'
