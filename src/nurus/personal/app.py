@@ -14,7 +14,7 @@ from .app_base import App as _BaseApp
 from .mail_view import build_mail_page
 from .mail_controls import alcance_modalidades, selected_court_record_ids
 from .outputs import prepare_drafts, prepare_required_drafts, create_drafts, drafts_for_scope, value
-from .resolutions import automatic_project_selections, reviewed_resolution_ids, unique_case_selections
+from .resolutions import automatic_project_selections, unique_case_selections, resolution_selection_source
 from .statistics import summarize
 from .work import Work
 from nurus.rus.columns import normalize
@@ -189,7 +189,6 @@ class App(_BaseApp):
         self.observation_editor.delete('1.0','end')
         self.records.delete(*self.records.get_children())
         if reset_projects:self.words.delete(*self.words.get_children())
-        reviewed_res=reviewed_resolution_ids(self.work)
         fallback_kind=self.manual_word.get() if hasattr(self,'manual_word') else 'PC_IE'
         selections=unique_case_selections(self.work,automatic_project_selections(self.work,fallback_kind))
         by_id={row.id:row for row in self.work.rows}
@@ -198,10 +197,12 @@ class App(_BaseApp):
             self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=('excluded' if row.excluded else 'warning' if row.warnings else '',))
         for rid,kind in selections if reset_projects else []:
             row=by_id[rid]
-            source='Indicado/revisado en archivo (RES)' if reviewed_res is not None else 'Sugerencia automática revisable'
+            source=resolution_selection_source(self.work,row,kind)
             self.words.insert('','end',iid=rid+'|'+kind,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind,source))
         n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)
+        invalid_res=sum(any(str(w).startswith('RES no reconocido:') for w in r.warnings) for r in self.work.rows)
         self.summary.set(f'{n} registros · {obs} propuestas · {exc} excluidos · {len(self.words.get_children())} proyectos posibles')
+        if invalid_res:self.summary.set(self.summary.get()+f' · {invalid_res} RES por corregir')
         totals=summarize(self.work)
         if totals['constancias']:self.summary.set(self.summary.get()+f" · {totals['constancias']} constancias con fecha · {totals['con_carga']} con carga")
         self.detail.set('\n'.join(dict.fromkeys(self.work.warnings)))
@@ -222,7 +223,7 @@ class App(_BaseApp):
         if not selected:raise ValueError('Selecciona una o más filas concretas de Resoluciones antes de cambiar su tipo.')
         kind=self.manual_word.get();new=[]
         for iid in selected:
-            rid=iid.split('|')[0];values=list(self.words.item(iid,'values'));values[2]=kind
+            rid=iid.split('|')[0];values=list(self.words.item(iid,'values'));values[2]=kind;values[3]='Ajustado manualmente en Resoluciones'
             key=self._visible_project_key(values)
             existing=self._existing_project_iid(key,exclude=iid)
             self.words.delete(iid)
