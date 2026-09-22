@@ -51,7 +51,7 @@ def test_unchanged_refresh_keeps_manual_projects_and_mail():
 
 def test_moved_changed_copy_clears_stale_products(monkeypatch):
     work=SimpleNamespace(output='old.xlsx',refresh=Mock(return_value=True))
-    app=SimpleNamespace(_require_work=lambda:work,_clear_drafts=Mock(),_show_work=Mock(),_save_session=Mock(),status=Var(''))
+    app=SimpleNamespace(_require_work=lambda:work,_clear_drafts=Mock(),_show_work=Mock(),_save_session=Mock(),_update_context=Mock(),status=Var(''))
     app._run=lambda label,action,done:done(action())
     monkeypatch.setattr('nurus.personal.app_base.filedialog.askopenfilename',lambda **kw:'moved.xlsx')
     BaseApp._locate(app)
