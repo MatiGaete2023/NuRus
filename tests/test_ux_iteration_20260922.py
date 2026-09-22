@@ -78,3 +78,5 @@ def test_ui_source_keeps_secondary_actions_and_exposes_requested_hierarchy():
     assert "text='Básico'" in app and "text='Avanzado'" in app
     assert 'Siguiente incidencia' in app
     assert 'CaseDetailPanel' in app and 'ComparisonPanel' in app
+    assert "messagebox.showinfo('Catastro incorporado'" not in app
+    assert "✓ Catastro incorporado" in app
