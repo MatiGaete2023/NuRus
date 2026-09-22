@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from nurus.personal.outputs import Draft, draft_fingerprint
 from nurus.personal.ux_support import (
-    RES_HELP, case_detail_lines, edited_pair, incident_ids, product_indicators, resume_description
+    RES_HELP, case_detail_lines, edited_pair, incident_ids, product_indicators, resume_available, resume_description
 )
 from nurus.personal.work import Row
 
@@ -15,9 +15,10 @@ def make_work(tmp_path):
         'Motor original.',[],['PC_INFO'],['Contacto faltante'],False,
         {'OBSERVACION':'Texto final.','TT':1,'CC':0,'RES':'PC_INFO'},
     )
+    output=tmp_path/'revisable.xlsx';output.write_bytes(b'copy')
     work=SimpleNamespace(
         rows=[row],mapping={'rit':'RIT','nombre':'NOMBRE','tribunal':'TRIBUNAL','programa':'DERIVACION'},
-        output=str(tmp_path/'revisable.xlsx'),receipts={},path=str(tmp_path/'origen.xlsx'),mode='INFORMES',
+        output=str(output),receipts={},path=str(tmp_path/'origen.xlsx'),mode='INFORMES',
     )
     return work,row
 
@@ -58,6 +59,9 @@ def test_resume_description_uses_existing_session_metadata(tmp_path):
     work,row=make_work(tmp_path)
     text=resume_description(work,saved)
     assert 'INFORMES' in text and 'origen.xlsx' in text
+    assert resume_available(work)
+    Path(work.output).unlink()
+    assert not resume_available(work)
 
 
 def test_res_help_is_minimal_and_operational():
