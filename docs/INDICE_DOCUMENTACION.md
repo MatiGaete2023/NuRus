@@ -4,6 +4,7 @@ Actualizado: 22 de septiembre de 2026. Versión vigente: **0.4.0.dev11**.
 
 ## Documentos vigentes para CSMP Assistant personal
 
+- `CONGELAMIENTO_CANDIDATA_20260922.md`: checkpoint funcional congelado, política de cambios y criterio para avanzar hacia 1.0.
 - `UX_FINAL_20260922.md`: pulido final de búsqueda, filtros, contexto, atajos y visualización por excepción.
 - `RES_CATEGORICO_20260922.md`: cierre funcional de `RES` como tipo explícito, validación, compatibilidad y UX de Resoluciones.
 - `PANEL_CORREOS_20260921.md`: panel oscuro dev9, alcance de destinatarios, plantilla del manual y verificación.
