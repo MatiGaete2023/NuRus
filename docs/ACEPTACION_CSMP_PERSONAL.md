@@ -1,8 +1,12 @@
-# Aceptación institucional — CSMP Assistant personal 0.4.0.dev11
+# Aceptación institucional — CSMP Assistant personal 0.4.0.dev12
 
 Estado al 22 de septiembre de 2026: **VALIDACIÓN FUNCIONAL REAL DEL FLUJO PRINCIPAL SATISFACTORIA**. El usuario confirmó funcionamiento en procesamiento/modificación del Excel, RES categórico, generación de resoluciones, creación y edición de borradores de correo y modificación de parámetros. Las pruebas institucionales específicas que no fueron verificadas expresamente permanecen pendientes.
 
 Responsable: usuario principal. Fecha: 22-09-2026. Commit base probado: `f67af0998640223344cc9af653f80b8334a82fe6`.
+
+## Dev12 — aceptación pendiente
+
+La validación real registrada abajo corresponde a dev11 y constituye la línea base que dev12 no debe romper. Dev12 requiere nueva prueba visual/operativa de paneles de detalle, siguiente incidencia, comparación antes/después, configuración Básico/Avanzado, reanudación explícita y redacciones actualizadas. Hasta entonces no sustituye a dev11 en `main`.
 
 ## Validación funcional real del 22 de septiembre de 2026
 
