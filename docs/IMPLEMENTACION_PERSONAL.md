@@ -1,4 +1,4 @@
-> Actualización vigente: **0.4.0.dev10**, 22-09-2026. `PANEL_CORREOS_20260921.md` describe la interfaz y el alcance de destinatarios; `LIMPIEZA_ASISTENTE_20260921.md` registra la limpieza dev8 y `VERIFICACION_PERSONAL.md` contiene la evidencia de cierre. La descripción funcional fechada que sigue conserva decisiones anteriores que continúan vigentes.
+> Actualización vigente: **0.4.0.dev11**, 22-09-2026. `PANEL_CORREOS_20260921.md` describe la interfaz y el alcance de destinatarios; `LIMPIEZA_ASISTENTE_20260921.md` registra la limpieza dev8 y `VERIFICACION_PERSONAL.md` contiene la evidencia de cierre. La descripción funcional fechada que sigue conserva decisiones anteriores que continúan vigentes.
 
 # Implementación CSMP Assistant personal — 16 de septiembre de 2026
 
@@ -36,6 +36,10 @@ Cuando `RES` no fue utilizado, una observación aislada no crea un proyecto nuev
 
 `prepare_projects` sigue expandiendo la fila representativa a todas las personas de la misma causa. Varias personas del mismo tribunal/RIT/tipo se integran en un solo proyecto y cada NNA queda junto a su propia cédula. Se genera un único Word con página nueva por proyecto. `FECHA` y `FECHA_RESOLUCION` se renderizan totalmente en palabras.
 
+## Experiencia de usuario dev11
+
+Trabajo y Resoluciones incorporan búsqueda y filtros no destructivos. Trabajo permite aislar avisos, resoluciones, excluidos o filas sin incidencias. Resoluciones filtra por origen y muestra los tipos con descripciones legibles sin cambiar sus códigos internos. La barra de contexto conserva visible modalidad, fuente, cantidad de registros y copia activa. `Ctrl+O`, `Ctrl+F`, `F5` y `Ctrl+Enter` cubren las acciones repetitivas principales. No se agregan contadores laterales ni `.exe` en esta iteración.
+
 ## Arquitectura y limpieza vigente
 
 Las correcciones que inicialmente estaban en cuatro módulos `runtime_fixes_20260916*` se integraron directamente en `work.py`, `outputs.py`, `resolutions.py`, `app.py` y `services/exports.py`. `nurus.personal.__init__` vuelve a ser declarativo y no altera funciones de otros módulos mediante importaciones con efectos secundarios.
@@ -52,5 +56,5 @@ Inventario base: seis matrices, tres de Laja y tres de Mulchén. Cinco matrices 
 
 La suite remota se ejecuta en Windows 3.12–3.14. El cierre dev9 (`c262321e…`, run `35646164874`) obtuvo **254 passed, 1 skipped** en cada versión; Python 3.12 aprobó además el smoke CustomTkinter a 1024×650 y la distribución `CSMP-Windows-dev9`. El contrato verifica versión, recursos, matrices, limpieza, alcances de correo y consistencia del paquete. La aceptación con Excel 2010/Outlook clásico, cuenta institucional y archivos reales autorizados sigue siendo externa a CI.
 
-[G-ESTADO] Implementación personal consolidada en **0.4.0.dev10**.
+[G-ESTADO] Implementación personal consolidada en **0.4.0.dev11**.
 [L-SIGUIENTE] Ejecutar `ACEPTACION_CSMP_PERSONAL.md` en el equipo institucional y registrar resultados.
