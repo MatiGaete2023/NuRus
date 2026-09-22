@@ -737,7 +737,8 @@ class App(ctk.CTk):
         if not path:return
         from copy import deepcopy
         cfg=deepcopy(self.cfg.data);contacts,conflicts=import_contacts(cfg,path);cfg['contactos']=contacts;self.cfg.save(cfg);self._list_contacts()
-        messagebox.showinfo('Catastro incorporado',f'{len(contacts)} contactos disponibles.'+('\nNo se sustituyeron coincidencias conflictivas:\n'+'\n'.join(conflicts) if conflicts else ''))
+        self.status.set(f'✓ Catastro incorporado · {len(contacts)} contactos disponibles.')
+        if conflicts:messagebox.showwarning('Contactos con conflicto','No se sustituyeron coincidencias conflictivas:\n'+'\n'.join(conflicts))
 
     def _save_office(self):
         from copy import deepcopy
