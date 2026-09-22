@@ -32,6 +32,29 @@ PARAMETER_LABELS = {
     'ficha_fae':'Ficha FAE ausente: ingreso hace más de',
 }
 CORREO_REVISION = 3
+LEGACY_OBSERVATION_TEXTS = {
+    'COMUN.MAYORIA_EDAD': 'Se hace presente que {PNOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORIA}, se sugiere egresar la medida.',
+    'COMUN.PROXIMA_MAYORIA': 'Se hace presente que {PNOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORIA}.',
+    'COMUN.CURADOR': 'No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente.',
+    'COMUN.OIDO': 'Oído con fecha {FECHA_OIDO}.',
+    'COMUN.PROX_AUDIENCIA': 'Se cita a audiencia para el día {FECHA_AUDIENCIA}.',
+    'ESPERA.E04_RESOLUCION_RECIENTE': 'Medida revisada, a la espera de ingreso efectivo. Se hace presente que el Tribunal ordenó el ingreso efectivo al programa {PROGRAMA} con fecha {FECHA_RESOLUCION}. (Observación administrativa, no requiere acción/respuesta del Tribunal).',
+    'ESPERA.E05_SOLO_CORREO': 'Medida revisada, a la espera de ingreso efectivo. Se remite correo electrónico al programa consultando respecto de la fecha estimada de ingreso efectivo.',
+    'ESPERA.E05_PROYECTO_Y_CORREO': 'Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta al programa respecto del ingreso efectivo. Igualmente, se remite correo electrónico al programa consultando respecto de la fecha estimada de ingreso efectivo.',
+    'CUMPLIMIENTO.C03_INGRESO_RECIENTE': 'Medida revisada. Se hace presente que el ingreso efectivo al programa {PROGRAMA} se registra con fecha {FECHA_INGRESO}.',
+    'CUMPLIMIENTO.C04_VENCIDA': 'La medida se visualiza vencida en RUS desde el {FECHA_EGRESO_PROYECTADO}.',
+    'CUMPLIMIENTO.C05_VENCE_HOY': 'Se hace presente que la medida se visualiza con vencimiento para el día de hoy, {FECHA_EGRESO_PROYECTADO}.',
+    'CUMPLIMIENTO.C05_POR_VENCER': 'Se hace presente que la medida se visualiza próxima a vencer en RUS el {FECHA_EGRESO_PROYECTADO}.',
+    'CUMPLIMIENTO.C07_SIN_FICHA': 'No registra ficha individual en RUS, se sugiere confeccionar.',
+    'CUMPLIMIENTO.C07_FICHA_ANTIGUA': 'Atendido que la ficha individual registra como última actualización el {FECHA_FICHA_INDIVIDUAL}, superando los 180 días, se sugiere actualizar.',
+    'CUMPLIMIENTO.C07_FICHA_RECIENTE': 'Se hace presente que la ficha individual fue actualizada con fecha {FECHA_FICHA_INDIVIDUAL}.',
+    'CUMPLIMIENTO.C08_FICHA_FAE': 'Se hace presente que {PNOMBRE} no tiene ficha FAE, se sugiere confeccionar.',
+    'CUMPLIMIENTO.C10_HOJA2': 'Medida revisada, se hace presente que el programa {PROGRAMA} deberá remitir informe de avance a más tardar el {FECHA_VENCIMIENTO}.',
+    'INFORMES.I01_VENCIDO_DCE': 'Se remite correo electrónico al programa {PROGRAMA} a fin de requerir el informe diagnóstico que se encuentra vencido en RUS desde el {FECHA_VENCIMIENTO}.',
+    'INFORMES.I01_VENCIDO_GENERAL': 'Se remite correo electrónico al programa {PROGRAMA} a fin de requerir el informe de avance que se encuentra vencido en RUS desde el {FECHA_VENCIMIENTO}.',
+    'INFORMES.I02_POR_VENCER_DCE': 'Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el informe diagnóstico ordenado en autos debe ser remitido a más tardar el {FECHA_VENCIMIENTO}.',
+    'INFORMES.I02_POR_VENCER_GENERAL': 'Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el próximo informe de avance vence el {FECHA_VENCIMIENTO}.',
+}
 LEGACY_CORREO_BODIES = {
     'espera': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Espera del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',
     'cumplimiento': 'Buen día:\n\nJunto con saludar, se informa que en la pestaña Cumplimiento del módulo RUS en SITFA se revisaron todos los registros correspondientes a {ALCANCE_MODALIDADES} y se registraron observaciones en bitácora.\n\nAtte. a Ud.,',
@@ -90,7 +113,7 @@ def defaults():
         else:contacts[name]=address
     for name in ambiguous:contacts.pop(name,None)
     aliases={a['alias']:a['nombre_catastro'] for a in json.loads((BASE/'aliases_base.json').read_text(encoding='utf-8'))}
-    return {'version':1,'revision_textos':2,'revision_correos':CORREO_REVISION,'perfil':'Asistente v9.1; prioridad confirmada por usuario',
+    return {'version':1,'revision_textos':3,'revision_correos':CORREO_REVISION,'perfil':'Asistente v9.1; prioridad confirmada por usuario',
             'umbrales':deepcopy(UMBRALES),'desactivadas':[], 'textos':text,
             'correos':mail,'contactos':contacts,'aliases':aliases,'cuenta_outlook':'','firma':''}
 
@@ -139,6 +162,17 @@ class Configuration:
                     if updated['textos'][scope][key]['texto']==previous:
                         updated['textos'][scope][key]['texto']=original
             updated['revision_textos']=2
+            self.save(updated)
+
+        if self.data.get('revision_textos',1)<3:
+            updated=deepcopy(self.data)
+            canonical=defaults()['textos']
+            for compound,previous in LEGACY_OBSERVATION_TEXTS.items():
+                scope,key=compound.split('.',1)
+                current=updated.get('textos',{}).get(scope,{}).get(key,{}).get('texto')
+                if current==previous:
+                    updated['textos'][scope][key]['texto']=canonical[scope][key]['texto']
+            updated['revision_textos']=3
             self.save(updated)
 
         if self.data.get('revision_correos',0)<CORREO_REVISION:
