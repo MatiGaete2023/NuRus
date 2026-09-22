@@ -33,8 +33,12 @@ La configuración pasa a `revision_textos=3`. La migración reemplaza únicament
 
 No se agregan dashboard, gráficos, contadores laterales, SQLite nuevo, historial exhaustivo por causa, multiusuario, nube, API, IA, plugins, PySide6, Electron, C#, reescritura del motor, EXE, instalador ni diseñador universal de reglas.
 
-## Verificación requerida
+## Verificación
 
-La rama debe pasar la suite completa en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 debe pasar además el smoke GUI y construir la distribución ZIP de prueba. El resultado automático no acredita funcionamiento real con Excel/Outlook institucional; esa prueba queda a cargo del usuario.
+CI de la rama candidata en SHA `79cf3b25e525c838510d88ac16bd52220b6f6d07`: GitHub Actions run `35772183073`, **success** en Windows con Python 3.12, 3.13 y 3.14. La suite registró **265 passed, 1 skipped** por versión. Python 3.12 aprobó además el smoke GUI y la construcción de la distribución ZIP dev12.
+
+La primera ejecución de esta evolución detectó dos desalineaciones documentales: ausencia de la fecha literal en README y matriz documental de reglas no sincronizada con los nuevos textos. Ambas fueron corregidas antes de esta ejecución verde.
+
+El resultado automático no acredita funcionamiento real con Excel/Outlook institucional ni la ergonomía final en el flujo cotidiano; esa validación queda a cargo del usuario antes de integrar a `main`.
 
 La candidata dev11 congelada queda preservada como referencia previa.
