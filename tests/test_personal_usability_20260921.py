@@ -103,3 +103,34 @@ def test_old_module_entry_opens_personal_assistant(monkeypatch):
     monkeypatch.setattr('nurus.personal.app.main',lambda:calls.append('personal'))
     nurus.app.main()
     assert calls==['personal']
+
+
+def test_resolution_labels_are_readable_but_codes_stay_stable():
+    from nurus.personal.resolutions import KIND_LABELS,kind_code,kind_label
+    assert kind_label('PC_IE')==KIND_LABELS['PC_IE']
+    assert 'ingreso efectivo' in kind_label('PC_IE').lower()
+    assert 'informe' in kind_label('PC_INFO').lower()
+    assert 'nomenclatura' in kind_label('NOMENCL').lower()
+    assert kind_code(KIND_LABELS['PC_INFO'])=='PC_INFO'
+
+
+def test_context_bar_describes_shared_active_work():
+    context=Var('')
+    app=SimpleNamespace(
+        work=SimpleNamespace(path='C:/trabajo/entrada.xlsx',mode='ESPERA',rows=[1,2,3],output='C:/salidas/revisable.xlsx'),
+        context=context,
+    )
+    App._update_context(app)
+    assert 'ESPERA' in context.get()
+    assert 'entrada.xlsx' in context.get()
+    assert '3 registros' in context.get()
+    assert 'revisable.xlsx' in context.get()
+
+
+def test_open_output_folder_prefers_current_copy(tmp_path):
+    opened=[]
+    output=tmp_path/'salidas'/'revisable.xlsx'
+    app=SimpleNamespace(work=SimpleNamespace(output=str(output)),folder=Var(str(tmp_path/'otra')),_open=lambda path:opened.append(Path(path)))
+    App._open_output_folder(app)
+    assert output.parent.is_dir()
+    assert opened==[output.parent]
