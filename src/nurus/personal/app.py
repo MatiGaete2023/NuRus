@@ -16,6 +16,7 @@ from .mail_controls import alcance_modalidades, selected_court_record_ids
 from .outputs import prepare_drafts, prepare_required_drafts, create_drafts, drafts_for_scope, value
 from .resolutions import automatic_project_selections, unique_case_selections, resolution_selection_source, kind_code, kind_label
 from .statistics import summarize
+from .ux_support import incident_ids
 from .work import Work
 from nurus.rus.columns import normalize
 
@@ -87,6 +88,10 @@ class App(_BaseApp):
         if not keep_source:self._draft_scope_source=list(drafts)
         target=self.mail_target.get() if hasattr(self,'mail_target') else 'todos'
         drafts=drafts_for_scope(drafts,target)
+        originals=getattr(self,'_draft_originals',{})
+        for draft in drafts:
+            originals.setdefault(id(draft),{'to':draft.to,'cc':draft.cc,'subject':draft.subject,'body':draft.body})
+        self._draft_originals=originals
         self.drafts=drafts;self.mail_list.delete(0,'end');self.draft_index=None
         self.mail_list.set_drafts(drafts,getattr(getattr(self,'work',None),'receipts',{}))
         if drafts:self.mail_list.selection_set(0);self._select_mail()
@@ -226,6 +231,10 @@ class App(_BaseApp):
         totals=summarize(self.work)
         if totals['constancias']:self.summary.set(self.summary.get()+f" · {totals['constancias']} constancias con fecha · {totals['con_carga']} con carga")
         self.detail.set('\n'.join(dict.fromkeys(self.work.warnings)))
+        if hasattr(self,'incident_text'):
+            count=len(incident_ids(self.work));self.incident_text.set(f'{count} incidencia'+('s' if count!=1 else ''))
+        if hasattr(self,'work_case_detail'):self.work_case_detail.set_text('Selecciona un registro.')
+        if hasattr(self,'resolution_case_detail'):self.resolution_case_detail.set_text('Selecciona un proyecto.')
         self._update_context()
 
     @staticmethod
