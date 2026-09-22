@@ -4,7 +4,9 @@
 
 **Centro de Seguimiento de Medidas de Protección · Concepción**
 **Fecha:** 14 de julio de 2026
-**Estado:** Especificación funcional definitiva. Reemplaza a `Reglas_Consolidadas_Observaciones_CSMP_2026-07-14.docx` como fuente única de verdad. Es el insumo directo para implementación en CSMP Assistant.
+**Estado:** Especificación funcional consolidada; las decisiones posteriores expresamente aprobadas se incorporan por fecha.
+
+**Actualización de redacción:** 22 de septiembre de 2026. Las redacciones y el orden de composición modificados en esta fecha prevalecen sobre ejemplos históricos de este documento; no se modifican umbrales ni condiciones sustantivas. Ver `UX_OBSERVACIONES_DEV12_20260922.md`.
 
 > **Relación con el documento base:** este catálogo incorpora las 43 decisiones del documento base del 14 de julio de 2026, las 13 correcciones de la auditoría posterior (contraste contra el Manual de Funciones CSMP y el código v8.14), y 11 propuestas adicionales evaluadas en la misma sesión. Donde no se indica cambio, la regla es idéntica al documento base. §12 trae el mapa completo de qué cambió y por qué.
 
@@ -75,7 +77,7 @@ Especificación funcional para generar observaciones administrativas a partir de
 
 **Texto aprobado:**
 
-> *{PRIMER_NOMBRE} {SIGLA}: Se hace presente que {PRIMER_NOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORÍA}, se sugiere egresar la medida.*
+> *{PRIMER_NOMBRE} {SIGLA}: {PRIMER_NOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORÍA}. Se sugiere egresar la medida.*
 
 ---
 
@@ -89,7 +91,7 @@ Especificación funcional para generar observaciones administrativas a partir de
 
 **Texto aprobado:**
 
-> *Se hace presente que {PRIMER_NOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORÍA}.*
+> *{PRIMER_NOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORÍA}.*
 
 ---
 
@@ -103,7 +105,7 @@ Especificación funcional para generar observaciones administrativas a partir de
 
 **Texto aprobado:**
 
-> *{PRIMER_NOMBRE} {SIGLA}: Medida revisada, a la espera de ingreso efectivo. Se hace presente que el Tribunal ordenó el ingreso efectivo al programa {PROGRAMA} con fecha {FECHA_RESOLUCIÓN}. (Observación administrativa, no requiere acción/respuesta del Tribunal).*
+> *{PRIMER_NOMBRE} {SIGLA}: Medida revisada, a la espera de ingreso efectivo. Ingreso al programa {PROGRAMA} ordenado el {FECHA_RESOLUCIÓN}. (Observación administrativa; no requiere gestión del Tribunal).*
 
 ---
 
@@ -115,11 +117,11 @@ Especificación funcional para generar observaciones administrativas a partir de
 
 **Rama DCE (cualquier tribunal):** T ESPERA ≥ 30 días. **Nunca** genera proyecto de resolución — el Manual lo prohíbe expresamente para DCE. Solo correo.
 
-> *{PRIMER_NOMBRE} {SIGLA}: Medida revisada, a la espera de ingreso efectivo. Se remite correo electrónico al programa consultando respecto de la fecha estimada de ingreso efectivo.*
+> *{PRIMER_NOMBRE} {SIGLA}: Medida revisada, a la espera de ingreso efectivo. Se remite correo al programa consultando fecha estimada de ingreso.*
 
 **Rama Laja y Mulchén (no DCE):** T ESPERA ≥ 30 días. Proyecto de resolución + correo.
 
-> *{PRIMER_NOMBRE} {SIGLA}: Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta al programa respecto del ingreso efectivo. Igualmente, se remite correo electrónico al programa consultando respecto de la fecha estimada de ingreso efectivo.*
+> *{PRIMER_NOMBRE} {SIGLA}: Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta del ingreso efectivo y correo al programa consultando fecha estimada de ingreso.*
 
 **Rama Tomé (no DCE), 30 a 59 días:** solo correo — mismo texto que la rama DCE.
 
@@ -161,7 +163,7 @@ Especificación funcional para generar observaciones administrativas a partir de
 
 **Texto aprobado:**
 
-> *No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente.*
+> *No registra curador ad litem en RUS. Se sugiere asociarlo informáticamente.*
 
 ---
 
@@ -175,7 +177,7 @@ Especificación funcional para generar observaciones administrativas a partir de
 
 **Texto aprobado:**
 
-> *Oído con fecha {FECHA_OÍDO}.*
+> *Oído el {FECHA_OÍDO}.*
 
 ---
 
@@ -191,7 +193,7 @@ Especificación funcional para generar observaciones administrativas a partir de
 
 **Texto aprobado:**
 
-> *Se cita a audiencia para el día {FECHA_AUDIENCIA}.*
+> *Audiencia fijada para el {FECHA_AUDIENCIA}.*
 
 ---
 
@@ -201,13 +203,13 @@ Especificación funcional para generar observaciones administrativas a partir de
 
 Idéntica a E-02.
 
-> *{PRIMER_NOMBRE} {SIGLA}: Se hace presente que {PRIMER_NOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORÍA}, se sugiere egresar la medida.*
+> *{PRIMER_NOMBRE} {SIGLA}: {PRIMER_NOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORÍA}. Se sugiere egresar la medida.*
 
 ## C-02 · Próxima mayoría de edad
 
 Idéntica a E-03.
 
-> *Se hace presente que {PRIMER_NOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORÍA}.*
+> *{PRIMER_NOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORÍA}.*
 
 ## C-03 · Ingreso efectivo reciente — **modificada (propuesta 7)**
 
@@ -219,7 +221,7 @@ Idéntica a E-03.
 
 **Texto aprobado (sin cambio):**
 
-> *Medida revisada. Se hace presente que el ingreso efectivo al programa {PROGRAMA} se registra con fecha {FECHA_INGRESO}.*
+> *Ingreso efectivo al programa {PROGRAMA} registrado el {FECHA_INGRESO}.*
 
 ## C-04 · Medida vencida
 
@@ -231,7 +233,7 @@ Idéntica a E-03.
 
 **Texto aprobado:**
 
-> *La medida se visualiza vencida en RUS desde el {FECHA_EGRESO_PROYECTADO}.*
+> *Medida vencida en RUS desde el {FECHA_EGRESO_PROYECTADO}.*
 
 ## C-05 · Medida próxima a vencer o con vencimiento hoy
 
@@ -241,11 +243,11 @@ Idéntica a E-03.
 
 **Texto aprobado — Día 0:**
 
-> *Se hace presente que la medida se visualiza con vencimiento para el día de hoy, {FECHA_EGRESO_PROYECTADO}.*
+> *Medida con vencimiento en RUS hoy, {FECHA_EGRESO_PROYECTADO}.*
 
 **Texto aprobado — Días 1 a 45:**
 
-> *Se hace presente que la medida se visualiza próxima a vencer en RUS el {FECHA_EGRESO_PROYECTADO}.*
+> *Medida próxima a vencer en RUS el {FECHA_EGRESO_PROYECTADO}.*
 
 ## ~~C-06 · Próximo informe de avance calculado~~ — **ELIMINADA**
 
@@ -263,15 +265,15 @@ Se elimina por completo el cálculo interno de hitos mensuales (3/6/9/12/15/18 p
 
 **Texto — sin fecha:**
 
-> *No registra ficha individual en RUS, se sugiere confeccionar.*
+> *No registra ficha individual en RUS. Se sugiere confeccionarla.*
 
 **Texto — más de 180 días:**
 
-> *Atendido que la ficha individual registra como última actualización el {FECHA_FICHA_INDIVIDUAL}, superando los 180 días, se sugiere actualizar.*
+> *Ficha individual actualizada por última vez el {FECHA_FICHA_INDIVIDUAL}. Se sugiere actualizarla.*
 
 **Texto — entre 0 y 30 días:**
 
-> *Se hace presente que la ficha individual fue actualizada con fecha {FECHA_FICHA_INDIVIDUAL}.*
+> *Ficha individual actualizada el {FECHA_FICHA_INDIVIDUAL}.*
 
 ## C-08 · Ficha FAE ausente *(antes C-09 en el documento base)*
 
@@ -283,7 +285,7 @@ Se elimina por completo el cálculo interno de hitos mensuales (3/6/9/12/15/18 p
 
 **Texto aprobado (modificado):**
 
-> *Se hace presente que {PRIMER_NOMBRE} no tiene ficha FAE, se sugiere confeccionar.*
+> *{PRIMER_NOMBRE} no registra ficha FAE en RUS. Se sugiere confeccionarla.*
 
 **Ficha Ambulatoria: confirmado definitivamente que no se agrega ninguna regla — decisión explícita y final, no es una omisión.**
 
@@ -313,7 +315,7 @@ Se elimina por completo el cálculo interno de hitos mensuales (3/6/9/12/15/18 p
 
 **Texto aprobado:**
 
-> *Medida revisada, se hace presente que el programa {PROGRAMA} deberá remitir informe de avance a más tardar el {FECHA_VENCIMIENTO}.*
+> *Próximo informe de avance de {PROGRAMA} vence el {FECHA_VENCIMIENTO}.*
 
 ---
 
@@ -329,11 +331,11 @@ Se elimina por completo el cálculo interno de hitos mensuales (3/6/9/12/15/18 p
 
 **Texto — DCE:**
 
-> *Se remite correo electrónico al programa {PROGRAMA} a fin de requerir el informe diagnóstico que se encuentra vencido en RUS desde el {FECHA_VENCIMIENTO}.*
+> *Se deja constancia de que se remite proyecto de resolución pidiendo cuenta del informe diagnóstico vencido desde el {FECHA_VENCIMIENTO}. De igual manera, se remite correo al programa {PROGRAMA} requiriendo su envío.*
 
 **Texto — otros:**
 
-> *Se remite correo electrónico al programa {PROGRAMA} a fin de requerir el informe de avance que se encuentra vencido en RUS desde el {FECHA_VENCIMIENTO}.*
+> *Se deja constancia de que se remite proyecto de resolución pidiendo cuenta del informe de avance vencido desde el {FECHA_VENCIMIENTO}. De igual manera, se remite correo al programa {PROGRAMA} requiriendo su envío.*
 
 ## I-02 · Informe por vencer
 
@@ -343,11 +345,11 @@ Se elimina por completo el cálculo interno de hitos mensuales (3/6/9/12/15/18 p
 
 **Texto — DCE:**
 
-> *Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el informe diagnóstico ordenado en autos debe ser remitido a más tardar el {FECHA_VENCIMIENTO}.*
+> *Se remite correo al programa {PROGRAMA} informando que el informe diagnóstico debe ser remitido a más tardar el {FECHA_VENCIMIENTO}.*
 
 **Texto — otros:**
 
-> *Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el próximo informe de avance vence el {FECHA_VENCIMIENTO}.*
+> *Se remite correo al programa {PROGRAMA} informando que el próximo informe de avance vence el {FECHA_VENCIMIENTO}.*
 
 ---
 
@@ -426,15 +428,15 @@ El sistema **no calcula** con/sin carga por regla — eso quedó descartado expl
 
 **10.1 · Espera, Tomé, 35 días (solo correo, tramo bajo)**
 
-> *Camila PIE: Medida revisada, a la espera de ingreso efectivo. Se remite correo electrónico al programa consultando respecto de la fecha estimada de ingreso efectivo.*
+> *Camila PIE: Medida revisada, a la espera de ingreso efectivo. Se remite correo al programa consultando fecha estimada de ingreso.*
 
 **10.2 · Espera, Tomé, 65 días (agrega proyecto, tramo alto)**
 
-> *Camila PIE: Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta al programa respecto del ingreso efectivo. Igualmente, se remite correo electrónico al programa consultando respecto de la fecha estimada de ingreso efectivo. No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente. Oído con fecha 8 de julio de 2026.*
+> *Camila PIE: Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta del ingreso efectivo y correo al programa consultando fecha estimada de ingreso. No registra curador ad litem en RUS. Se sugiere asociarlo informáticamente. Oído con fecha 8 de julio de 2026.*
 
 **10.3 · Espera, DCE, 40 días, cualquier tribunal (nunca proyecto)**
 
-> *Martín DCE: Medida revisada, a la espera de ingreso efectivo. Se remite correo electrónico al programa consultando respecto de la fecha estimada de ingreso efectivo.*
+> *Martín DCE: Medida revisada, a la espera de ingreso efectivo. Se remite correo al programa consultando fecha estimada de ingreso.*
 
 **10.4 · Cumplimiento, residencial (ficha individual fusionada + Hoja2)**
 
