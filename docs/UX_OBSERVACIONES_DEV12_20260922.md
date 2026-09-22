@@ -40,7 +40,7 @@ El conflicto histórico DCE/Informes permanece sin modificación: el manual docu
 
 Se agregan regresiones para textos exactos, sincronización de catálogos, migración sin sobrescribir personalizaciones, `PC_INFO` de vencidos, ausencia de `PC_INFO` por vencer, orden de composición, detalle de causa, incidencias, comparación, productos, reanudación y jerarquía UX.
 
-La evidencia de CI y el SHA final se incorporan en `VERIFICACION_PERSONAL.md` cuando la rama quede verde.
+Checkpoint de código `389d7b919fbeb94eef12480cf9aec8c75901fcd1`, GitHub Actions run `35768192161`: **success** en Windows/Python 3.12–3.14, con **272 passed, 1 skipped** por versión. Python 3.12 aprobó además el smoke GUI y la distribución ZIP dev12. La prueba real continúa pendiente.
 
 ## Validación real pendiente
 
