@@ -79,13 +79,13 @@ jobs:
       - name: Build Windows distribution
         if: matrix.python == '3.12'
         shell: pwsh
-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev9.zip HEAD
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev10.zip HEAD
 
       - name: Source distribution
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Windows-dev9
+          name: CSMP-Windows-dev10
           path: dist/CSMP_Assistant_personal_0.4.0-dev9.zip
 
       - name: Wheel artifact
