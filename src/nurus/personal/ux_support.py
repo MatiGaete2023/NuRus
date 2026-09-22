@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from nurus.rus.columns import normalize
-from .outputs import value
+from .outputs import value, draft_fingerprint
 from .resolutions import KINDS, kind_label, resolution_kind
 
 
@@ -56,8 +56,8 @@ def _mail_state(work,row_id,drafts):
         if row_id not in getattr(draft,'record_ids',[]):
             continue
         prepared=True
-        key=getattr(draft,'key','')
-        if key and receipts.get(key,{}).get('state')=='created':
+        key=getattr(draft,'key','') or draft_fingerprint(draft)
+        if receipts.get(key,{}).get('state')=='created':
             created=True
     return 'created' if created else 'prepared' if prepared else ''
 
