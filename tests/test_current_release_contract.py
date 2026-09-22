@@ -8,19 +8,19 @@ ROOT=Path(__file__).parents[1]
 
 def test_release_version_and_current_docs_are_aligned():
     project=tomllib.loads((ROOT/'pyproject.toml').read_text(encoding='utf-8'))
-    assert project['project']['version']==nurus.__version__=='0.4.0.dev10'
+    assert project['project']['version']==nurus.__version__=='0.4.0.dev11'
     current_docs=[
         ROOT/'README.md', ROOT/'docs/IMPLEMENTACION.md', ROOT/'docs/IMPLEMENTACION_PERSONAL.md',
-        ROOT/'docs/PANEL_CORREOS_20260921.md', ROOT/'docs/RES_CATEGORICO_20260922.md', ROOT/'docs/VERIFICACION_PERSONAL.md',
+        ROOT/'docs/PANEL_CORREOS_20260921.md', ROOT/'docs/RES_CATEGORICO_20260922.md', ROOT/'docs/UX_FINAL_20260922.md', ROOT/'docs/VERIFICACION_PERSONAL.md',
         ROOT/'docs/ACEPTACION_CSMP_PERSONAL.md', ROOT/'docs/INDICE_DOCUMENTACION.md',
         ROOT/'docs/ESTADO_CONSOLIDADO_20260920.md',
     ]
     for path in current_docs:
         text=path.read_text(encoding='utf-8')
-        assert '0.4.0.dev10' in text, path
+        assert '0.4.0.dev11' in text, path
     historical=(ROOT/'docs/CAMBIOS_USO_20260914.md').read_text(encoding='utf-8')
     assert '0.4.0.dev5' in historical
-    assert '0.4.0.dev10' not in historical
+    assert '0.4.0.dev11' not in historical
     index=(ROOT/'docs/INDICE_DOCUMENTACION.md').read_text(encoding='utf-8')
     assert 'CAMBIOS_USO_20260916.md' in index
     assert 'ESTADO_CONSOLIDADO_20260920.md' in index
@@ -44,8 +44,8 @@ def test_workflow_and_distribution_match_current_release():
     workflow=(ROOT/'.github/workflows/tests.yml').read_text(encoding='utf-8')
     assert 'actions/checkout@v7' in workflow
     assert 'actions/setup-python@v7' in workflow
-    assert 'CSMP_Assistant_personal_0.4.0-dev10.zip' in workflow
-    assert 'CSMP-Windows-dev10' in workflow
+    assert 'CSMP_Assistant_personal_0.4.0-dev11.zip' in workflow
+    assert 'CSMP-Windows-dev11' in workflow
 
 
 def test_gitignore_covers_local_csmp_environment_and_build_outputs():
