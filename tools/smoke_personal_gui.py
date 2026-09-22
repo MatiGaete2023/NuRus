@@ -78,15 +78,34 @@ with TemporaryDirectory() as directory:
         assert app.kind_box.get()==app.cfg.data['correos']['plantillas'][app.mail_kind.get()]['nombre']
         app.tabs.select(app.pages['Configuración']);app.update_idletasks();app.update()
         capture_window(app,'configuracion-1024x650')
-        # La vista real conserva un tipo elegido manualmente al reexportar.
+        # Trabajo y Resoluciones: contexto persistente, búsqueda, revisión por excepción y tipos legibles.
         work=Work(app.cfg.data);work.mode='ESPERA';work.path='prueba.xlsx'
-        work.mapping={'rit':'RIT','tribunal':'TRIBUNAL'}
-        work.rows=[Row('a',2,{'RIT':'X-1','TRIBUNAL':'Jgdo. L. y G. de Laja'},'Ingreso efectivo',[],['PC_IE'],[])]
-        app.work=work;app._show_work();app.words.selection_set('a|PC_IE')
+        work.mapping={'rit':'RIT','tribunal':'TRIBUNAL','nombre':'NOMBRE','rut':'RUT','programa':'DERIVACION'}
+        work.rows=[
+            Row('a',2,{'RIT':'X-1','TRIBUNAL':'Jgdo. L. y G. de Laja','NOMBRE':'NNA UNO','RUT':'11111111-1','DERIVACION':'AFT PRUEBA'},'Ingreso efectivo',[],['PC_IE'],[],review={'RES':'PC_IE'}),
+            Row('b',3,{'RIT':'X-2','TRIBUNAL':'Jgdo. L. y G. de Laja','NOMBRE':'NNA DOS','RUT':'22222222-2','DERIVACION':'AFT PRUEBA'},'Revisión manual',[],[],['Dato a revisar']),
+        ]
+        app.work=work;app._show_work()
+        assert '2 registros' in app.context.get()
+        assert 'Pide cuenta ingreso efectivo' in app.words.item('a|PC_IE','values')[2]
+        assert 'Definido en RES'==app.words.item('a|PC_IE','values')[3]
+        app.work_search.set('NNA UNO');app.update()
+        assert app.records.get_children()==('a',)
+        app.work_search.set('');app.work_filter.set('Con aviso');app._apply_work_filter();app.update()
+        assert app.records.get_children()==('b',)
+        app.work_filter.set('Todos');app._apply_work_filter()
+        app.resolution_filter.set('Definido en RES');app._apply_resolution_filter();app.update()
+        assert app.words.get_children()==('a|PC_IE',)
+        app.resolution_filter.set('Todos');app._apply_resolution_filter()
+        app.tabs.select(app.pages['Trabajo']);app.update_idletasks();app.update();capture_window(app,'trabajo-1024x650')
+        app.tabs.select(app.pages['Resoluciones']);app.update_idletasks();app.update();capture_window(app,'resoluciones-1024x650')
+        # La vista real conserva un tipo elegido manualmente al reexportar.
+        app.words.selection_set('a|PC_IE')
         app.manual_word.set('NOMENCL');app._assign_word_type()
         app._show_work(reset_projects=False)
         assert app.words.get_children()==('a|NOMENCL',)
         assert app.words.selection()==('a|NOMENCL',)
+        assert 'Ajustado manualmente' in app.words.item('a|NOMENCL','values')[3]
         app.to.set('anterior@example.cl');app.body.insert('end','Correo anterior')
         app.project_editor.insert('end','Proyecto anterior');app._clear_drafts()
         assert not app.to.get() and not app.body.get('1.0','end-1c')
@@ -96,5 +115,5 @@ with TemporaryDirectory() as directory:
         while app.busy and time.monotonic()<deadline:
             app.update();time.sleep(.02)
         assert not app.busy and app.progress.cget('mode')=='determinate' and app.progress.get()==0
-        print('Cinco áreas CTk oscuras; tarjetas seleccionables; adjuntos individuales; botones visibles a 1024x650; cuerpo editable >=100px; plantillas y resoluciones conservadas.')
+        print('Cinco áreas CTk oscuras; búsqueda y filtros; contexto persistente; revisión por excepción; tipos legibles; tarjetas y adjuntos; botones visibles a 1024x650; plantillas y resoluciones conservadas.')
     finally:app.destroy()
