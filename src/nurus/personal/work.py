@@ -68,6 +68,13 @@ def _review_value(row,key,fallback=None):
     return _source_value(row,key,'')
 
 
+def _sync_resolution_warning(row):
+    from .resolutions import resolution_review_issue
+    prefix='RES no reconocido:'
+    row.warnings=[item for item in row.warnings if not str(item).startswith(prefix)]
+    issue=resolution_review_issue((row.review or {}).get('RES'))
+    if issue:row.warnings.append(issue)
+
 class Work:
     def __init__(self, config):
         self.config=deepcopy(config)
@@ -214,7 +221,9 @@ class Work:
                     raise ValueError('Cambió la identidad de una fila. No se aplicaron cambios; verifica '+field+'.')
             incoming[key]={k:values.get(k,'') for k in ('OBSERVACION','FECHA_OBS','TT','CC','RES')}
         if set(incoming)!=set(by_id):raise ValueError('Faltan registros en la copia; no se aplicaron cambios.')
-        for key,review in incoming.items():by_id[key].review=review
+        for key,review in incoming.items():
+            by_id[key].review=review
+            _sync_resolution_warning(by_id[key])
         self.output_hash=digest
         return True
 
@@ -237,7 +246,9 @@ class Work:
             excluded=es_derivacion_sin_seg(str(values.get(obj.mapping.get('programa',''),'')))
             events=list(dict.fromkeys(rules))
             actions=[] if excluded else actions_for(events)
-            obj.rows.append(Row(rid,number,values,str(review.get('OBSERVACION','')),events,actions,[],excluded,review))
+            row=Row(rid,number,values,str(review.get('OBSERVACION','')),events,actions,[],excluded,review)
+            _sync_resolution_warning(row)
+            obj.rows.append(row)
         return obj
 
     def save(self,directory):
@@ -258,6 +269,7 @@ class Work:
         obj.needs_cross=False
         if not hasattr(obj,'cross_missing'):obj.cross_missing=False
         obj.rows=[Row(**r) for r in data['rows']]
+        for row in obj.rows:_sync_resolution_warning(row)
         obj.content=(directory/(obj.source_hash+'.bin')).read_bytes()
         if sha256(obj.content).hexdigest()!=obj.source_hash:raise ValueError('La copia de origen guardada no coincide con el trabajo.')
         return obj
