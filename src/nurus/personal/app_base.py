@@ -312,7 +312,7 @@ class App(ctk.CTk):
         ttk.Button(actions2,text='Abrir Word generado',command=lambda:self._guard(lambda:self._open(self.last_word))).pack(side='right',padx=5)
         split=ttk.Panedwindow(page,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=2);split.add(right,weight=3)
-        self.words=self._tree(left,('RIT','Tribunal','Tipo','Revisión'))
+        self.words=self._tree(left,('RIT','Tribunal','Tipo','Origen'))
         self.project_list=tk.Listbox(left,height=5,exportselection=False);self.project_list.pack(fill='x')
         self.project_list.bind('<<ListboxSelect>>',self._select_project)
         ttk.Label(right,text='Proyecto editable. Los datos ausentes quedan como [COMPLETAR ...].').pack(anchor='w')
