@@ -2,7 +2,7 @@
 
 **Repositorio:** `MatiGaete2023/NuRus`  
 **Producto vigente:** CSMP Assistant personal  
-**Versión vigente:** `0.4.0.dev9` (ver actualización siguiente)
+**Versión vigente:** `0.4.0.dev10` (ver actualización siguiente)
 **Checkpoint histórico del cuerpo:** `0.4.0.dev6`
 **Rama candidata dev9:** `csmp-ux-20260921` (destinada a fast-forward de `main` y de la rama personal tras el cierre)  
 **HEAD al iniciar esta revisión:** `0523f3cb666a7e55b6a4fd64eb92949c89a58e26`  
@@ -10,7 +10,11 @@
 
 Este documento reemplaza como **estado de navegación** a los resúmenes parciales anteriores. Los informes fechados se conservan como evidencia histórica y no deben reinterpretarse como descripción automática de la versión vigente.
 
-## Actualización vigente — panel y correos dev9
+## Actualización vigente — RES categórico dev10
+
+La revisión final de Resoluciones reemplaza el uso recomendado de números en `RES` por tres valores explícitos: `PC_IE`, `PC_INFO` y `NOMENCL`. Las copias nuevas presentan lista desplegable compatible con Excel; vacío significa sin proyecto. El lector conserva marcas antiguas (`1`, `X`, etc.) para no romper planillas anteriores. Un valor escrito pero desconocido produce advertencia visible y no se adivina. En Resoluciones se diferencia `Definido en RES`, compatibilidad antigua y sugerencia automática; un cambio manual queda marcado como ajuste en la interfaz. Ver `RES_CATEGORICO_20260922.md`.
+
+## Checkpoint anterior — panel y correos dev9
 
 Se integra CustomTkinter (dependencia nueva en el entorno aislado Windows), navegación lateral y tarjetas de borradores con datos reales. Destinatarios y filtro de tribunal se separan: solo programas, solo tribunales o ambos. `Preparar todos` mantiene la naturaleza de cada comunicación: `programa_*` va a programas; el informativo general y `medidas` van a tribunales. La migración de correos revisión 3 recupera el texto del manual de Informes por vencer sin reemplazar textos personales. No existe botón Enviar; solo guardar uno/todos. Se conserva la limpieza dev8 validada en `bab202e9533e88b5130a277f01b90b816e98940e`, run `35620647820`. El cierre dev9 está validado en `c262321e227302cc9349061a941c06af29879219`, run `35646164874`: Windows 3.12/3.13/3.14 success, 254 passed y 1 skipped por versión, smoke CustomTkinter y distribución dev9 correctos. Los pendientes institucionales continúan.
 
@@ -500,7 +504,7 @@ D06. Resoluciones agrupadas por tribunal/RIT/tipo en un Word.
 D07. Revisión humana por excepción, sin aprobación fila por fila.
 
 [G-ESTADO]
-Versión: 0.4.0.dev9.
+Versión: 0.4.0.dev10.
 CI vigente: run 35646164874, Windows 3.12/3.13/3.14 verde;
 254 passed, 1 skipped por versión; smoke CustomTkinter y distribución Windows OK en 3.12.
 Código transitorio e interfaz NuRus paralela eliminados.
