@@ -1,6 +1,6 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev11**, estado consolidado al 22 de septiembre de 2026. **Candidata funcional congelada** para uso cotidiano controlado; no se agregan nuevas funciones durante esta fase. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+Versión **0.4.0.dev12** en rama de evolución UX/reglas. Parte desde la candidata funcional congelada **0.4.0.dev11** y aplica únicamente cambios expresamente aprobados. La referencia de implementación y límites está en [`docs/EVOLUCION_UX_REGLAS_20260922.md`](docs/EVOLUCION_UX_REGLAS_20260922.md). Dev11 permanece como checkpoint funcional previo hasta que dev12 complete CI y prueba real.
 
 ## Estado de congelamiento
 
