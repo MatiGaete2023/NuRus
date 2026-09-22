@@ -21,24 +21,33 @@ def _audiencia(row, cols):
         return render('COMUN','PROX_AUDIENCIA', FECHA_AUDIENCIA=fecha_es(fa))
     return ''
 
-def _curador_oido(row, cols):
-    """T-01 y T-02 (sin audiencia) — reutilizado por cumplimiento, que
-    intercala las fichas C-07/C-08 antes de la audiencia (§9.2)."""
-    out=[]; hoy=Clock.now().date()
-    if cols.get('curador') and not tiene_curador_real(row.get(cols.get('curador'))):
-        out.append(render('COMUN','CURADOR'))
+def _oido(row, cols):
+    hoy=Clock.now().date()
     fo=fecha_valida(row.get(cols.get('oido'))) if cols.get('oido') else None
     if fo:
         d=(hoy-_date(fo)).days
-        if 0 <= d <= parametro('oido'): out.append(render('COMUN','OIDO', FECHA_OIDO=fecha_es(fo)))
-    return out
+        if 0 <= d <= parametro('oido'):
+            return [render('COMUN','OIDO', FECHA_OIDO=fecha_es(fo))]
+    return []
+
+
+def _curador(row, cols):
+    if cols.get('curador') and not tiene_curador_real(row.get(cols.get('curador'))):
+        return [render('COMUN','CURADOR')]
+    return []
+
+
+def _curador_oido(row, cols):
+    """Compatibilidad interna: hitos antes de sugerencias."""
+    return _oido(row, cols) + _curador(row, cols)
 
 
 def _complementarias(row, cols):
-    out = _curador_oido(row, cols)
+    out = _oido(row, cols)
     audiencia = _audiencia(row, cols)
     if audiencia:
         out.append(audiencia)
+    out += _curador(row, cols)
     return out
 
 
