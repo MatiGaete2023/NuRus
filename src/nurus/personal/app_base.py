@@ -16,7 +16,7 @@ from .ui import Textbox as ScrolledText
 from .config import Configuration, PARAMETER_LABELS, VARIABLES
 from .widgets import ScrollPane, NamedChoice
 from .work import Work
-from .outputs import create_draft, import_contacts
+from .outputs import create_draft, import_contacts, value
 from .resolutions import KINDS, KIND_LABELS, kind_code, kind_label, prepare_projects, generate_projects, automatic_project_selections
 from .importing import SheetChoice
 from nurus.rus.reader import list_workbook_sheets
