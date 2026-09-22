@@ -7,7 +7,7 @@ from .utilidades import (fecha_es, limpiar_nombre, normalizar, es_derivacion_sin
     get_int, calcular_edad_exacta, dias_para_mayoria, fecha_mayoria,
     titulo_programa, contiene_token)
 from .textos import render
-from .reglas_espera import _complementarias, _curador_oido, _audiencia
+from .reglas_espera import _complementarias, _oido, _curador, _audiencia
 
 _RES=('rta','rtt','res','rfa','rva')
 def _d(v): return v.date() if hasattr(v,'date') else v
@@ -51,9 +51,11 @@ def generar_observacion_cumplimiento(row, tribunal, cols, fecha_hoja2=None, inci
         frags.append(render('CUMPLIMIENTO','C05_VENCE_HOY' if dpe == 0 else 'C05_POR_VENCER', FECHA_EGRESO_PROYECTADO=fecha_es(fegr))); principal=True
     if fecha_hoja2 and not vencida and not c05:
         frags.append(render('CUMPLIMIENTO','C10_HOJA2', PROGRAMA=prog, FECHA_VENCIMIENTO=fecha_es(fecha_hoja2))); principal=True
-    # Orden §9.2: curador (6) y oído (7) van ANTES de las fichas (8-9);
-    # la audiencia (10) se agrega al final, después de C-07/C-08.
-    frags += _curador_oido(row, cols)
+    # Orden aprobado: estado principal; hitos procesales; acciones/sugerencias.
+    frags += _oido(row, cols)
+    aud=_audiencia(row, cols)
+    if aud: frags.append(aud)
+    frags += _curador(row, cols)
     pnrm=normalizar(programa)
     fi=fecha_valida(row.get(cols.get('ficha_ind'))) if cols.get('ficha_ind') else None
     if pnrm.startswith(_RES) and cols.get('ficha_ind'):
@@ -65,8 +67,6 @@ def generar_observacion_cumplimiento(row, tribunal, cols, fecha_hoja2=None, inci
     ffae=fecha_valida(row.get(cols.get('ficha_fae'))) if cols.get('ficha_fae') else None
     if contiene_token(programa,'fae','fas') and fing and (hoy-_d(fing)).days > parametro('ficha_fae') and not ffae:
         frags.append(render('CUMPLIMIENTO','C08_FICHA_FAE', PNOMBRE=pn))
-    aud=_audiencia(row, cols)
-    if aud: frags.append(aud)
-    if not principal:
-        return componer(pfx, [render('CUMPLIMIENTO','C09_SIN_OBSERVACIONES')] if not frags else [render('CUMPLIMIENTO','C09_BASE_BREVE')] + frags)
+    if not principal and not frags:
+        return componer(pfx, [render('CUMPLIMIENTO','C09_SIN_OBSERVACIONES')])
     return componer(pfx, frags)
