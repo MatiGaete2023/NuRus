@@ -1,6 +1,6 @@
 # Verificación vigente — CSMP Assistant personal 0.4.0.dev11
 
-Estado: **CI final de dev11 en ejecución tras corregir los hallazgos de la primera pasada**. Esta iteración modifica únicamente experiencia de usuario y documentación; no agrega `.exe` ni cambia los invariantes Office/RUS.
+Estado: **CI final de dev11 en ejecución con los parches de búsqueda y dobles de regresión incorporados**. Esta iteración modifica únicamente experiencia de usuario y documentación; no agrega `.exe` ni cambia los invariantes Office/RUS.
 
 Base previa acreditada: dev10, commit `8546dab08ae9976c2e0f26810e2e49d5fee30ced`, run `35729404913`: Windows Python 3.12/3.13/3.14 success, 256 passed y 1 skipped por versión, smoke CustomTkinter y construcción de distribución Windows correctos.
 
