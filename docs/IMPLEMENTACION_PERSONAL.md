@@ -1,4 +1,4 @@
-> Actualización vigente: **0.4.0.dev9**, 21-09-2026. `PANEL_CORREOS_20260921.md` describe la interfaz y el alcance de destinatarios; `LIMPIEZA_ASISTENTE_20260921.md` registra la limpieza dev8 y `VERIFICACION_PERSONAL.md` contiene la evidencia de cierre. La descripción funcional fechada que sigue conserva decisiones anteriores que continúan vigentes.
+> Actualización vigente: **0.4.0.dev10**, 22-09-2026. `PANEL_CORREOS_20260921.md` describe la interfaz y el alcance de destinatarios; `LIMPIEZA_ASISTENTE_20260921.md` registra la limpieza dev8 y `VERIFICACION_PERSONAL.md` contiene la evidencia de cierre. La descripción funcional fechada que sigue conserva decisiones anteriores que continúan vigentes.
 
 # Implementación CSMP Assistant personal — 16 de septiembre de 2026
 
@@ -30,7 +30,7 @@ La deduplicación ya no depende de filas + asunto ni de la ruta temporal de los 
 
 ## Resoluciones
 
-Los tipos son `PC_IE`, `PC_INFO` y `NOMENCL`. La precedencia es: tipo explícito en `RES`; tipo inferido desde observación humana revisada; acción del motor; y solo para un caso expresamente marcado sin datos suficientes, tipo manual de respaldo.
+Los tipos son `PC_IE`, `PC_INFO` y `NOMENCL`. En copias nuevas la columna `RES` contiene validación de datos/lista desplegable con esos tres valores; vacío significa que no corresponde proyecto. Un valor RES no reconocido se marca como incidencia y no se interpreta por semejanza. La precedencia es: tipo explícito en `RES`; tipo inferido desde observación humana revisada para compatibilidad con marcas antiguas; acción del motor; y solo para un caso expresamente marcado sin datos suficientes, tipo manual de respaldo.
 
 Cuando `RES` no fue utilizado, una observación aislada no crea un proyecto nuevo: debe existir una acción de resolución del motor. La vista se deduplica antes de llegar a la interfaz y muestra una sola fila por tribunal + RIT + tipo. Cambiar el tipo exige seleccionar explícitamente la fila o filas concretas; no seleccionar nada no modifica el conjunto completo.
 
@@ -52,5 +52,5 @@ Inventario base: seis matrices, tres de Laja y tres de Mulchén. Cinco matrices 
 
 La suite remota se ejecuta en Windows 3.12–3.14. El cierre dev9 (`c262321e…`, run `35646164874`) obtuvo **254 passed, 1 skipped** en cada versión; Python 3.12 aprobó además el smoke CustomTkinter a 1024×650 y la distribución `CSMP-Windows-dev9`. El contrato verifica versión, recursos, matrices, limpieza, alcances de correo y consistencia del paquete. La aceptación con Excel 2010/Outlook clásico, cuenta institucional y archivos reales autorizados sigue siendo externa a CI.
 
-[G-ESTADO] Implementación personal consolidada en **0.4.0.dev9**.
+[G-ESTADO] Implementación personal consolidada en **0.4.0.dev10**.
 [L-SIGUIENTE] Ejecutar `ACEPTACION_CSMP_PERSONAL.md` en el equipo institucional y registrar resultados.
