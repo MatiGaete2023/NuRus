@@ -1,10 +1,10 @@
 # Verificación vigente — CSMP Assistant personal 0.4.0.dev12
 
-Estado de la rama dev12: **CANDIDATA DE EVOLUCIÓN EN VERIFICACIÓN**. Dev11 sigue siendo la última candidata con prueba real satisfactoria hasta que dev12 complete CI y prueba de uso.
+Estado de la rama dev12: **CANDIDATA DE EVOLUCIÓN CON CI VERDE; PENDIENTE DE PRUEBA REAL**. Dev11 sigue siendo la última candidata con prueba real satisfactoria hasta que dev12 complete la validación visual/operativa.
 
 ## Verificación dev12
 
-Rama: `ux-observaciones-20260922`. Se incorporaron pruebas específicas de redacción, PC_INFO y UX. La ejecución Windows/Python 3.12–3.14 se registrará aquí al cerrar la rama. No se atribuye a dev12 la evidencia real de dev11.
+Rama: `ux-observaciones-20260922`. Checkpoint de código verificado: `389d7b919fbeb94eef12480cf9aec8c75901fcd1`, GitHub Actions run `35768192161`: **success** en Windows con Python 3.12, 3.13 y 3.14; **272 passed, 1 skipped** por versión. Python 3.12 aprobó además el smoke CustomTkinter y la construcción de la distribución ZIP dev12. Se incorporaron pruebas específicas de redacción, `PC_INFO` y UX. No se atribuye a dev12 la evidencia real de dev11.
 
 ## Evidencia automatizada
 
