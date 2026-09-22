@@ -427,11 +427,7 @@ def evaluate_compliance(
     fragments += audience
     ids += audience_ids
 
-    if not principal and not issues:
-        if fragments:
-            fragments.insert(0, render(catalog, "CUMPLIMIENTO", "C09_BASE_BREVE"))
-            ids.insert(0, "C-09")
-        else:
-            fragments.append(render(catalog, "CUMPLIMIENTO", "C09_SIN_OBSERVACIONES"))
-            ids.append("C-09")
+    if not principal and not issues and not fragments:
+        fragments.append(render(catalog, "CUMPLIMIENTO", "C09_SIN_OBSERVACIONES"))
+        ids.append("C-09")
     return _compose(prefix(row, columns), fragments), tuple(ids), tuple(issues)
