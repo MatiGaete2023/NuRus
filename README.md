@@ -4,7 +4,7 @@ Versión **0.4.0.dev12**, candidata de evolución UX al 22 de septiembre de 2026
 
 ## Evolución dev12 en validación
 
-Dev12 aplica las redacciones aprobadas de Espera, Cumplimiento e Informes y una mejora UX acotada: detalle de causa, siguiente incidencia, comparación de ediciones, acciones primarias, configuración Básico/Avanzado, reanudación explícita y ayuda RES. Ver [`docs/UX_OBSERVACIONES_DEV12_20260922.md`](docs/UX_OBSERVACIONES_DEV12_20260922.md). Esta rama aún requiere CI y prueba real antes de integrarse a `main`.
+Dev12 aplica las redacciones aprobadas de Espera, Cumplimiento e Informes y una mejora UX acotada: detalle de causa, siguiente incidencia, comparación de ediciones, acciones primarias, configuración Básico/Avanzado, reanudación explícita y ayuda RES. Ver [`docs/UX_OBSERVACIONES_DEV12_20260922.md`](docs/UX_OBSERVACIONES_DEV12_20260922.md). La CI de la rama está verde en Windows/Python 3.12–3.14; todavía requiere prueba real visual/operativa antes de integrarse a `main`.
 
 ## Estado de congelamiento
 
