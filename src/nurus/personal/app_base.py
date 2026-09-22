@@ -17,7 +17,7 @@ from .config import Configuration, PARAMETER_LABELS, VARIABLES
 from .widgets import ScrollPane, NamedChoice
 from .work import Work
 from .outputs import create_draft, import_contacts
-from .resolutions import KINDS, prepare_projects, generate_projects, automatic_project_selections
+from .resolutions import KINDS, KIND_LABELS, kind_code, kind_label, prepare_projects, generate_projects, automatic_project_selections
 from .importing import SheetChoice
 from nurus.rus.reader import list_workbook_sheets
 from nurus.adapters.sent_mail import count_sent_mail, export_sent_report
@@ -36,6 +36,7 @@ class App(ctk.CTk):
         self.template_dir.mkdir(parents=True,exist_ok=True)
         self._install_templates()
         self.status=tk.StringVar(value='Selecciona un Excel para comenzar.')
+        self.context=tk.StringVar(value='Sin trabajo activo · Ctrl+O para elegir un Excel')
         self.grid_columnconfigure(1,weight=1);self.grid_rowconfigure(0,weight=1)
         sidebar=ctk.CTkFrame(self,width=155,corner_radius=0,fg_color='#11161c')
         sidebar.grid(row=0,column=0,sticky='nsew');sidebar.grid_propagate(False);sidebar.pack_propagate(False)
@@ -46,13 +47,17 @@ class App(ctk.CTk):
             frame=ttk.Frame(self.tabs,padding=10);self.tabs.add(frame,text=name);self.pages[name]=frame
         ctk.CTkLabel(sidebar,text='Uso personal\nSolo borradores',text_color=ttk.MUTED,justify='left').pack(side='bottom',padx=16,pady=18)
         self._work_page();self._mail_page();self._word_page();self._config_page();self._sent_page()
+        contextbar=ctk.CTkFrame(self,corner_radius=0,fg_color='#1a2028')
+        contextbar.grid(row=1,column=0,columnspan=2,sticky='ew')
+        ctk.CTkLabel(contextbar,textvariable=self.context,anchor='w',text_color=ttk.MUTED,font=('Segoe UI',11)).pack(fill='x',padx=14,pady=4)
         statusbar=ctk.CTkFrame(self,corner_radius=0,fg_color='#11161c')
-        statusbar.grid(row=1,column=0,columnspan=2,sticky='ew');statusbar.grid_columnconfigure(0,weight=1)
+        statusbar.grid(row=2,column=0,columnspan=2,sticky='ew');statusbar.grid_columnconfigure(0,weight=1)
         self.status_label=ctk.CTkLabel(statusbar,textvariable=self.status,anchor='w',wraplength=760)
         self.status_label.grid(row=0,column=0,sticky='ew',padx=14,pady=6)
         self.progress=ctk.CTkProgressBar(statusbar,width=120,height=7,mode='determinate')
         self.progress.grid(row=0,column=1,padx=14);self.progress.set(0)
         self.protocol('WM_DELETE_WINDOW',self._close)
+        self._bind_shortcuts()
         self.after(100,self._poll)
         saved=self.cfg.directory/'sesion/trabajo.json'
         if saved.exists():
@@ -125,6 +130,80 @@ class App(ctk.CTk):
         if os.name=='nt':os.startfile(str(path))
         else:messagebox.showinfo('Archivo disponible',str(path))
 
+    def _update_context(self):
+        if not self.work:
+            self.context.set('Sin trabajo activo · Ctrl+O para elegir un Excel')
+            return
+        source=Path(getattr(self.work,'path','') or '').name or 'sin archivo'
+        mode=str(getattr(self.work,'mode','') or 'TRABAJO')
+        count=len(getattr(self.work,'rows',[]) or [])
+        output=getattr(self.work,'output','')
+        copy=('copia: '+Path(output).name) if output else 'copia aún no generada'
+        self.context.set(f'{mode} · {source} · {count} registros · {copy}')
+
+    def _open_output_folder(self):
+        output=getattr(getattr(self,'work',None),'output','')
+        folder=Path(output).parent if output else Path(self.folder.get())
+        folder.mkdir(parents=True,exist_ok=True)
+        self._open(folder)
+
+    def _bind_shortcuts(self):
+        self.bind_all('<Control-o>',self._shortcut_open)
+        self.bind_all('<Control-f>',self._shortcut_find)
+        self.bind_all('<F5>',self._shortcut_refresh)
+
+    def _shortcut_open(self,event=None):
+        self._choose();return 'break'
+
+    def _shortcut_find(self,event=None):
+        self.tabs.select(str(self.pages['Trabajo']))
+        self.work_search_entry.focus_set()
+        try:self.work_search_entry.select_range(0,'end')
+        except Exception:pass
+        return 'break'
+
+    def _shortcut_refresh(self,event=None):
+        if self.work and getattr(self.work,'output',''):self._guard(self._refresh)
+        else:self.status.set('No hay una copia de trabajo que actualizar.')
+        return 'break'
+
+    @staticmethod
+    def _tree_text(tree,iid,extra=''):
+        values=tree.item(iid,'values')
+        return ' '.join([str(extra or ''),*(str(value or '') for value in values)]).casefold()
+
+    @staticmethod
+    def _show_tree_item(tree,iid):
+        if tree.exists(iid):tree.move(iid,'','end')
+
+    def _apply_work_filter(self,*_):
+        if not hasattr(self,'records'):return
+        search=(self.work_search.get() if hasattr(self,'work_search') else '').strip().casefold()
+        mode=self.work_filter.get() if hasattr(self,'work_filter') else 'Todos'
+        for iid in list(getattr(self,'_work_all_iids',[])):
+            if not self.records.exists(iid):continue
+            self._show_tree_item(self.records,iid)
+            tags=set(self.records.item(iid,'tags'))
+            visible=(not search or search in self._tree_text(self.records,iid,getattr(self,'_work_search_text',{}).get(iid,'')))
+            if mode=='Con aviso':visible=visible and 'warning' in tags
+            elif mode=='Con resolución':visible=visible and 'resolution' in tags
+            elif mode=='Excluidos':visible=visible and 'excluded' in tags
+            elif mode=='Sin incidencias':visible=visible and not ({'warning','excluded'} & tags)
+            if not visible:self.records.detach(iid)
+
+    def _apply_resolution_filter(self,*_):
+        if not hasattr(self,'words'):return
+        search=(self.resolution_search.get() if hasattr(self,'resolution_search') else '').strip().casefold()
+        mode=self.resolution_filter.get() if hasattr(self,'resolution_filter') else 'Todos'
+        for iid in list(getattr(self,'_resolution_all_iids',[])):
+            if not self.words.exists(iid):continue
+            self._show_tree_item(self.words,iid)
+            tags=set(self.words.item(iid,'tags'))
+            visible=(not search or search in self._tree_text(self.words,iid,getattr(self,'_resolution_search_text',{}).get(iid,'')))
+            wanted={'Definido en RES':'res_explicit','Ajustado manualmente':'res_manual','Sugerencia automática':'res_auto','RES antiguo':'res_legacy'}.get(mode)
+            if wanted:visible=visible and wanted in tags
+            if not visible:self.words.detach(iid)
+
     @staticmethod
     def _field(parent,label,variable,row,width=65):
         ttk.Label(parent,text=label).grid(row=row,column=0,sticky='w',pady=3)
@@ -158,20 +237,30 @@ class App(ctk.CTk):
         extra=ttk.Frame(page);extra.pack(fill='x')
         ttk.Button(buttons,text='PROCESAR',command=lambda:self._guard(self._process)).pack(side='left',padx=3)
         ttk.Button(buttons,text='Abrir Excel',command=lambda:self._guard(lambda:self._open(self._require_work().output))).pack(side='left',padx=3)
-        ttk.Button(buttons,text='Actualizar cambios',command=lambda:self._guard(self._refresh)).pack(side='left',padx=3)
+        ttk.Button(buttons,text='Actualizar cambios · F5',command=lambda:self._guard(self._refresh)).pack(side='left',padx=3)
+        ttk.Button(buttons,text='Abrir carpeta de salida',command=lambda:self._guard(self._open_output_folder)).pack(side='left',padx=3)
         ttk.Button(extra,text='Localizar copia movida',command=lambda:self._guard(self._locate)).pack(side='left',padx=3)
         ttk.Button(extra,text='Exportar copia con mis cambios',command=lambda:self._guard(lambda:self._export_current())).pack(side='left',padx=3)
         self.summary=tk.StringVar();ttk.Label(page,textvariable=self.summary).pack(anchor='w')
         ttk.Button(page,text='Exportar resumen de constancias',command=lambda:self._guard(self._export_statistics)).pack(anchor='w')
         split=ttk.Panedwindow(page,orient='vertical');split.pack(fill='both',expand=True)
         table=ttk.Frame(split);edit=ttk.Frame(split);split.add(table,weight=3);split.add(edit,weight=2)
+        work_filterbar=ttk.Frame(table);work_filterbar.pack(fill='x')
+        self.work_search=tk.StringVar();self.work_filter=tk.StringVar(value='Todos')
+        ttk.Label(work_filterbar,text='Buscar:').pack(side='left')
+        self.work_search_entry=ttk.Entry(work_filterbar,textvariable=self.work_search,width=30);self.work_search_entry.pack(side='left',padx=(5,10))
+        ttk.Label(work_filterbar,text='Mostrar:').pack(side='left')
+        work_filter_box=ttk.Combobox(work_filterbar,textvariable=self.work_filter,values=['Todos','Con aviso','Con resolución','Excluidos','Sin incidencias'],state='readonly',width=20);work_filter_box.pack(side='left',padx=5)
+        self.work_search.trace_add('write',self._apply_work_filter);work_filter_box.bind('<<ComboboxSelected>>',self._apply_work_filter)
+        ttk.Label(work_filterbar,text='Ctrl+F',text_color=ttk.MUTED).pack(side='right')
         self.records=self._tree(table,('Estado','RIT','Tribunal','Programa','Observación'))
         self.records.column('Observación',width=520);self.records.tag_configure('excluded',background='#665220',foreground='#fff2cc');self.records.tag_configure('warning',background='#653b29',foreground='#ffe2cd')
         self.records.bind('<<TreeviewSelect>>',self._detail)
         self.detail=tk.StringVar();ttk.Label(edit,textvariable=self.detail,wraplength=1000).pack(fill='x')
         ttk.Label(edit,text='Observación editable del registro seleccionado (se incorpora a los productos)').pack(anchor='w')
         self.observation_editor=ScrolledText(edit,wrap='word',height=5,font=('Segoe UI',10),undo=True);self.observation_editor.pack(fill='both',expand=True)
-        ttk.Button(edit,text='Aplicar edición',command=lambda:self._guard(self._apply_observation)).pack(anchor='e')
+        self.observation_editor.bind('<Control-Return>',lambda event:(self._guard(self._apply_observation),'break')[1])
+        ttk.Button(edit,text='Aplicar edición · Ctrl+Enter',command=lambda:self._guard(self._apply_observation)).pack(anchor='e')
         ttk.Button(extra,text='Cargar planilla modificada',command=lambda:self._guard(self._external)).pack(side='left')
 
     def _select_folder(self,var):
@@ -236,7 +325,7 @@ class App(ctk.CTk):
             def done(changed):
                 if changed:
                     self._clear_drafts();self._show_work()
-                self._save_session()
+                self._save_session();self._update_context()
                 self.status.set('Copia localizada. Cambios incorporados; prepara los productos actualizados.' if changed else 'Copia localizada; los productos preparados se conservan.')
             self._run('Comprobando copia localizada…',relocate,done)
 
@@ -299,9 +388,9 @@ class App(ctk.CTk):
     def _word_page(self):
         page=self.pages['Resoluciones']
         actions=ttk.Frame(page);actions.pack(fill='x')
-        self.manual_word=tk.StringVar(value='PC_IE')
+        self.manual_word=tk.StringVar(value=KIND_LABELS['PC_IE'])
         ttk.Label(actions,text='Tipo:').pack(side='left')
-        ttk.Combobox(actions,textvariable=self.manual_word,values=list(KINDS),state='readonly',width=14).pack(side='left',padx=6)
+        ttk.Combobox(actions,textvariable=self.manual_word,values=[KIND_LABELS[k] for k in KINDS],state='readonly',width=43).pack(side='left',padx=6)
         ttk.Button(actions,text='Aplicar tipo a la selección',command=lambda:self._guard(self._assign_word_type)).pack(side='left')
         ttk.Button(actions,text='Agregar desde Trabajo',command=lambda:self._guard(self._add_words)).pack(side='left',padx=4)
         ttk.Button(actions,text='Cargar planilla modificada',command=lambda:self._guard(self._external)).pack(side='right')
@@ -310,9 +399,20 @@ class App(ctk.CTk):
         ttk.Button(actions2,text='Preparar / actualizar proyectos',command=lambda:self._guard(self._prepare_words)).pack(side='left',padx=5)
         ttk.Button(actions2,text='Generar UN Word',command=lambda:self._guard(self._generate_words)).pack(side='right')
         ttk.Button(actions2,text='Abrir Word generado',command=lambda:self._guard(lambda:self._open(self.last_word))).pack(side='right',padx=5)
+        resolution_filterbar=ttk.Frame(page);resolution_filterbar.pack(fill='x',pady=(0,4))
+        self.resolution_search=tk.StringVar();self.resolution_filter=tk.StringVar(value='Todos')
+        ttk.Label(resolution_filterbar,text='Buscar:').pack(side='left')
+        self.resolution_search_entry=ttk.Entry(resolution_filterbar,textvariable=self.resolution_search,width=28);self.resolution_search_entry.pack(side='left',padx=(5,10))
+        ttk.Label(resolution_filterbar,text='Origen:').pack(side='left')
+        resolution_filter_box=ttk.Combobox(resolution_filterbar,textvariable=self.resolution_filter,values=['Todos','Definido en RES','Ajustado manualmente','Sugerencia automática','RES antiguo'],state='readonly',width=25);resolution_filter_box.pack(side='left',padx=5)
+        self.resolution_search.trace_add('write',self._apply_resolution_filter);resolution_filter_box.bind('<<ComboboxSelected>>',self._apply_resolution_filter)
         split=ttk.Panedwindow(page,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=2);split.add(right,weight=3)
         self.words=self._tree(left,('RIT','Tribunal','Tipo','Origen'))
+        self.words.column('Tipo',width=245)
+        self.words.tag_configure('res_explicit',background='#1f3b2d',foreground='#d9fbe7')
+        self.words.tag_configure('res_manual',background='#234047',foreground='#d8f6fa')
+        self.words.tag_configure('res_legacy',background='#4a3b20',foreground='#fff0c2')
         self.project_list=tk.Listbox(left,height=5,exportselection=False);self.project_list.pack(fill='x')
         self.project_list.bind('<<ListboxSelect>>',self._select_project)
         ttk.Label(right,text='Proyecto editable. Los datos ausentes quedan como [COMPLETAR ...].').pack(anchor='w')
@@ -332,9 +432,9 @@ class App(ctk.CTk):
         work=self._require_work()
         self._capture_project()
         edits={(p.court,p.rit,p.kind):(p.values,p.text) for p in self.projects if p.text!=p.original_text}
-        selected=list(self.words.selection()) or list(self.words.get_children())
+        selected=list(self.words.selection()) or [iid for iid in getattr(self,'_resolution_all_iids',self.words.get_children()) if self.words.exists(iid)]
         if not selected:
-            selections=automatic_project_selections(work,self.manual_word.get())
+            selections=automatic_project_selections(work,kind_code(self.manual_word.get()) or 'PC_IE')
             if not selections:
                 raise ValueError('No hay proyectos indicados. Si la planilla usa RES, solo se generan los marcados allí; para agregar otro caso, selecciónalo en Trabajo y usa Agregar desde Trabajo.')
         else:
@@ -346,7 +446,7 @@ class App(ctk.CTk):
             for p in self.projects:
                 previous=edits.get((p.court,p.rit,p.kind))
                 if previous and previous[0]==p.values:p.text=previous[1]
-            for p in self.projects:self.project_list.insert('end',p.rit+' · '+p.kind+' · '+str(len(p.record_ids))+' registros')
+            for p in self.projects:self.project_list.insert('end',p.rit+' · '+kind_label(p.kind)+' · '+str(len(p.record_ids))+' registros')
             if self.projects:self.project_list.selection_set(0);self._select_project()
             self.status.set(f'{len(self.projects)} proyectos agrupados; {len(errors)} matrices pendientes.')
             if errors:messagebox.showwarning('Matrices pendientes','\n'.join(errors))
@@ -355,7 +455,7 @@ class App(ctk.CTk):
 
     def _generate_words(self):
         work=self._require_work()
-        selected=tuple(self.words.selection() or self.words.get_children())
+        selected=tuple(self.words.selection() or tuple(iid for iid in getattr(self,'_resolution_all_iids',self.words.get_children()) if self.words.exists(iid)))
         if not self.projects or selected!=getattr(self,'_prepared_selection',None):self._prepare_words(then_generate=True);return
         self._capture_project()
         path=Path(work.output).parent/('Resoluciones_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+'.docx')
