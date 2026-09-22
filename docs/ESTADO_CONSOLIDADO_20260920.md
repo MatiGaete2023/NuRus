@@ -12,7 +12,7 @@ Este documento reemplaza como **estado de navegación** a los resúmenes parcial
 
 ## Evolución controlada dev12 — 22 de septiembre de 2026
 
-A solicitud expresa del usuario se abre la rama `ux-observaciones-20260922` desde el checkpoint congelado dev11. El alcance se limita a redacciones ya aprobadas y UX orientada a reducir clics/carga mental. No se modifica la arquitectura ni los umbrales sustantivos. Dev12 no se integra a `main` mientras no exista CI verde y validación real mínima. Referencia: `UX_OBSERVACIONES_DEV12_20260922.md`.
+A solicitud expresa del usuario se abre la rama `ux-observaciones-20260922` desde el checkpoint congelado dev11. El alcance se limita a redacciones ya aprobadas y UX orientada a reducir clics/carga mental. No se modifica la arquitectura ni los umbrales sustantivos. La CI automatizada de dev12 ya está verde; no se integra a `main` hasta completar una validación real mínima de los cambios UX y del flujo habitual. Referencia: `UX_OBSERVACIONES_DEV12_20260922.md`.
 
 ## Congelamiento funcional — 22 de septiembre de 2026
 
