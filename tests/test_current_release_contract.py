@@ -17,10 +17,10 @@ def test_release_version_and_current_docs_are_aligned():
     ]
     for path in current_docs:
         text=path.read_text(encoding='utf-8')
-        assert '0.4.0.dev9' in text, path
+        assert '0.4.0.dev10' in text, path
     historical=(ROOT/'docs/CAMBIOS_USO_20260914.md').read_text(encoding='utf-8')
     assert '0.4.0.dev5' in historical
-    assert '0.4.0.dev9' not in historical
+    assert '0.4.0.dev10' not in historical
     index=(ROOT/'docs/INDICE_DOCUMENTACION.md').read_text(encoding='utf-8')
     assert 'CAMBIOS_USO_20260916.md' in index
     assert 'ESTADO_CONSOLIDADO_20260920.md' in index
