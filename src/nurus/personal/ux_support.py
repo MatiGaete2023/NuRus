@@ -118,6 +118,23 @@ def case_detail_text(work,row,drafts=None):
     return '\n'.join(f'{label}: {data}' for label,data in case_detail_lines(work,row,drafts))
 
 
+def compact_case_detail_text(work,row,drafts=None):
+    """Detalle breve para Trabajo; evita repetir la observación editable."""
+    data=dict(case_detail_lines(work,row,drafts))
+    groups=[
+        ('RIT','NNA','Tribunal'),
+        ('Programa','Modalidad'),
+        ('TT','CC','RES','Estado','Productos'),
+        ('Incidencias',),
+    ]
+    lines=[]
+    for group in groups:
+        parts=[f'{label}: {data[label]}' for label in group if data.get(label)]
+        if parts:
+            lines.append(' · '.join(parts))
+    return '\n'.join(lines)
+
+
 def grouped_draft_detail(work,draft,drafts=None):
     ids=list(dict.fromkeys(getattr(draft,'record_ids',[]) or []))
     by_id={row.id:row for row in getattr(work,'rows',[])}
