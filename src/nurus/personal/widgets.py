@@ -55,12 +55,12 @@ class NamedChoice(ttk.Combobox):
 
 class CaseDetailPanel(ctk.CTkFrame):
     """Panel reutilizable y compacto de contexto de causa."""
-    def __init__(self,parent,title='Detalle de causa',**kwargs):
+    def __init__(self,parent,title='Detalle de causa',wraplength=560,**kwargs):
         super().__init__(parent,fg_color=ttk.FIELD,corner_radius=8,border_width=1,border_color='#394451',**kwargs)
         self.grid_columnconfigure(0,weight=1)
         ctk.CTkLabel(self,text=title,font=('Segoe UI',13,'bold'),anchor='w').grid(row=0,column=0,sticky='ew',padx=10,pady=(7,2))
         self.variable=tk.StringVar(value='Selecciona un registro.')
-        ctk.CTkLabel(self,textvariable=self.variable,anchor='w',justify='left',wraplength=560,text_color=ttk.MUTED).grid(row=1,column=0,sticky='ew',padx=10,pady=(0,8))
+        ctk.CTkLabel(self,textvariable=self.variable,anchor='w',justify='left',wraplength=wraplength,text_color=ttk.MUTED).grid(row=1,column=0,sticky='ew',padx=10,pady=(0,8))
 
     def set_text(self,text):
         self.variable.set(str(text or 'Selecciona un registro.'))
