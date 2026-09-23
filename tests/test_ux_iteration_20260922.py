@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from nurus.personal.outputs import Draft, draft_fingerprint
 from nurus.personal.ux_support import (
-    RES_HELP, case_detail_lines, edited_pair, incident_ids, product_indicators, resume_available, resume_description
+    RES_HELP, case_detail_lines, compact_case_detail_text, edited_pair, incident_ids, product_indicators, resume_available, resume_description
 )
 from nurus.personal.work import Row
 
@@ -34,6 +34,19 @@ def test_case_detail_uses_existing_state_and_products_only(tmp_path):
     assert 'Excel ✓' in labels['Productos']
     assert 'RES PC_INFO' in labels['Productos'] and 'Word pendiente' in labels['Productos']
     assert 'Modalidad' not in labels
+
+
+def test_work_compact_detail_omits_duplicate_observation_and_keeps_context(tmp_path):
+    work,row=make_work(tmp_path)
+    text=compact_case_detail_text(work,row,[])
+    assert 'RIT: X-1-2026' in text
+    assert 'NNA: Persona Ejemplo' in text
+    assert 'Tribunal: LAJA' in text
+    assert 'Programa: PRM CENTRO' in text
+    assert 'RES: PC_INFO' in text and 'Productos:' in text
+    assert 'Incidencias: Contacto faltante' in text
+    assert 'Observación final' not in text
+    assert 'Texto final.' not in text
 
 
 def test_incident_navigation_source_is_only_existing_warnings(tmp_path):
@@ -82,5 +95,7 @@ def test_ui_source_keeps_secondary_actions_and_exposes_requested_hierarchy():
     assert "text='Básico'" in app and "text='Avanzado'" in app
     assert 'Siguiente incidencia' in app
     assert 'CaseDetailPanel' in app and 'ComparisonPanel' in app
+    assert "CaseDetailPanel(edit,wraplength=1100)" in app
+    assert "split.add(table,weight=2);split.add(edit,weight=3)" in app
     assert "messagebox.showinfo('Catastro incorporado'" not in app
     assert "✓ Catastro incorporado" in app
