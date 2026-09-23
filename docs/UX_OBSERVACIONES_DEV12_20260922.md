@@ -18,6 +18,18 @@ Aplicar una mejora UX acotada y las redacciones de observaciones aprobadas sin r
 - Tooltips mínimos para `PC_IE`, `PC_INFO` y `NOMENCL`.
 - `Enviados` conserva su implementación y se presenta al usuario como Historial.
 
+## Corrección tras prueba visual — 23 de septiembre de 2026
+
+La prueba real de la pantalla Trabajo mostró una fricción material: el panel «Detalle de causa» repetía la observación completa y ocupaba altura que necesitaba el editor. Se corrigió sin alterar dominio ni otras pantallas:
+
+- Trabajo usa un detalle compacto con RIT, NNA, tribunal, programa/modalidad, TT, CC, RES, estado, productos e incidencias cuando existan;
+- la observación final deja de repetirse en ese panel porque ya está disponible inmediatamente en el editor;
+- el detalle de Trabajo usa mayor ancho de ajuste para evitar saltos de línea innecesarios;
+- la distribución inicial del separador vertical cambia de tabla/editor 3:2 a 2:3 para priorizar la edición;
+- Correos y Resoluciones conservan el detalle completo.
+
+La regresión `test_work_compact_detail_omits_duplicate_observation_and_keeps_context` protege esta decisión.
+
 ## Observaciones y RES
 
 Los catálogos activos `personal/textos_base.json` y `rus/textos_observaciones.json` quedan sincronizados con las redacciones aprobadas. La migración `revision_textos=3` reemplaza solamente textos que aún coinciden exactamente con el valor predeterminado anterior y conserva personalizaciones.
@@ -40,8 +52,8 @@ El conflicto histórico DCE/Informes permanece sin modificación: el manual docu
 
 Se agregan regresiones para textos exactos, sincronización de catálogos, migración sin sobrescribir personalizaciones, `PC_INFO` de vencidos, ausencia de `PC_INFO` por vencer, orden de composición, detalle de causa, incidencias, comparación, productos, reanudación y jerarquía UX.
 
-Checkpoint de código `389d7b919fbeb94eef12480cf9aec8c75901fcd1`, GitHub Actions run `35768192161`: **success** en Windows/Python 3.12–3.14, con **272 passed, 1 skipped** por versión. Python 3.12 aprobó además el smoke GUI y la distribución ZIP dev12. La prueba real continúa pendiente.
+Checkpoint corregido `dfa7809505da47f13e2dbdf799ab820de05719a9`, GitHub Actions run `35867829076` (attempt 2): **success** en Windows/Python 3.12–3.14, con **273 passed, 1 skipped** por versión. Python 3.12 aprobó además el smoke GUI y la distribución ZIP dev12. La primera ejecución de Python 3.12 agotó el límite de 8 minutos sin fallo de aserción mientras coexistían varias matrices disparadas por commits consecutivos; la repetición aislada terminó correctamente.
 
 ## Validación real pendiente
 
-La CI no acredita ergonomía real ni integración con Excel 2010/Outlook institucional. Antes de integrar a `main` deben probarse visualmente la navegación de incidencias, los paneles, las comparaciones, la recuperación de sesión y el flujo habitual completo.
+La prueba visual ya detectó y permitió corregir el exceso de altura del detalle en Trabajo. Aún debe comprobarse visualmente la corrección en el PC del usuario y continúan pendientes la navegación de incidencias, comparaciones, recuperación de sesión y el flujo habitual completo con Excel 2010/Outlook institucional.
