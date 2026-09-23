@@ -15,7 +15,7 @@ from .ui import Textbox as ScrolledText
 
 from .config import Configuration, PARAMETER_LABELS, VARIABLES
 from .widgets import ScrollPane, NamedChoice, CaseDetailPanel, ComparisonPanel, Tooltip
-from .ux_support import case_detail_text, grouped_draft_detail, edited_pair, incident_ids, resume_available, resume_description, RES_HELP
+from .ux_support import case_detail_text, compact_case_detail_text, grouped_draft_detail, edited_pair, incident_ids, resume_available, resume_description, RES_HELP
 from .work import Work
 from .outputs import create_draft, import_contacts
 from .resolutions import KINDS, KIND_LABELS, kind_code, kind_label, prepare_projects, generate_projects, automatic_project_selections
@@ -261,7 +261,7 @@ class App(ctk.CTk):
         self.summary=tk.StringVar();ttk.Label(page,textvariable=self.summary).pack(anchor='w')
         ttk.Button(page,text='Exportar resumen de constancias',fg_color='transparent',border_width=1,command=lambda:self._guard(self._export_statistics)).pack(anchor='w')
         split=ttk.Panedwindow(page,orient='vertical');split.pack(fill='both',expand=True)
-        table=ttk.Frame(split);edit=ttk.Frame(split);split.add(table,weight=3);split.add(edit,weight=2)
+        table=ttk.Frame(split);edit=ttk.Frame(split);split.add(table,weight=2);split.add(edit,weight=3)
         work_filterbar=ttk.Frame(table);work_filterbar.pack(fill='x')
         self.work_search=tk.StringVar();self.work_filter=tk.StringVar(value='Todos');self.incident_text=tk.StringVar(value='0 incidencias')
         ttk.Label(work_filterbar,text='Buscar:').pack(side='left')
@@ -277,7 +277,7 @@ class App(ctk.CTk):
         self.records.column('Observación',width=520);self.records.tag_configure('excluded',background='#665220',foreground='#fff2cc');self.records.tag_configure('warning',background='#653b29',foreground='#ffe2cd')
         self.records.bind('<<TreeviewSelect>>',self._detail)
         self.detail=tk.StringVar();ttk.Label(edit,textvariable=self.detail,wraplength=1000).pack(fill='x')
-        self.work_case_detail=CaseDetailPanel(edit);self.work_case_detail.pack(fill='x',pady=(2,5))
+        self.work_case_detail=CaseDetailPanel(edit,wraplength=1100);self.work_case_detail.pack(fill='x',pady=(2,5))
         ttk.Label(edit,text='Observación editable del registro seleccionado (se incorpora a los productos)').pack(anchor='w')
         self.observation_editor=ScrolledText(edit,wrap='word',height=5,font=('Segoe UI',10),undo=True);self.observation_editor.pack(fill='both',expand=True)
         self.observation_editor.bind('<Control-Return>',lambda event:(self._guard(self._apply_observation),'break')[1])
@@ -325,7 +325,7 @@ class App(ctk.CTk):
         elif self.work_compare.winfo_manager():self.work_compare.pack_forget()
 
     def _update_work_case_detail(self,row):
-        self.work_case_detail.set_text(case_detail_text(self.work,row,getattr(self,'drafts',[])))
+        self.work_case_detail.set_text(compact_case_detail_text(self.work,row,getattr(self,'drafts',[])))
 
     def _resolution_detail(self,event=None):
         if not getattr(self,'work',None) or not self.words.selection():return
