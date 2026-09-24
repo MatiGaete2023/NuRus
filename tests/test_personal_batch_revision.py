@@ -227,7 +227,10 @@ def test_combined_word_preserves_each_matrix_style(tmp_path):
     assert not errors and {p.court for p in projects}=={'LAJA','MULCHEN'}
     out=tmp_path/'estilos.docx';generate_projects(work,projects,out)
     doc=Document(out)
-    found={p.text.split()[0].upper():p.style.font.name for p in doc.paragraphs if p.text.startswith(('Laja','Mulchen'))}
+    def effective_font(paragraph):
+        direct=next((run.font.name for run in paragraph.runs if run.font.name),None)
+        return direct or paragraph.style.font.name
+    found={p.text.split()[0].upper():effective_font(p) for p in doc.paragraphs if p.text.startswith(('Laja','Mulchen'))}
     assert found['LAJA']=='Arial'
     assert found['MULCHEN']=='Times New Roman'
 
