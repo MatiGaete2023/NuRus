@@ -291,12 +291,29 @@ def prepare_projects(work,selections,template_dir):
     return projects,errors
 
 
+def _validate_project_template(project):
+    """Impide generar una resolución con una matriz de otro tribunal o tipo."""
+    template=Path(project.template)
+    template_court=tribunal(template.parent.name) or template.parent.name
+    if normalize(template_court)!=normalize(project.court):
+        raise ValueError(
+            f'{project.rit}: la matriz {template.parent.name}/{template.name} '
+            f'no corresponde al tribunal {project.court}. Vuelve a preparar los proyectos.'
+        )
+    if template.stem.upper()!=project.kind:
+        raise ValueError(
+            f'{project.rit}: la matriz {template.name} no corresponde al tipo {project.kind}. '
+            'Vuelve a preparar los proyectos.'
+        )
+
+
 def generate_projects(work,projects,destination):
     """Una resolución comienza en página nueva. No corta textos extensos."""
     if not projects:raise ValueError('No hay proyectos disponibles para generar.')
     with TemporaryDirectory() as directory:
         docs=[]
         for project in projects:
+            _validate_project_template(project)
             target=Path(directory)/(project.key+'.docx')
             doc=render_project(project,target)
             if project.text!=project.original_text:
