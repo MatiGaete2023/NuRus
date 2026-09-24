@@ -197,7 +197,9 @@ def test_manual_type_and_missing_data_produce_editable_project(tmp_path):
     assert '[COMPLETAR NOMENCLATURA]' in projects[0].text
 
 def test_same_rit_different_court_does_not_merge(tmp_path):
-    work=external(tmp_path);work.rows[1].values[work.mapping['tribunal']]='MULCHEN'
+    work=external(tmp_path)
+    work.rows[0].values[work.mapping['tribunal']]='Jgdo. L. y G. de Laja'
+    work.rows[1].values[work.mapping['tribunal']]='Jgdo. L. y G. de Mulchén'
     projects,errors=prepare_projects(work,[(r.id,'PC_IE') for r in work.rows[:2]],BASE/'plantillas_word')
     assert not errors and len(projects)==2
     by_court={p.court:p for p in projects}
@@ -209,6 +211,17 @@ def test_same_rit_different_court_does_not_merge(tmp_path):
     out=tmp_path/'mixto.docx';generate_projects(work,projects,out)
     combined='\n'.join(p.text for p in Document(out).paragraphs)
     assert 'Laja,' in combined and 'Mulchén,' in combined
+
+
+def test_generate_rejects_matrix_from_other_court(tmp_path):
+    rows=[['X-20-2026','Jgdo. L. y G. de Mulchén','Persona Mulchén','22222222-2',
+           'AFT EJEMPLO','Texto','2026-09-14',1,0]]
+    work=external(tmp_path,rows)
+    projects,errors=prepare_projects(work,[(work.rows[0].id,'PC_IE')],BASE/'plantillas_word')
+    assert not errors and len(projects)==1 and projects[0].court=='MULCHEN'
+    projects[0].template=str(BASE/'plantillas_word/LAJA/PC_IE.docx')
+    with pytest.raises(ValueError,match='no corresponde al tribunal MULCHEN'):
+        generate_projects(work,projects,tmp_path/'no_debe_generarse.docx')
 
 
 def test_combined_word_preserves_each_matrix_style(tmp_path):
@@ -233,6 +246,11 @@ def test_combined_word_preserves_each_matrix_style(tmp_path):
     found={p.text.split()[0].upper():effective_font(p) for p in doc.paragraphs if p.text.startswith(('Laja','Mulchen'))}
     assert found['LAJA']=='Arial'
     assert found['MULCHEN']=='Times New Roman'
+
+def test_docxcompose_minimum_supports_preserve_styles():
+    pyproject=(Path(__file__).parents[1]/'pyproject.toml').read_text(encoding='utf-8')
+    assert '"docxcompose>=2.2,<3"' in pyproject
+
 
 def test_edit_preserves_unchanged_bold_runs():
     doc=Document();p=doc.add_paragraph();p.add_run('RIT: ').bold=True;p.add_run('X-1')
