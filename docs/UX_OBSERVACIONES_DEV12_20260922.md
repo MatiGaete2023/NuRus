@@ -30,6 +30,19 @@ La prueba real de la pantalla Trabajo mostró una fricción material: el panel �
 
 La regresión `test_work_compact_detail_omits_duplicate_observation_and_keeps_context` protege esta decisión.
 
+## Correcciones tras uso real — 24 de septiembre de 2026
+
+Se corrigieron tres regresiones detectadas durante el uso real de dev12:
+
+- **Correos de programas en ESPERA:** una planilla recargada como entrada externa podía omitir el filtro de acciones por fila y arrastrar registros que no cumplían la gestión de correo. Las comunicaciones automáticas ahora respetan `NURUS_REGLAS`/trazabilidad cuando existe y el subconjunto de filas realmente asociado a `programa_espera`. Una edición humana de la observación final que retire la gestión de correo también impide preparar ese correo automático. La selección manual explícita conserva su carácter de override humano.
+- **Adjuntos Excel:** la nómina adjunta se construye desde el mismo subconjunto filtrado del borrador y aplica borde fino a todas las celdas de la tabla, encabezado incluido.
+- **Resoluciones por tribunal:** las pruebas cubren conjuntamente `Jgdo. L. y G. de Laja` y `Jgdo. L. y G. de Mulchén`, verificando agrupación y matriz específica por tribunal. La lista de proyectos muestra ahora el tribunal. Antes de generar, se valida además que la ruta de la matriz corresponda al tribunal y tipo del proyecto; una discordancia bloquea la generación en vez de producir silenciosamente un documento incorrecto.
+- **Fuentes/estilos Word:** el documento conjunto usa `docxcompose` con preservación de estilos y se eleva la dependencia mínima a `docxcompose>=2.2,<3`. La regresión verifica la fuente efectiva de matrices distintas dentro del mismo Word.
+
+La causa exacta del caso real en que un documento de Mulchén apareció como Laja no puede acreditarse solo desde el repositorio: la clasificación actual reconoce el nombre institucional de Mulchén y las matrices empaquetadas están separadas por tribunal. Las matrices locales personalizadas en `%LOCALAPPDATA%/CSMP_Personal/plantillas_word` se conservan deliberadamente entre actualizaciones; si el caso reaparece, deben revisarse el Excel concreto, el Word generado y la matriz local implicada.
+
+Checkpoint de código de estas correcciones: `31f2fefee70641c2e6f7311a2e2c8d01a6561f5c`. GitHub Actions run `36009322188`: **success** en Windows/Python 3.12–3.14, con **278 passed, 1 skipped** por versión. Python 3.12 aprobó también smoke GUI y construcción de la distribución ZIP.
+
 ## Observaciones y RES
 
 Los catálogos activos `personal/textos_base.json` y `rus/textos_observaciones.json` quedan sincronizados con las redacciones aprobadas. La migración `revision_textos=3` reemplaza solamente textos que aún coinciden exactamente con el valor predeterminado anterior y conserva personalizaciones.
