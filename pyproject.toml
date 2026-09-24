@@ -7,7 +7,7 @@ name = "nurus"
 version = "0.4.0.dev12"
 description = "CSMP personal: Excel, proyectos Word y borradores desde un trabajo compartido"
 requires-python = ">=3.12,<3.15"
-dependencies = ["pandas>=2.2,<3", "openpyxl>=3.1,<4", "python-docx>=1.1,<2", "lxml>=4.9,<7", "docxcompose>=1.4,<3", "customtkinter>=5.2.2,<6"]
+dependencies = ["pandas>=2.2,<3", "openpyxl>=3.1,<4", "python-docx>=1.1,<2", "lxml>=4.9,<7", "docxcompose>=2.2,<3", "customtkinter>=5.2.2,<6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "Pillow>=10,<13"]
