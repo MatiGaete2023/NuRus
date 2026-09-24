@@ -7,7 +7,7 @@ import pytest
 from openpyxl import Workbook,load_workbook
 from docx import Document
 from nurus.personal.config import defaults,Configuration,BASE,CC,LEGACY_CORREO_BODIES,CORREO_REVISION
-from nurus.personal.work import Work
+from nurus.personal.work import Work,Row
 from nurus.personal.importing import SheetChoice
 from nurus.personal.outputs import prepare_drafts,create_drafts,Draft
 from nurus.personal.resolutions import prepare_projects,generate_projects,replace_paragraph,automatic_project_selections,reviewed_resolution_ids
@@ -62,7 +62,39 @@ def test_waiting_attachment_contains_only_operational_columns(tmp_path):
     assert [c.value for c in out[1]]==['RIT','TRIBUNAL','NOMBRE','DERIVACION','T ESPERA']
     assert out.max_column==5
     assert [out.cell(2,i).value for i in range(1,6)]==['X-10-2026','MULCHEN','Persona Espera','AFT EJEMPLO','72']
+    assert all(cell.border.left.style=='thin' and cell.border.right.style=='thin' and cell.border.top.style=='thin' and cell.border.bottom.style=='thin' for row in out.iter_rows() for cell in row)
 
+
+
+def test_waiting_program_mail_respects_rule_per_row_after_external_reload(tmp_path):
+    book=Workbook();sheet=book.active;sheet.title='Espera'
+    sheet.append(['RIT','TRIBUNAL','NOMBRE','RUT','DERIVACION','T ESPERA','OBSERVACION','NURUS_REGLAS'])
+    sheet.append(['X-1-2026','MULCHEN','Persona Gestion','11111111-1','AFT EJEMPLO',30,
+                  'Medida revisada, a la espera de ingreso efectivo. Se remite correo al programa consultando fecha estimada de ingreso.',
+                  json.dumps(['ESPERA.E05_PROYECTO_Y_CORREO'])])
+    sheet.append(['X-2-2026','MULCHEN','Persona Sin Gestion','22222222-2','AFT EJEMPLO',12,
+                  'Medida revisada, a la espera de ingreso efectivo al programa AFT Ejemplo.',
+                  json.dumps(['ESPERA.E06_SIN_RESOLUCION'])])
+    path=tmp_path/'espera_revisada.xlsx';book.save(path)
+    work=Work.external(path,defaults(),mode='ESPERA')
+    drafts=prepare_drafts(work,'programa_espera',directory=tmp_path/'salida')
+    assert len(drafts)==1
+    assert drafts[0].record_ids==[work.rows[0].id]
+    attached=load_workbook(drafts[0].attachments[0]).active
+    assert attached.max_row==2 and attached['A2'].value=='X-1-2026'
+
+
+def test_human_observation_can_remove_automatic_program_mail(tmp_path):
+    cfg=defaults()
+    original='Medida revisada, a la espera de ingreso efectivo. Se remite correo al programa consultando fecha estimada de ingreso.'
+    row=Row('r1',2,{'RIT':'X-1-2026','TRIBUNAL':'MULCHEN','NOMBRE':'Persona','DERIVACION':'AFT EJEMPLO','T ESPERA':45},
+            original,['ESPERA.E05_SOLO_CORREO'],['programa_espera'],[],False,
+            {'OBSERVACION':'Medida revisada, a la espera de ingreso efectivo al programa AFT Ejemplo.'})
+    work=SimpleNamespace(config=cfg,rows=[row],mapping={'rit':'RIT','tribunal':'TRIBUNAL','nombre':'NOMBRE','programa':'DERIVACION','espera':'T ESPERA'},
+                         output=str(tmp_path/'revisable.xlsx'),external_input=False,refresh=lambda:False)
+    assert prepare_drafts(work,'programa_espera',directory=tmp_path/'salida')==[]
+    row.review['OBSERVACION']='Medida revisada, a la espera de ingreso efectivo. Se remite correo al programa consultando fecha estimada de ingreso.'
+    assert len(prepare_drafts(work,'programa_espera',directory=tmp_path/'salida2'))==1
 
 def test_due_report_attachment_contains_only_operational_columns(tmp_path):
     book=Workbook();sheet=book.active;sheet.title='Informes'
@@ -168,6 +200,36 @@ def test_same_rit_different_court_does_not_merge(tmp_path):
     work=external(tmp_path);work.rows[1].values[work.mapping['tribunal']]='MULCHEN'
     projects,errors=prepare_projects(work,[(r.id,'PC_IE') for r in work.rows[:2]],BASE/'plantillas_word')
     assert not errors and len(projects)==2
+    by_court={p.court:p for p in projects}
+    assert set(by_court)=={'LAJA','MULCHEN'}
+    assert Path(by_court['LAJA'].template).parent.name=='LAJA'
+    assert Path(by_court['MULCHEN'].template).parent.name=='MULCHEN'
+    assert by_court['LAJA'].text.startswith('Laja,')
+    assert by_court['MULCHEN'].text.startswith('Mulchén,')
+    out=tmp_path/'mixto.docx';generate_projects(work,projects,out)
+    combined='\n'.join(p.text for p in Document(out).paragraphs)
+    assert 'Laja,' in combined and 'Mulchén,' in combined
+
+
+def test_combined_word_preserves_each_matrix_style(tmp_path):
+    rows=[
+        ['X-10-2026','LAJA','Persona Laja','11111111-1','AFT EJEMPLO','Texto','2026-09-14',1,0],
+        ['X-20-2026','MULCHEN','Persona Mulchen','22222222-2','AFT EJEMPLO','Texto','2026-09-14',1,0],
+    ]
+    work=external(tmp_path,rows)
+    templates=tmp_path/'matrices'
+    for court,font in [('LAJA','Arial'),('MULCHEN','Times New Roman')]:
+        folder=templates/court;folder.mkdir(parents=True)
+        doc=Document();doc.styles['Normal'].font.name=font
+        doc.add_paragraph(court.title()+' {{RIT}}')
+        doc.save(folder/'PC_IE.docx')
+    projects,errors=prepare_projects(work,[(r.id,'PC_IE') for r in work.rows],templates)
+    assert not errors and {p.court for p in projects}=={'LAJA','MULCHEN'}
+    out=tmp_path/'estilos.docx';generate_projects(work,projects,out)
+    doc=Document(out)
+    found={p.text.split()[0].upper():p.style.font.name for p in doc.paragraphs if p.text.startswith(('Laja','Mulchen'))}
+    assert found['LAJA']=='Arial'
+    assert found['MULCHEN']=='Times New Roman'
 
 def test_edit_preserves_unchanged_bold_runs():
     doc=Document();p=doc.add_paragraph();p.add_run('RIT: ').bold=True;p.add_run('X-1')

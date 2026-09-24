@@ -550,7 +550,7 @@ class App(ctk.CTk):
             for p in self.projects:
                 previous=edits.get((p.court,p.rit,p.kind))
                 if previous and previous[0]==p.values:p.text=previous[1]
-            for p in self.projects:self.project_list.insert('end',p.rit+' · '+kind_label(p.kind)+' · '+str(len(p.record_ids))+' registros')
+            for p in self.projects:self.project_list.insert('end',p.court+' · '+p.rit+' · '+kind_label(p.kind)+' · '+str(len(p.record_ids))+' registros')
             if self.projects:self.project_list.selection_set(0);self._select_project()
             self.status.set(f'{len(self.projects)} proyectos agrupados; {len(errors)} matrices pendientes.')
             if errors:messagebox.showwarning('Matrices pendientes','\n'.join(errors))

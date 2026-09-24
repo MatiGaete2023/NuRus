@@ -304,7 +304,9 @@ def generate_projects(work,projects,destination):
                 for i,p in enumerate(existing):replace_paragraph(p,lines[i] if i<len(lines) else '')
                 for line in lines[len(existing):]:doc.add_paragraph(line)
             docs.append(doc)
-        composer=Composer(docs[0])
+        # Cada matriz judicial conserva sus estilos propios; la primera resolución no
+        # debe convertir las matrices posteriores al estilo de su tribunal.
+        composer=Composer(docs[0],preserve_styles=True)
         for doc in docs[1:]:
             composer.doc.add_page_break()
             composer.append(doc)

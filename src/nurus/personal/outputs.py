@@ -17,6 +17,36 @@ from nurus.services.file_output import write_new_file
 from .config import CC, emails
 
 
+_PROGRAM_MAIL_KINDS={'programa_espera','programa_vencido','programa_por_vencer'}
+
+
+def _final_observation_allows_program_mail(work,row,kind):
+    """La revisión humana puede retirar un correo automático sin reejecutar reglas.
+
+    Solo interviene cuando existe trazabilidad del motor o una edición real sobre la
+    propuesta. Una planilla externa sin reglas conserva el flujo manual histórico.
+    """
+    if kind not in _PROGRAM_MAIL_KINDS:return True
+    review=getattr(row,'review',{}) or {}
+    if 'OBSERVACION' not in review:return True
+    final=str(review.get('OBSERVACION','') or '').strip()
+    original=str(getattr(row,'observation','') or '').strip()
+    traced_external=bool(getattr(work,'external_input',False) and getattr(row,'rules',None))
+    edited=final!=original
+    if not traced_external and not edited:return True
+    text=normalize(final)
+    if not text:return False
+    negatives=(
+        'no hay correo','sin correo','no corresponde correo','no corresponde enviar correo',
+        'no corresponde remitir correo','no se remite correo','no se envia correo',
+        'no requiere correo','correo no corresponde',
+    )
+    if any(item in text for item in negatives):return False
+    # Las redacciones aprobadas de estas gestiones siempre dejan constancia del correo.
+    # Si el humano reemplazó la propuesta por un texto sin esa gestión, no se genera.
+    return 'correo' in text
+
+
 @dataclass
 class Draft:
     subject: str
@@ -99,7 +129,7 @@ def import_contacts(cfg,path):
 
 def _table(work,rows,path,kind=''):
     from openpyxl import Workbook
-    from openpyxl.styles import Font
+    from openpyxl.styles import Font, Border, Side
     from openpyxl.utils import get_column_letter
     book=Workbook();sheet=book.active;sheet.title='Nómina'
     if kind=='programa_espera':
@@ -120,6 +150,10 @@ def _table(work,rows,path,kind=''):
         for cell in sheet[sheet.max_row]:cell.data_type='s'
     sheet.freeze_panes='A2';sheet.auto_filter.ref=sheet.dimensions
     for cell in sheet[1]:cell.font=Font(bold=True)
+    thin=Side(style='thin')
+    border=Border(left=thin,right=thin,top=thin,bottom=thin)
+    for cells in sheet.iter_rows(min_row=1,max_row=sheet.max_row,min_col=1,max_col=sheet.max_column):
+        for cell in cells:cell.border=border
     for index,header in enumerate(headers,1):
         sheet.column_dimensions[get_column_letter(index)].width=38 if header=='NOMBRE' else 24
     write_new_file(Path(path),book.save)
@@ -161,8 +195,13 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
     groups=defaultdict(list)
     for row in work.rows:
         if row.excluded or (selected is not None and row.id not in selected) or not selected_row(work,row,modality_keys):continue
-        # Las comunicaciones personalizadas no tienen una regla del motor.
-        if automatic_kind and kind not in row.actions and not (manual_selection or getattr(work,'external_input',False)):continue
+        # Las comunicaciones automáticas respetan la regla por fila. Una entrada externa
+        # sin trazabilidad solo conserva el uso histórico cuando el tipo se pidió de forma
+        # explícita; si hay NURUS_REGLAS, no puede arrastrar filas fuera del umbral.
+        if automatic_kind:
+            external_without_trace=bool(getattr(work,'external_input',False) and not getattr(row,'rules',None))
+            if kind not in row.actions and not (manual_selection or external_without_trace):continue
+            if not manual_selection and not _final_observation_allows_program_mail(work,row,kind):continue
         if kind=='proyectos' and not manual_selection and not getattr(work,'external_input',False) and row.id not in {rid for r in work.receipts.values() if r.get('kind')=='word' for rid in r.get('record_ids',[r.get('record_id')])}:continue
         court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
         program=value(work,row,'programa') if to_program else ''
