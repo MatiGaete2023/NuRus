@@ -1,6 +1,6 @@
 # Verificación vigente — CSMP Assistant personal 0.4.0.dev12
 
-Estado de la rama dev12: **CANDIDATA DE EVOLUCIÓN CON CI VERDE; VALIDACIÓN REAL PARCIAL**. Dev11 sigue siendo la última candidata con validación funcional amplia hasta que dev12 complete la validación visual/operativa.
+Estado de la rama dev12: **CANDIDATA DE EVOLUCIÓN CON CI VERDE; CORRECCIONES DE USO REAL EN VERIFICACIÓN**. Dev11 sigue siendo la última candidata con validación funcional amplia hasta que dev12 complete la nueva prueba operativa.
 
 ## Verificación dev12
 
@@ -13,6 +13,16 @@ Checkpoint UX dev11: `291c3929fbda63a336a1b04f6d402a7eb84236d0`, GitHub Actions 
 Hotfix Excel RES: `b6c9d84b79b416dd7fc5fb9911a9ffe521934ac9`, GitHub Actions run `35737408005`, Windows Python 3.12/3.13/3.14 en success, **260 passed, 1 skipped** por versión. Python 3.12 aprobó además smoke CustomTkinter y construcción de la distribución Windows dev11.
 
 El hotfix elimina la dependencia de `Application.International` al configurar la lista RES nativa de Excel; usa una hoja técnica oculta y el nombre `NURUS_RES_TIPOS`. La regresión cubre expresamente el escenario COM que produjo `'tuple' object is not callable` en Excel real.
+
+## Correcciones verificadas automáticamente — 24 de septiembre de 2026
+
+Incidencias reportadas: alcance incorrecto de correos/adjuntos de lista de espera, ausencia de bordes en el Excel adjunto, y problemas observados en proyectos Word respecto de tribunal/fuentes.
+
+Checkpoint de código: `31f2fefee70641c2e6f7311a2e2c8d01a6561f5c`. GitHub Actions run `36009322188`: **success** en Windows con Python 3.12, 3.13 y 3.14; **278 passed, 1 skipped** por versión. Python 3.12 aprobó además smoke CustomTkinter y construcción ZIP.
+
+Quedó automatizado que: los correos automáticos de ESPERA respeten la regla por fila y la observación humana final; su adjunto contenga exactamente esas filas y use bordes; Laja y Mulchén se agrupen por separado usando sus matrices respectivas; una matriz de otro tribunal se rechace; y el Word combinado preserve la fuente efectiva de matrices diferentes.
+
+La CI no reproduce las matrices personalizadas ni los archivos exactos del PC institucional. Por ello se requiere una nueva prueba real del flujo de ESPERA y de un lote mixto Laja/Mulchén antes de considerar cerradas las incidencias.
 
 ## Evidencia de uso real — 23 de septiembre de 2026
 
