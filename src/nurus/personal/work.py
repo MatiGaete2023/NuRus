@@ -208,19 +208,49 @@ class Work:
             return True
         import pandas as pd
         frame=pd.read_excel(path,sheet_name=self.sheet,header=self.header-1,dtype=object,keep_default_na=False)
-        if 'NURUS_ID_REGISTRO' not in frame:raise ValueError('Falta la columna de identidad; no se pueden asociar las ediciones.')
         by_id={r.id:r for r in self.rows}
         incoming={}
-        for values in frame.to_dict('records'):
-            key=str(values.get('NURUS_ID_REGISTRO','')).strip()
-            if not key:continue
-            if key not in by_id or key in incoming:raise ValueError('Hay identidades ajenas o duplicadas en la copia; no se aplicaron cambios.')
-            old=by_id[key]
-            for field in ('rit','rut','nombre','tribunal','programa'):
-                column=self.mapping.get(field)
-                if column and historical_match(values.get(column,''))!=historical_match(old.values.get(column,'')):
-                    raise ValueError('Cambió la identidad de una fila. No se aplicaron cambios; verifica '+field+'.')
-            incoming[key]={k:values.get(k,'') for k in ('OBSERVACION','FECHA_OBS','TT','CC','RES')}
+        id_column=next((column for column in frame.columns if normalize(column)==normalize('NURUS_ID_REGISTRO')),None)
+
+        if id_column is not None:
+            for values in frame.to_dict('records'):
+                key=str(values.get(id_column,'')).strip()
+                if not key:continue
+                if key not in by_id or key in incoming:raise ValueError('Hay identidades ajenas o duplicadas en la copia; no se aplicaron cambios.')
+                old=by_id[key]
+                for field in ('rit','rut','nombre','tribunal','programa'):
+                    column=self.mapping.get(field)
+                    if column and historical_match(values.get(column,''))!=historical_match(old.values.get(column,'')):
+                        raise ValueError('Cambió la identidad de una fila. No se aplicaron cambios; verifica '+field+'.')
+                incoming[key]={k:values.get(k,'') for k in ('OBSERVACION','FECHA_OBS','TT','CC','RES')}
+        else:
+            # Recuperación segura para copias donde Excel/una edición externa eliminó la
+            # columna técnica. Nunca se asocia solo por posición: se exige identidad
+            # compuesta única y coincidencia exacta del conjunto de registros.
+            identity_fields=tuple(field for field in ('rit','rut','nombre','tribunal','programa') if self.mapping.get(field))
+            if not all(field in identity_fields for field in ('rit','nombre','tribunal')):
+                raise ValueError('Falta la columna de identidad y no hay campos suficientes para asociar las ediciones con seguridad.')
+
+            def identity_from_values(values):
+                return tuple(historical_match(values.get(self.mapping[field],'')) for field in identity_fields)
+
+            old_by_identity={}
+            for old in self.rows:
+                identity=identity_from_values(old.values)
+                if not all(identity) or identity in old_by_identity:
+                    raise ValueError('Falta la columna de identidad y existen registros ambiguos; no se aplicaron cambios. Usa Cargar planilla modificada.')
+                old_by_identity[identity]=old
+
+            seen=set()
+            for values in frame.to_dict('records'):
+                if not str(values.get(self.mapping['rit'],'')).strip() or not str(values.get(self.mapping['nombre'],'')).strip():continue
+                identity=identity_from_values(values)
+                if identity in seen or identity not in old_by_identity:
+                    raise ValueError('Falta la columna de identidad y cambió o se duplicó la identidad de una fila; no se aplicaron cambios.')
+                seen.add(identity)
+                old=old_by_identity[identity]
+                incoming[old.id]={k:values.get(k,'') for k in ('OBSERVACION','FECHA_OBS','TT','CC','RES')}
+
         if set(incoming)!=set(by_id):raise ValueError('Faltan registros en la copia; no se aplicaron cambios.')
         for key,review in incoming.items():
             by_id[key].review=review
