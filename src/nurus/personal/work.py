@@ -237,7 +237,7 @@ class Work:
             old_by_identity={}
             for old in self.rows:
                 identity=identity_from_values(old.values)
-                if not all(identity) or identity in old_by_identity:
+                if identity in old_by_identity:
                     raise ValueError('Falta la columna de identidad y existen registros ambiguos; no se aplicaron cambios. Usa Cargar planilla modificada.')
                 old_by_identity[identity]=old
 
