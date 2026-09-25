@@ -60,6 +60,45 @@ def test_refresh_and_recovery_without_reselection(tmp_path):
     w.save(tmp_path/'sesion');r=Work.load(tmp_path/'sesion')
     assert r.output==w.output and r.rows[0].review['CC']==1
 
+def test_refresh_without_technical_id_uses_unique_case_identity(tmp_path):
+    w=exported(tmp_path);book=load_workbook(w.output);sheet=book[w.sheet]
+    headers={cell.value:cell.column for cell in sheet[3]}
+    sheet.delete_cols(headers['NURUS_ID_REGISTRO'])
+    headers={cell.value:cell.column for cell in sheet[3]}
+    sheet.cell(4,headers['OBSERVACION']).value='Edición sin columna técnica'
+    sheet.cell(4,headers['CC']).value=1
+    book.save(w.output)
+    assert w.refresh()
+    assert w.rows[0].review['OBSERVACION']=='Edición sin columna técnica'
+    assert w.rows[0].review['CC']==1
+
+
+def test_mail_and_resolution_work_after_technical_id_is_missing(tmp_path):
+    from nurus.personal.config import BASE
+    from nurus.personal.resolutions import prepare_projects
+    w=exported(tmp_path);book=load_workbook(w.output);sheet=book[w.sheet]
+    headers={cell.value:cell.column for cell in sheet[3]}
+    sheet.delete_cols(headers['NURUS_ID_REGISTRO'])
+    headers={cell.value:cell.column for cell in sheet[3]}
+    sheet.cell(4,headers['OBSERVACION']).value='Medida revisada, a la espera de ingreso efectivo al programa AFT EJEMPLO. No corresponde enviar correo.'
+    book.save(w.output)
+    assert prepare_drafts(w,'programa_espera')==[]
+    projects,errors=prepare_projects(w,[(w.rows[0].id,'PC_IE')],BASE/'plantillas_word')
+    assert not errors and len(projects)==1 and projects[0].court=='LAJA'
+
+
+def test_missing_technical_id_still_rejects_identity_change(tmp_path):
+    w=exported(tmp_path);book=load_workbook(w.output);sheet=book[w.sheet]
+    headers={cell.value:cell.column for cell in sheet[3]}
+    sheet.delete_cols(headers['NURUS_ID_REGISTRO'])
+    headers={cell.value:cell.column for cell in sheet[3]}
+    sheet.cell(4,headers['NOMBRE']).value='Otra persona'
+    book.save(w.output)
+    with pytest.raises(ValueError,match='identidad'):
+        w.refresh()
+    assert not w.rows[0].review
+
+
 def test_unrecognized_contact_still_prepares_draft_with_subset(tmp_path):
     w=exported(tmp_path);drafts=prepare_drafts(w,'programa_espera')
     assert len(drafts)==1 and drafts[0].to=='' and CC in drafts[0].cc
