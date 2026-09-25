@@ -14,6 +14,16 @@ Hotfix Excel RES: `b6c9d84b79b416dd7fc5fb9911a9ffe521934ac9`, GitHub Actions run
 
 El hotfix elimina la dependencia de `Application.International` al configurar la lista RES nativa de Excel; usa una hoja técnica oculta y el nombre `NURUS_RES_TIPOS`. La regresión cubre expresamente el escenario COM que produjo `'tuple' object is not callable` en Excel real.
 
+## Hotfix de regresión de identidad — 25 de septiembre de 2026
+
+Uso real detectó que Correos y Resoluciones podían bloquearse con `Falta la columna de identidad; no se pueden asociar las ediciones.` al refrescar una copia revisada sin `NURUS_ID_REGISTRO`.
+
+El origen exacto de la desaparición de esa columna en el archivo institucional no fue reproducido todavía. El bloqueo sí quedó reproducido y corregido: `Work.refresh()` usa `NURUS_ID_REGISTRO` cuando existe; si falta, admite un fallback mediante identidad compuesta RIT/RUT/NNA/tribunal/programa únicamente cuando la asociación es unívoca y coincide el conjunto completo de registros. No asocia por posición. Si hay duplicados, identidades nuevas/cambiadas o faltan casos, mantiene el bloqueo de integridad.
+
+Las regresiones cubren: refresco de observaciones sin la columna técnica; preparación de correo ESPERA y proyecto Word desde esa copia; y rechazo cuando se altera la identidad de la persona.
+
+Checkpoint funcional: `bd5cc62109170c44fc2e07bdae3622ce681bd3be`. GitHub Actions run `36164510154`: **success** en Windows/Python 3.12–3.14, con **281 passed, 1 skipped** por versión. Python 3.12 aprobó además smoke GUI y construcción ZIP.
+
 ## Correcciones verificadas automáticamente — 24 de septiembre de 2026
 
 Incidencias reportadas: alcance incorrecto de correos/adjuntos de lista de espera, ausencia de bordes en el Excel adjunto, y problemas observados en proyectos Word respecto de tribunal/fuentes.
