@@ -43,6 +43,12 @@ La causa exacta del caso real en que un documento de Mulchén apareció como Laj
 
 Checkpoint de código de estas correcciones: `31f2fefee70641c2e6f7311a2e2c8d01a6561f5c`. GitHub Actions run `36009322188`: **success** en Windows/Python 3.12–3.14, con **278 passed, 1 skipped** por versión. Python 3.12 aprobó también smoke GUI y construcción de la distribución ZIP.
 
+## Hotfix de identidad de copia revisada — 25 de septiembre de 2026
+
+Correos y Resoluciones dejaron de depender rígidamente de que la copia revisada conserve `NURUS_ID_REGISTRO`. Cuando esa columna existe sigue siendo la identidad autoritativa. Si falta, el sistema intenta asociar la revisión por la identidad compuesta disponible (RIT, RUT, NNA, tribunal y programa), pero solo acepta el fallback si cada identidad es única y el conjunto coincide exactamente. No se usa el número de fila como sustituto.
+
+Esto evita el bloqueo observado en uso real sin relajar la protección contra aplicar observaciones o productos a otra persona. Duplicados o cambios de identidad continúan deteniendo la operación.
+
 ## Observaciones y RES
 
 Los catálogos activos `personal/textos_base.json` y `rus/textos_observaciones.json` quedan sincronizados con las redacciones aprobadas. La migración `revision_textos=3` reemplaza solamente textos que aún coinciden exactamente con el valor predeterminado anterior y conserva personalizaciones.
