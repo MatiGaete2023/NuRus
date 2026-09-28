@@ -47,8 +47,15 @@ class DraftCards(ctk.CTkScrollableFrame):
             ctk.CTkLabel(card,text=details,wraplength=205,anchor='w',justify='left',text_color=ui.MUTED,font=('Segoe UI',12)).pack(fill='x',padx=12,pady=3)
             badges=ctk.CTkFrame(card,fg_color='transparent');badges.pack(fill='x',padx=12,pady=(2,10))
             expired=bool(draft.due and draft.due<date.today().isoformat())
-            saved=(receipts or {}).get(draft.key,{}).get('state')=='created'
-            text='Guardado en Outlook' if saved else 'Borrador editable'
+            from .outputs import draft_fingerprint
+            receipt=(receipts or {}).get(draft_fingerprint(draft),{}).get('state')
+            saved=receipt=='created'
+            edited=any(getattr(draft,key)!=draft.original.get(key,getattr(draft,key)) for key in ('to','cc','subject','body','attachments'))
+            text='Guardado en Outlook' if saved else 'Guardado incierto' if receipt in {'saving','uncertain'} else 'Editado' if edited else 'Preparado'
+            work=getattr(self,'work',None)
+            if work:
+                from .product_state import stale
+                if stale(work,draft):text='Necesita actualizar'
             ctk.CTkLabel(badges,text=text,fg_color='#245f54' if saved else ui.BLUE,corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w')
             if draft.due:
                 ctk.CTkLabel(badges,text='Fecha vencida' if expired else 'Por vencer',fg_color='#813c32' if expired else '#665220',corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w',pady=(4,0))
@@ -92,7 +99,7 @@ def build_mail_page(app):
     app.target_box=NamedChoice(top,keyvariable=app.mail_target,names=lambda:{'programas':'Solo programas','tribunales':'Solo tribunales','todos':'Ambos'},state='readonly',width=21)
     app.target_box.grid(row=0,column=0,padx=(0,8));app.target_box.bind('<<ComboboxSelected>>',app._mail_target_changed)
     app.mail_kind=tk.StringVar(value='programa_por_vencer')
-    app.kind_box=NamedChoice(top,keyvariable=app.mail_kind,names=lambda:{k:v['nombre'] for k,v in app.cfg.data['correos']['plantillas'].items()},state='readonly',width=32)
+    app.kind_box=NamedChoice(top,keyvariable=app.mail_kind,names=lambda:{k:v['nombre'] for k,v in app.cfg.data['correos']['plantillas'].items() if not v.get('archivada',False)},state='readonly',width=32)
     app.kind_box.grid(row=0,column=1,sticky='ew');app.kind_box.bind('<<ComboboxSelected>>',app._mail_kind_changed)
     ui.Button(top,text='Preparar tipo',fg_color='transparent',border_width=1,command=lambda:app._guard(app._prepare_mail)).grid(row=0,column=2,padx=7)
     options=ctk.CTkFrame(page,fg_color='#28313c');options.grid(row=2,column=0,sticky='ew',padx=8,pady=4);options.grid_remove()
@@ -130,8 +137,12 @@ def build_mail_page(app):
     content.grid_rowconfigure(0,weight=1);content.grid_columnconfigure(1,weight=1)
     app.mail_list=DraftCards(content);app.mail_list.grid(row=0,column=0,sticky='ns',padx=(0,10));app.mail_list.bind('<<ListboxSelect>>',app._select_mail)
     app.mail_list.set_drafts([])
-    compose=ctk.CTkFrame(content,fg_color=ui.PANEL,corner_radius=12,border_width=1,border_color='#394451')
-    compose.grid(row=0,column=1,sticky='nsew');compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1,minsize=120)
+    editor=ctk.CTkFrame(content,fg_color=ui.PANEL)
+    editor.grid(row=0,column=1,sticky='nsew');editor.grid_columnconfigure(0,weight=1);editor.grid_rowconfigure(0,weight=1)
+    tabs=ui.Notebook(editor);tabs.grid(row=0,column=0,sticky='nsew')
+    compose=ctk.CTkFrame(tabs,fg_color=ui.PANEL)
+    tabs.add(compose,text='Correo')
+    compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1,minsize=80)
     ui.Label(compose,text='Correo editable',font=('Segoe UI',16,'bold')).grid(row=0,column=0,columnspan=2,sticky='w',padx=12,pady=(8,4))
     ui.Button(compose,text='Vista previa',width=100,fg_color='transparent',border_width=1,command=lambda:app._guard(app._preview_mail)).grid(row=0,column=1,sticky='e',padx=12,pady=5)
     app.to=tk.StringVar();app.cc=tk.StringVar();app.subject=tk.StringVar();app.attach=tk.StringVar()
@@ -141,10 +152,15 @@ def build_mail_page(app):
     app.body=ui.Textbox(compose,height=200,wrap='word',font=('Segoe UI',14),undo=True)
     app.body.grid(row=4,column=0,columnspan=2,sticky='nsew',padx=12,pady=7)
     app.attachment_chips=AttachmentChips(compose,app.attach);app.attachment_chips.grid(row=5,column=0,columnspan=2,sticky='ew',padx=12,pady=(0,4))
-    actions=ctk.CTkFrame(compose,fg_color='transparent');actions.grid(row=6,column=0,columnspan=2,sticky='ew',padx=12,pady=(3,10))
+    actions=ctk.CTkFrame(editor,fg_color='transparent');actions.grid(row=1,column=0,sticky='ew',padx=8,pady=(3,10))
     ui.Button(actions,text='Adjuntar…',width=82,fg_color='transparent',border_width=1,command=app._attachment).pack(side='left')
     ui.Button(actions,text='Guardar este',width=106,fg_color='transparent',border_width=1,command=lambda:app._guard(app._send_draft)).pack(side='left',padx=5)
     app.save_all_button=ui.Button(actions,text='Guardar borradores',width=145,command=lambda:app._guard(app._send_all));app.save_all_button.pack(side='right')
-    app.mail_case_detail=CaseDetailPanel(compose);app.mail_case_detail.grid(row=7,column=0,columnspan=2,sticky='ew',padx=12,pady=(0,6))
-    app.mail_compare=ComparisonPanel(compose);app.mail_compare.grid(row=8,column=0,columnspan=2,sticky='ew',padx=12,pady=(0,8));app.mail_compare.grid_remove()
+    from .widgets import ScrollPane
+    details=ScrollPane(tabs);tabs.add(details,text='Registros incluidos')
+    app.mail_case_detail=CaseDetailPanel(details.body);app.mail_case_detail.pack(fill='x',padx=8,pady=8)
+    app.mail_records_panel=ui.Frame(details.body);app.mail_records_panel.pack(fill='x')
+    changes=ui.Frame(tabs);tabs.add(changes,text='Cambios');changes.grid_columnconfigure(0,weight=1);changes.grid_rowconfigure(0,weight=1)
+    app.mail_compare=ComparisonPanel(changes);app.mail_compare.grid(row=0,column=0,sticky='nsew',padx=8,pady=8)
     app._mail_kind_changed();app._mail_modality_changed()
+

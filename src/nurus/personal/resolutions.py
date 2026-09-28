@@ -49,6 +49,10 @@ class Project:
     text: str
     original_text: str
     warnings: list = field(default_factory=list)
+    dependency_hash: str = ''
+    template_hash: str = ''
+    review_required: bool = False
+    original_values: dict = field(default_factory=dict)
 
 
 def join_names(values):
@@ -91,6 +95,8 @@ def resolution_review_issue(value):
     """Advierte un RES escrito pero desconocido; nunca intenta corregirlo por aproximación."""
     if not _has_explicit_value(value):return ''
     if resolution_kind(value) or resolution_marked(value):return ''
+    if value is False or value == 0:return ''
+    if str(value).strip().lower().replace(',','.') in {'0','0.0','false','falso','no','n','sin proyecto'}:return ''
     shown=str(value).strip()
     return f"RES no reconocido: {shown!r}. Usa PC_IE, PC_INFO o NOMENCL, o deja la celda vacía."
 
@@ -135,6 +141,28 @@ def automatic_project_selections(work,fallback_kind='PC_IE'):
     observación puede discriminar la matriz y el fallback se usa solo como último
     recurso para un caso expresamente marcado.
     """
+    if any(row.decisions.get('structured') for row in work.rows):
+        selected=[]
+        legacy=[]
+        for row in work.rows:
+            if not row.decisions.get('structured'):
+                legacy.append(row);continue
+            if row.excluded:continue
+            mode=row.decisions.get('resolution','auto')
+            if mode=='auto':kinds=[kind for kind in row.actions if kind in KINDS]
+            elif mode in KINDS:kinds=[mode]
+            elif mode=='review':
+                raw=row.review.get('RES')
+                code=resolution_kind(raw)
+                kinds=[code or next((kind for kind in row.actions if kind in KINDS),fallback_kind)] if resolution_marked(raw) else []
+            else:kinds=[]
+            selected.extend((row.id,kind) for kind in kinds)
+        if legacy:
+            from copy import copy
+            old=copy(work);old.rows=legacy
+            selected.extend(automatic_project_selections(old,fallback_kind))
+        cases={(_case_key(work,row),kind) for rid,kind in selected for row in work.rows if row.id==rid}
+        return [(row.id,kind) for row in work.rows if not row.excluded for kind in KINDS if (_case_key(work,row),kind) in cases]
     reviewed=reviewed_resolution_ids(work)
     result=[]
     if reviewed is None:
@@ -255,7 +283,8 @@ def render_project(project,target):
 
 
 def prepare_projects(work,selections,template_dir):
-    work.refresh()
+    from .sync import require_current_copy
+    require_current_copy(work)
     by_id={r.id:r for r in work.rows};groups=OrderedDict();case_rows=OrderedDict()
     for row in work.rows:
         if row.excluded:continue
@@ -285,8 +314,12 @@ def prepare_projects(work,selections,template_dir):
             for key in template_variables(template):
                 if not vals.get(key):vals[key]='[COMPLETAR '+key.replace('_',' ')+']';missing.append(key)
             project=Project(uuid4().hex,court,rit,kind,[r.id for r in rows],str(template),vals,'','',missing)
+            from copy import deepcopy
+            project.original_values=deepcopy(vals)
             doc=render_project(project,Path(directory)/(project.key+'.docx'))
             project.text='\n'.join(p.text for p in paragraphs(doc));project.original_text=project.text
+            from .product_state import stamp
+            stamp(work,project)
             projects.append(project)
     return projects,errors
 
@@ -310,6 +343,11 @@ def _validate_project_template(project):
 def generate_projects(work,projects,destination):
     """Una resolución comienza en página nueva. No corta textos extensos."""
     if not projects:raise ValueError('No hay proyectos disponibles para generar.')
+    from .product_state import require_fresh
+    for project in projects:
+        _validate_project_template(project)
+        require_fresh(work,project)
+        if project.review_required:raise ValueError('Revisa los cambios del proyecto '+project.rit+' antes de generar Word.')
     with TemporaryDirectory() as directory:
         docs=[]
         for project in projects:
@@ -332,3 +370,4 @@ def generate_projects(work,projects,destination):
         work.receipts[uuid4().hex]={'kind':'word','record_ids':project.record_ids,'record_id':project.record_ids[0],'path':str(destination),'type':project.kind}
     if getattr(work,'storage_directory',None):work.save(work.storage_directory)
     return str(destination)
+

@@ -7,6 +7,7 @@ import re
 import shutil
 import tempfile
 from string import Formatter
+from .template_validation import variables
 
 BASE = Path(__file__).parent
 CC = 'ucc_concepcion@pjud.cl'
@@ -131,13 +132,13 @@ def validate(cfg):
         for key,value in entries.items():
             actual=cfg['textos'][scope][key]['texto']
             old_fields={f for _,f,_,_ in Formatter().parse(value['texto']) if f}
-            new_fields={f for _,f,_,_ in Formatter().parse(actual) if f}
+            new_fields=variables(actual, old_fields)
             if new_fields != old_fields or not actual.strip():raise ValueError('Variables de observación inválidas: '+scope+'.'+key)
     allowed={'COMUN.CURADOR','COMUN.OIDO','COMUN.PROX_AUDIENCIA','COMUN.PROXIMA_MAYORIA'}
     if not set(cfg['desactivadas'])<=allowed:raise ValueError('Solo pueden desactivarse advertencias complementarias.')
     for tpl in cfg['correos']['plantillas'].values():
         for key in ('asunto','cuerpo'):
-            fields={f for _,f,_,_ in Formatter().parse(tpl[key]) if f}
+            fields=variables(tpl[key], VARIABLES)
             if not fields<=VARIABLES:raise ValueError('Variable de correo desconocida: '+str(fields-VARIABLES))
         if tpl['adjunto'] not in ('obligatorio','opcional'):raise ValueError('Requisito de adjunto inválido.')
     for contact in cfg['contactos'].values():emails(contact)
@@ -201,3 +202,4 @@ class Configuration:
         if self.path.exists():shutil.copyfile(self.path,self.path.with_suffix('.bak'))
         atomic_json(self.path,data)
         self.data=deepcopy(data)
+

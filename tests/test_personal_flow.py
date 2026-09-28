@@ -82,6 +82,11 @@ def test_mail_and_resolution_work_after_technical_id_is_missing(tmp_path):
     headers={cell.value:cell.column for cell in sheet[3]}
     sheet.cell(4,headers['OBSERVACION']).value='Medida revisada, a la espera de ingreso efectivo al programa AFT EJEMPLO. No corresponde enviar correo.'
     book.save(w.output)
+    with pytest.raises(ValueError,match='Actualizar desde Excel'):
+        prepare_drafts(w,'programa_espera')
+    w.refresh()
+    from nurus.personal.record_edits import apply
+    apply(w,[w.rows[0].id],decisions={'mail':{'programa_espera':'omit'}})
     assert prepare_drafts(w,'programa_espera')==[]
     projects,errors=prepare_projects(w,[(w.rows[0].id,'PC_IE')],BASE/'plantillas_word')
     assert not errors and len(projects)==1 and projects[0].court=='LAJA'
@@ -245,3 +250,4 @@ def test_prepare_required_drafts_creates_each_program_mail(tmp_path):
     assert len(drafts)==3
     assert any('AFT UNO' in subject for subject in program_subjects)
     assert any('AFT DOS' in subject for subject in program_subjects)
+

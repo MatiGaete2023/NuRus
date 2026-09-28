@@ -29,6 +29,12 @@ class Row:
     warnings: list
     excluded: bool = False
     review: dict = field(default_factory=dict)
+    sync_base: dict | None = None
+    sync_local: dict | None = None
+    sync_state: str = ''
+    decisions: dict = field(default_factory=dict)
+    overrides: dict = field(default_factory=dict)
+    word_overrides: dict = field(default_factory=dict)
 
 
 def actions_for(events):
@@ -86,10 +92,16 @@ class Work:
         self.exception=''
         self.output_hash=''
         self.receipts={}
+        self.revision=0
+        self.session_version=2
+        self.session={}
+        self.original_hash=''
+        self.original_content=b''
         # Campos conservados para recuperar sesiones antiguas. En el flujo vigente
         # la ausencia del cruce de Cumplimiento es solo una advertencia.
         self.needs_cross=False
         self.cross_missing=False
+        self.cross_dates={}
 
     def analyze(self,path,mode,*,sheet=None,cross_sheet=None,as_of=None):
         batch=read_workbook(path,mode,sheet_name=sheet,cross_sheet_name=cross_sheet)
@@ -151,7 +163,10 @@ class Work:
             finally:current.reset(token)
             events=[e for e in ctx['events'] if e not in self.config['desactivadas']]
             excluded='COMUN.NO_SEGUIMIENTO' in events
+            identity_key=tuple(historical_match(values.get(cols.get(k,''),'')) for k in key_fields)
+            self.cross_dates[record.record_id]=index.get(identity_key)
             self.rows.append(Row(record.record_id,record.source.row_number,dict(record.values),observation,list(dict.fromkeys(events)),[] if excluded else actions_for(events),warnings,excluded))
+            self.rows[-1].decisions={'structured':True,'mail':{},'resolution':'auto'}
         return self
 
     def document_exception(self,reason):
@@ -166,11 +181,16 @@ class Work:
         REVISADAS y escriben sus campos de revisión. Las restantes se conservan como
         PENDIENTES, sin atribuirles una revisión inexistente.
         """
+        if Path(destination).resolve() == Path(self.path).resolve():
+            raise ValueError('El origen se conserva intacto. Elige otro nombre para la copia.')
+        from .sync import require_current_copy
+        require_current_copy(self)
         reviewed={row.id:_human_reviewed(row) for row in self.rows}
         reviewed_stage=any(reviewed.values())
         batch={'source_name':Path(self.path).name,'source_path':self.path,'source_hash':self.source_hash,
                'primary_sheet':self.sheet,'header_row':self.header,'mode':self.mode,
                'export_stage':'reviewed' if reviewed_stage else 'proposal'}
+        from .record_edits import encode
         records=[]
         for row in self.rows:
             is_reviewed=reviewed[row.id]
@@ -181,6 +201,7 @@ class Work:
                 'edit_reason':'; '.join(row.warnings),
                 'edited_observation':_review_value(row,'OBSERVACION',row.observation),
                 'rule_ids_json':json.dumps(row.rules),
+                'decisions_json':encode(row),
                 'rus_recorded':bool(is_reviewed and not row.excluded),
                 'review_date':_review_value(row,'FECHA_OBS'),
                 'tt_value':_review_value(row,'TT'),
@@ -190,73 +211,13 @@ class Work:
         result=_export_preserved_payload(self.content,{'batch':batch,'records':records,'exceptions':[self.exception] if self.exception else []},destination,backend=backend,allow_reduced_fidelity=reduced_fidelity)
         self.output=str(result.path)
         self.output_hash=sha256(Path(self.output).read_bytes()).hexdigest()
+        from .sync import remember_export
+        remember_export(self)
         return self.output
 
-    def refresh(self):
-        """Actualiza la copia conocida, asociando por ID incluso después de ordenar."""
-        if not self.output:raise ValueError('Primero procesa y exporta el trabajo.')
-        path=Path(self.output)
-        if not path.exists():raise ValueError('La copia fue movida. Usa Localizar copia para indicar su nueva ubicación.')
-        digest=sha256(path.read_bytes()).hexdigest()
-        if digest==self.output_hash:return False
-        if getattr(self,'external_input',False):
-            fresh=type(self).external(path,self.config,self.mode,sheet=self.sheet)
-            if {r.id for r in fresh.rows}!={r.id for r in self.rows}:
-                raise ValueError('Cambió el conjunto de personas de la planilla; usa Cargar planilla modificada para incorporar el nuevo conjunto.')
-            self.rows=fresh.rows;self.header=fresh.header;self.mapping=fresh.mapping
-            self.output_hash=digest
-            return True
-        import pandas as pd
-        frame=pd.read_excel(path,sheet_name=self.sheet,header=self.header-1,dtype=object,keep_default_na=False)
-        by_id={r.id:r for r in self.rows}
-        incoming={}
-        id_column=next((column for column in frame.columns if normalize(column)==normalize('NURUS_ID_REGISTRO')),None)
-
-        if id_column is not None:
-            for values in frame.to_dict('records'):
-                key=str(values.get(id_column,'')).strip()
-                if not key:continue
-                if key not in by_id or key in incoming:raise ValueError('Hay identidades ajenas o duplicadas en la copia; no se aplicaron cambios.')
-                old=by_id[key]
-                for field in ('rit','rut','nombre','tribunal','programa'):
-                    column=self.mapping.get(field)
-                    if column and historical_match(values.get(column,''))!=historical_match(old.values.get(column,'')):
-                        raise ValueError('Cambió la identidad de una fila. No se aplicaron cambios; verifica '+field+'.')
-                incoming[key]={k:values.get(k,'') for k in ('OBSERVACION','FECHA_OBS','TT','CC','RES')}
-        else:
-            # Recuperación segura para copias donde Excel/una edición externa eliminó la
-            # columna técnica. Nunca se asocia solo por posición: se exige identidad
-            # compuesta única y coincidencia exacta del conjunto de registros.
-            identity_fields=tuple(field for field in ('rit','rut','nombre','tribunal','programa') if self.mapping.get(field))
-            if not all(field in identity_fields for field in ('rit','nombre','tribunal')):
-                raise ValueError('Falta la columna de identidad y no hay campos suficientes para asociar las ediciones con seguridad.')
-
-            def identity_from_values(values):
-                return tuple(historical_match(values.get(self.mapping[field],'')) for field in identity_fields)
-
-            old_by_identity={}
-            for old in self.rows:
-                identity=identity_from_values(old.values)
-                if identity in old_by_identity:
-                    raise ValueError('Falta la columna de identidad y existen registros ambiguos; no se aplicaron cambios. Usa Cargar planilla modificada.')
-                old_by_identity[identity]=old
-
-            seen=set()
-            for values in frame.to_dict('records'):
-                if not str(values.get(self.mapping['rit'],'')).strip() or not str(values.get(self.mapping['nombre'],'')).strip():continue
-                identity=identity_from_values(values)
-                if identity in seen or identity not in old_by_identity:
-                    raise ValueError('Falta la columna de identidad y cambió o se duplicó la identidad de una fila; no se aplicaron cambios.')
-                seen.add(identity)
-                old=old_by_identity[identity]
-                incoming[old.id]={k:values.get(k,'') for k in ('OBSERVACION','FECHA_OBS','TT','CC','RES')}
-
-        if set(incoming)!=set(by_id):raise ValueError('Faltan registros en la copia; no se aplicaron cambios.')
-        for key,review in incoming.items():
-            by_id[key].review=review
-            _sync_resolution_warning(by_id[key])
-        self.output_hash=digest
-        return True
+    def refresh(self, resolutions=None):
+        from .sync import refresh
+        return refresh(self, resolutions)
 
     @classmethod
     def external(cls,path,config,mode='ESPERA',*,sheet=None):
@@ -278,6 +239,11 @@ class Work:
             events=list(dict.fromkeys(rules))
             actions=[] if excluded else actions_for(events)
             row=Row(rid,number,values,str(review.get('OBSERVACION','')),events,actions,[],excluded,review)
+            from .record_edits import restore
+            restore(row,values.get('NURUS_DECISIONES',''))
+            row.sync_state=str(values.get('NURUS_DECISIONES','') or '')
+            row.sync_base=deepcopy(review)
+            row.sync_local=deepcopy(review)
             _sync_resolution_warning(row)
             obj.rows.append(row)
         return obj
@@ -286,10 +252,21 @@ class Work:
         directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
         self.storage_directory=str(directory)
         source=directory/(self.source_hash+'.bin')
-        if not source.exists():source.write_bytes(self.content)
-        data={k:v for k,v in self.__dict__.items() if k not in ('rows','content')}
+        from .session import archive_bytes
+        archive_bytes(source,self.content,self.source_hash)
+        if self.original_hash and self.original_content:
+            original=directory/(self.original_hash+'.bin')
+            archive_bytes(original,self.original_content,self.original_hash)
+        data={k:v for k,v in self.__dict__.items() if k not in ('rows','content','original_content')}
         data['rows']=[asdict(r) for r in self.rows]
-        atomic_json(directory/'trabajo.json',data)
+        previous=directory/'trabajo.json'
+        if previous.exists():
+            try:
+                old=json.loads(previous.read_text(encoding='utf-8'))
+            except (ValueError,OSError):
+                pass
+            else:atomic_json(directory/'trabajo.json.bak',old)
+        atomic_json(previous,data)
 
     @classmethod
     def load(cls,directory):
@@ -302,5 +279,10 @@ class Work:
         obj.rows=[Row(**r) for r in data['rows']]
         for row in obj.rows:_sync_resolution_warning(row)
         obj.content=(directory/(obj.source_hash+'.bin')).read_bytes()
+        if obj.original_hash:
+            obj.original_content=(directory/(obj.original_hash+'.bin')).read_bytes()
+            if sha256(obj.original_content).hexdigest()!=obj.original_hash:
+                raise ValueError('La copia original archivada no coincide con su huella.')
         if sha256(obj.content).hexdigest()!=obj.source_hash:raise ValueError('La copia de origen guardada no coincide con el trabajo.')
         return obj
+

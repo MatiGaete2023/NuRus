@@ -60,7 +60,9 @@ class CaseDetailPanel(ctk.CTkFrame):
         self.grid_columnconfigure(0,weight=1)
         ctk.CTkLabel(self,text=title,font=('Segoe UI',13,'bold'),anchor='w').grid(row=0,column=0,sticky='ew',padx=10,pady=(7,2))
         self.variable=tk.StringVar(value='Selecciona un registro.')
-        ctk.CTkLabel(self,textvariable=self.variable,anchor='w',justify='left',wraplength=wraplength,text_color=ttk.MUTED).grid(row=1,column=0,sticky='ew',padx=10,pady=(0,8))
+        self.body_label=ctk.CTkLabel(self,textvariable=self.variable,anchor='w',justify='left',wraplength=wraplength,text_color=ttk.MUTED)
+        self.body_label.grid(row=1,column=0,sticky='ew',padx=10,pady=(0,8))
+        self.bind('<Configure>',lambda event:self.body_label.configure(wraplength=max(120,event.width-30)),add='+')
 
     def set_text(self,text):
         self.variable.set(str(text or 'Selecciona un registro.'))
@@ -71,6 +73,7 @@ class ComparisonPanel(ctk.CTkFrame):
     def __init__(self,parent,**kwargs):
         super().__init__(parent,fg_color=ttk.FIELD,corner_radius=8,border_width=1,border_color='#394451',**kwargs)
         self.grid_columnconfigure((0,1),weight=1)
+        self.grid_rowconfigure(1,weight=1)
         ctk.CTkLabel(self,text='Original / propuesta del motor',font=('Segoe UI',12,'bold')).grid(row=0,column=0,sticky='w',padx=8,pady=(6,2))
         ctk.CTkLabel(self,text='Versión editada / final',font=('Segoe UI',12,'bold')).grid(row=0,column=1,sticky='w',padx=8,pady=(6,2))
         self.original=ctk.CTkTextbox(self,height=86,wrap='word',fg_color=ttk.PANEL)
@@ -104,3 +107,4 @@ class Tooltip:
             try:self.tip.destroy()
             except tk.TclError:pass
             self.tip=None
+

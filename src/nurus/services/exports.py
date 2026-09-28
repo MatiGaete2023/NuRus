@@ -328,6 +328,8 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             else ("NURUS_ID_REGISTRO", "NURUS_REGLAS", observation_title, "NURUS_ESTADO_REVISION",
                   "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES")
         )
+        if any('decisions_json' in record for record in snapshot['records']):
+            titles = (*titles, 'NURUS_DECISIONES')
         columns = _column_plan(headers, titles)
         observation_column = columns[observation_title]
         state_column = columns["NURUS_ESTADO_REVISION"]
@@ -349,6 +351,8 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             observation, state = _annotation_values(record, stage)
             sheet.cell(row, columns["NURUS_ID_REGISTRO"]).value = _safe_cell(record["record_id"])
             sheet.cell(row, columns["NURUS_REGLAS"]).value = _safe_cell(record["rule_ids_json"])
+            if 'NURUS_DECISIONES' in columns:
+                sheet.cell(row, columns['NURUS_DECISIONES']).value = _safe_cell(record.get('decisions_json', ''))
             sheet.cell(row, observation_column).value = observation
             sheet.cell(row, state_column).value = state
             if stage == "proposal" and _is_blank_excel_value(sheet.cell(row, columns["OBSERVACION"]).value):
@@ -358,6 +362,8 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
                     sheet.cell(row, columns[title]).value = _safe_cell(value)
 
         sheet.column_dimensions[get_column_letter(columns["NURUS_REGLAS"])].hidden = True
+        if 'NURUS_DECISIONES' in columns:
+            sheet.column_dimensions[get_column_letter(columns['NURUS_DECISIONES'])].hidden = True
         first_data_row = header_row + 1
         _portable_resolution_validation(sheet, columns["RES"], first_data_row, source_last_row)
         last_column = max(sheet.max_column, state_column)
@@ -513,6 +519,8 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             else ("NURUS_ID_REGISTRO", "NURUS_REGLAS", observation_title, "NURUS_ESTADO_REVISION",
                   "OBSERVACION", "FECHA_OBS", "TT", "CC", "RES")
         )
+        if any('decisions_json' in record for record in snapshot['records']):
+            titles = (*titles, 'NURUS_DECISIONES')
         columns = _column_plan(headers, titles)
         observation_column = columns[observation_title]
         state_column = columns["NURUS_ESTADO_REVISION"]
@@ -531,6 +539,8 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             observation, state = _annotation_values(record, stage)
             writes["NURUS_ID_REGISTRO"].append((row, str(record["record_id"])))
             writes["NURUS_REGLAS"].append((row, str(record["rule_ids_json"])))
+            if 'NURUS_DECISIONES' in columns:
+                writes['NURUS_DECISIONES'].append((row, str(record.get('decisions_json', ''))))
             writes[observation_title].append((row, observation))
             writes["NURUS_ESTADO_REVISION"].append((row, state))
             if stage == "proposal":
@@ -542,6 +552,8 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             _native_write_column(sheet, columns[title], updates,
                                  keep_existing=stage == "proposal" and title == "OBSERVACION")
         sheet.Columns(columns["NURUS_REGLAS"]).Hidden = True
+        if 'NURUS_DECISIONES' in columns:
+            sheet.Columns(columns['NURUS_DECISIONES']).Hidden = True
 
         operation = "configurar selector RES"
         _native_resolution_validation(book, sheet, columns["RES"], header_row + 1, last_row)
@@ -692,3 +704,4 @@ def export_preserved_workbook(
         backend=backend,
         allow_reduced_fidelity=allow_reduced_fidelity,
     )
+

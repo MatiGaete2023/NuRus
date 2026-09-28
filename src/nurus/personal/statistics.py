@@ -23,7 +23,8 @@ def summarize(work):
 def export_summary(work,path):
     from openpyxl import Workbook
     from .outputs import value
-    work.refresh();book=Workbook();sheet=book.active;sheet.title='Resumen'
+    from .sync import require_current_copy
+    require_current_copy(work);book=Workbook();sheet=book.active;sheet.title='Resumen'
     sheet.append(['Categoría','Cantidad'])
     for name,n in summarize(work).items():sheet.append([name.replace('_',' '),n])
     rows=book.create_sheet('Constancias')
@@ -38,3 +39,4 @@ def export_summary(work,path):
         for col in 'ABCDEFG':ws.column_dimensions[col].width=25
     write_new_file(Path(path),book.save)
     return str(path)
+

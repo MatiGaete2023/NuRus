@@ -41,22 +41,23 @@ def test_mode_change_restores_automatic_sheet_without_discarding_work():
 
 
 def test_unchanged_refresh_keeps_manual_projects_and_mail():
-    work=SimpleNamespace(refresh=lambda:False)
+    work=SimpleNamespace(refresh=lambda resolutions=None:False)
     app=SimpleNamespace(_require_work=lambda:work,_clear_drafts=Mock(),_show_work=Mock(),_save_session=Mock(),_update_context=Mock(),status=Var(''))
     app._run=lambda label,action,done:done(action())
-    BaseApp._refresh(app)
+    BaseApp._refresh_resolved(app)
     app._clear_drafts.assert_not_called();app._show_work.assert_not_called()
     assert app.status.get()=='La copia no ha cambiado.'
 
 
-def test_moved_changed_copy_clears_stale_products(monkeypatch):
+def test_moved_changed_copy_retains_products_for_explicit_revision(monkeypatch):
     work=SimpleNamespace(output='old.xlsx',refresh=Mock(return_value=True))
     app=SimpleNamespace(_require_work=lambda:work,_clear_drafts=Mock(),_show_work=Mock(),_save_session=Mock(),_update_context=Mock(),status=Var(''))
     app._run=lambda label,action,done:done(action())
+    app._refresh_resolved=lambda **kwargs:BaseApp._refresh_resolved(app,**kwargs)
     monkeypatch.setattr('nurus.personal.app_base.filedialog.askopenfilename',lambda **kw:'moved.xlsx')
     BaseApp._locate(app)
-    assert work.output=='moved.xlsx'
-    app._clear_drafts.assert_called_once();app._show_work.assert_called_once()
+    assert app.work.output=='moved.xlsx' and work.output=='old.xlsx'
+    app._clear_drafts.assert_not_called();app._show_work.assert_called_once()
 
 
 def test_failed_relocation_preserves_previous_path_and_products(monkeypatch):
@@ -64,6 +65,7 @@ def test_failed_relocation_preserves_previous_path_and_products(monkeypatch):
     work=SimpleNamespace(output='old.xlsx',refresh=Mock(side_effect=ValueError('Identidad ajena')))
     app=SimpleNamespace(_require_work=lambda:work,_clear_drafts=Mock(),_show_work=Mock(),_save_session=Mock(),status=Var(''))
     app._run=lambda label,action,done:done(action())
+    app._refresh_resolved=lambda **kwargs:BaseApp._refresh_resolved(app,**kwargs)
     monkeypatch.setattr('nurus.personal.app_base.filedialog.askopenfilename',lambda **kw:'other.xlsx')
     with pytest.raises(ValueError,match='Identidad ajena'):BaseApp._locate(app)
     assert work.output=='old.xlsx'
@@ -118,3 +120,4 @@ def test_active_assistant_import_does_not_load_historical_workflow_stack():
     env = dict(os.environ)
     env['PYTHONPATH'] = str(ROOT/'src')
     subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=env, check=True)
+

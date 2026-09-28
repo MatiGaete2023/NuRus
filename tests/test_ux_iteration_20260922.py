@@ -89,13 +89,16 @@ def test_ui_source_keeps_secondary_actions_and_exposes_requested_hierarchy():
     root=Path(__file__).parents[1]
     app=(root/'src/nurus/personal/app_base.py').read_text(encoding='utf-8')
     mail=(root/'src/nurus/personal/mail_view.py').read_text(encoding='utf-8')
-    assert 'Actualizar desde Excel · F5' in app
-    assert 'Generar Word' in app and 'Preparar / actualizar proyectos' in app
+    work=(root/'src/nurus/personal/work_view.py').read_text(encoding='utf-8')
+    assert 'Actualizar Excel · F5' in work
+    resolutions=(root/'src/nurus/personal/resolution_view.py').read_text(encoding='utf-8')
+    assert 'Generar Word' in resolutions and 'Preparar / actualizar proyectos' in resolutions
     assert 'Guardar borradores' in mail and 'Guardar este' in mail and 'Preparar todos' in mail
     assert "text='Básico'" in app and "text='Avanzado'" in app
-    assert 'Siguiente incidencia' in app
+    assert 'Siguiente aviso' in work
     assert 'CaseDetailPanel' in app and 'ComparisonPanel' in app
-    assert "CaseDetailPanel(edit,wraplength=1100)" in app
-    assert "split.add(table,weight=2);split.add(edit,weight=3)" in app
+    assert "tabs.add(changes,text='Cambios')" in work
+    assert "split.add(table,weight=2);split.add(edit,weight=3)" in work
     assert "messagebox.showinfo('Catastro incorporado'" not in app
     assert "✓ Catastro incorporado" in app
+

@@ -85,6 +85,8 @@ with TemporaryDirectory() as directory:
             Row('a',2,{'RIT':'X-1','TRIBUNAL':'Jgdo. L. y G. de Laja','NOMBRE':'NNA UNO','RUT':'11111111-1','DERIVACION':'AFT PRUEBA'},'Ingreso efectivo',[],['PC_IE'],[],review={'RES':'PC_IE'}),
             Row('b',3,{'RIT':'X-2','TRIBUNAL':'Jgdo. L. y G. de Laja','NOMBRE':'NNA DOS','RUT':'22222222-2','DERIVACION':'AFT PRUEBA'},'Revisión manual',[],[],['Dato a revisar']),
         ]
+        from hashlib import sha256
+        work.content=b'isolated GUI fixture';work.source_hash=sha256(work.content).hexdigest()
         app.work=work;app._show_work()
         assert '2 registros' in app.context.get()
         assert 'Pide cuenta ingreso efectivo' in app.words.item('a|PC_IE','values')[2]
@@ -117,3 +119,4 @@ with TemporaryDirectory() as directory:
         assert not app.busy and app.progress.cget('mode')=='determinate' and app.progress.get()==0
         print('Cinco áreas CTk oscuras; búsqueda y filtros; contexto persistente; revisión por excepción; tipos legibles; tarjetas y adjuntos; botones visibles a 1024x650; plantillas y resoluciones conservadas.')
     finally:app.destroy()
+

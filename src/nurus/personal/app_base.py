@@ -62,6 +62,7 @@ class App(ctk.CTk):
         self.protocol('WM_DELETE_WINDOW',self._close)
         self._bind_shortcuts()
         self.after(100,self._poll)
+        self.after(15000,self._autosave)
         saved=self.cfg.directory/'sesion/trabajo.json'
         if saved.exists():
             try:
@@ -83,6 +84,8 @@ class App(ctk.CTk):
 
     def _run(self,label,action,done=None):
         if self.busy:self.status.set('Hay una operación en curso.');return
+        from .interaction import lock
+        lock(self)
         self.busy=True;self.status.set(label);self.progress.configure(mode='indeterminate');self.progress.start()
         def worker():
             try:self.events.put((True,action(),done))
@@ -93,6 +96,8 @@ class App(ctk.CTk):
         try:
             while True:
                 ok,result,done=self.events.get_nowait();self.busy=False
+                from .interaction import unlock
+                unlock(self)
                 self.progress.stop();self.progress.configure(mode='determinate');self.progress.set(0)
                 if ok:
                     self.status.set('Operación terminada.')
@@ -101,7 +106,11 @@ class App(ctk.CTk):
                         except Exception as exc:
                             self.status.set(str(exc));messagebox.showerror('No se completó la operación',str(exc))
                 else:
-                    if isinstance(result,SheetChoice):
+                    from .sync import SyncConflict
+                    if isinstance(result,SyncConflict):
+                        from .sync_view import resolve
+                        resolve(self,result)
+                    elif isinstance(result,SheetChoice):
                         self._choose_external_sheet(result.names)
                     else:
                         self.status.set(str(result));messagebox.showerror('No se completó la operación',str(result))
@@ -109,10 +118,20 @@ class App(ctk.CTk):
         except queue.Empty:pass
         self.after(100,self._poll)
 
+    def _autosave(self):
+        if self.work and not self.busy:
+            try:self._save_session()
+            except ValueError as exc:self.status.set('Edición pendiente de corregir: '+str(exc))
+        self.after(15000,self._autosave)
+
     def _save_session(self):
         self._capture_observation()
         if self.work and not self.busy:
-            try:self.work.save(self.cfg.directory/'sesion')
+            try:
+                from .session import capture
+                capture(self)
+                self.work.save(self.cfg.directory/'sesion')
+                self._update_local_activity()
             except OSError as exc:self.status.set('No se pudo guardar la recuperación: '+str(exc))
 
     def _close(self):
@@ -158,9 +177,15 @@ class App(ctk.CTk):
         self._open(folder)
 
     def _bind_shortcuts(self):
+        self.bind_all('<Control-s>',self._shortcut_save)
         self.bind_all('<Control-o>',self._shortcut_open)
         self.bind_all('<Control-f>',self._shortcut_find)
         self.bind_all('<F5>',self._shortcut_refresh)
+
+    def _shortcut_save(self,event=None):
+        self._guard(self._save_session)
+        self.status.set('Sesión guardada localmente.')
+        return 'break'
 
     def _shortcut_open(self,event=None):
         self._choose();return 'break'
@@ -231,59 +256,9 @@ class App(ctk.CTk):
         frame.rowconfigure(0,weight=1);frame.columnconfigure(0,weight=1);return tree
 
     def _work_page(self):
-        page=self.pages['Trabajo']
-        self.resume_frame=ctk.CTkFrame(page,fg_color='#25303a',corner_radius=8,border_width=1,border_color='#4d5c6b')
-        self.resume_text=tk.StringVar()
-        ctk.CTkLabel(self.resume_frame,text='Último trabajo',font=('Segoe UI',13,'bold'),anchor='w').pack(side='left',padx=(10,5),pady=7)
-        ctk.CTkLabel(self.resume_frame,textvariable=self.resume_text,anchor='w',text_color=ttk.MUTED).pack(side='left',fill='x',expand=True,pady=7)
-        ttk.Button(self.resume_frame,text='Continuar',width=90,command=lambda:self._guard(self._continue_resume)).pack(side='right',padx=(4,8),pady=5)
-        ttk.Button(self.resume_frame,text='Elegir otro archivo',width=125,fg_color='transparent',border_width=1,command=self._choose_other_resume).pack(side='right',padx=4,pady=5)
-        self.work_top=top=ttk.Frame(page);top.pack(fill='x')
-        self.mode=tk.StringVar(value='ESPERA');self.file=tk.StringVar();self.sheet=tk.StringVar()
-        self.folder=tk.StringVar(value=str(self.cfg.directory/'salidas'))
-        mode_box=ttk.Combobox(top,textvariable=self.mode,values=['ESPERA','CUMPLIMIENTO','INFORMES'],state='readonly',width=20)
-        mode_box.grid(row=0,column=0,pady=5)
-        mode_box.bind('<<ComboboxSelected>>',self._mode_changed)
-        self._field(top,'Archivo',self.file,1)
-        ttk.Button(top,text='Buscar',fg_color='transparent',border_width=1,command=self._choose).grid(row=1,column=2)
-        ttk.Label(top,text='Hoja (automática si está vacía)').grid(row=2,column=0,sticky='w')
-        self.sheet_box=ttk.Combobox(top,textvariable=self.sheet,state='readonly');self.sheet_box.grid(row=2,column=1,sticky='ew',padx=6)
-        self._field(top,'Carpeta de salida',self.folder,3)
-        ttk.Button(top,text='Cambiar',fg_color='transparent',border_width=1,command=lambda:self._select_folder(self.folder)).grid(row=3,column=2)
-        buttons=ttk.Frame(page);buttons.pack(fill='x',pady=5)
-        extra=ttk.Frame(page);extra.pack(fill='x')
-        ttk.Button(buttons,text='Procesar Excel',fg_color='transparent',border_width=1,command=lambda:self._guard(self._process)).pack(side='left',padx=3)
-        ttk.Button(buttons,text='Abrir Excel',fg_color='transparent',border_width=1,command=lambda:self._guard(lambda:self._open(self._require_work().output))).pack(side='left',padx=3)
-        self.work_primary_button=ttk.Button(buttons,text='Actualizar desde Excel · F5',command=lambda:self._guard(self._refresh));self.work_primary_button.pack(side='left',padx=3)
-        ttk.Button(buttons,text='Abrir carpeta de salida',fg_color='transparent',border_width=1,command=lambda:self._guard(self._open_output_folder)).pack(side='left',padx=3)
-        ttk.Button(extra,text='Localizar copia movida',fg_color='transparent',border_width=1,command=lambda:self._guard(self._locate)).pack(side='left',padx=3)
-        ttk.Button(extra,text='Exportar copia con mis cambios',fg_color='transparent',border_width=1,command=lambda:self._guard(lambda:self._export_current())).pack(side='left',padx=3)
-        self.summary=tk.StringVar();ttk.Label(page,textvariable=self.summary).pack(anchor='w')
-        ttk.Button(page,text='Exportar resumen de constancias',fg_color='transparent',border_width=1,command=lambda:self._guard(self._export_statistics)).pack(anchor='w')
-        split=ttk.Panedwindow(page,orient='vertical');split.pack(fill='both',expand=True)
-        table=ttk.Frame(split);edit=ttk.Frame(split);split.add(table,weight=2);split.add(edit,weight=3)
-        work_filterbar=ttk.Frame(table);work_filterbar.pack(fill='x')
-        self.work_search=tk.StringVar();self.work_filter=tk.StringVar(value='Todos');self.incident_text=tk.StringVar(value='0 incidencias')
-        ttk.Label(work_filterbar,text='Buscar:').pack(side='left')
-        self.work_search_entry=ttk.Entry(work_filterbar,textvariable=self.work_search,width=26);self.work_search_entry.pack(side='left',padx=(5,8))
-        ttk.Label(work_filterbar,text='Mostrar:').pack(side='left')
-        work_filter_box=ttk.Combobox(work_filterbar,textvariable=self.work_filter,values=['Todos','Con aviso','Con resolución','Excluidos','Sin incidencias'],state='readonly',width=18);work_filter_box.pack(side='left',padx=5)
-        self.work_search.trace_add('write',self._apply_work_filter);work_filter_box.bind('<<ComboboxSelected>>',self._apply_work_filter)
-        ttk.Label(work_filterbar,textvariable=self.incident_text,text_color=ttk.MUTED).pack(side='left',padx=(8,4))
-        ttk.Button(work_filterbar,text='Anterior',width=75,fg_color='transparent',border_width=1,command=lambda:self._next_incident(-1)).pack(side='left',padx=2)
-        ttk.Button(work_filterbar,text='Siguiente incidencia',width=125,command=lambda:self._next_incident(1)).pack(side='left',padx=2)
-        ttk.Label(work_filterbar,text='Ctrl+F',text_color=ttk.MUTED).pack(side='right')
-        self.records=self._tree(table,('Estado','RIT','Tribunal','Programa','Observación'))
-        self.records.column('Observación',width=520);self.records.tag_configure('excluded',background='#665220',foreground='#fff2cc');self.records.tag_configure('warning',background='#653b29',foreground='#ffe2cd')
-        self.records.bind('<<TreeviewSelect>>',self._detail)
-        self.detail=tk.StringVar();ttk.Label(edit,textvariable=self.detail,wraplength=1000).pack(fill='x')
-        self.work_case_detail=CaseDetailPanel(edit,wraplength=1100);self.work_case_detail.pack(fill='x',pady=(2,5))
-        ttk.Label(edit,text='Observación editable del registro seleccionado (se incorpora a los productos)').pack(anchor='w')
-        self.observation_editor=ScrolledText(edit,wrap='word',height=5,font=('Segoe UI',10),undo=True);self.observation_editor.pack(fill='both',expand=True)
-        self.observation_editor.bind('<Control-Return>',lambda event:(self._guard(self._apply_observation),'break')[1])
-        ttk.Button(edit,text='Aplicar edición · Ctrl+Enter',command=lambda:self._guard(self._apply_observation)).pack(anchor='e')
-        self.work_compare=ComparisonPanel(edit);self.work_compare.pack(fill='x',pady=4);self.work_compare.pack_forget()
-        ttk.Button(extra,text='Cargar planilla modificada',fg_color='transparent',border_width=1,command=lambda:self._guard(self._external)).pack(side='left')
+        from .work_view import build
+        build(self)
+
     def _select_folder(self,var):
         path=filedialog.askdirectory()
         if path:var.set(path)
@@ -298,7 +273,10 @@ class App(ctk.CTk):
         work=getattr(self,'_resume_work',None)
         if not work:raise ValueError('No hay un trabajo recuperable.')
         self.work=work;self._resume_work=None;self.resume_frame.pack_forget()
-        self._show_work();self.status.set('Trabajo anterior recuperado. Revisa la copia antes de continuar.')
+        self._show_work()
+        from .session import restore
+        restore(self)
+        self.status.set('Trabajo anterior recuperado con sus ediciones y productos pendientes.')
 
     def _choose_other_resume(self):
         self._resume_work=None;self.resume_frame.pack_forget();self._choose()
@@ -321,13 +299,14 @@ class App(ctk.CTk):
         pair=edited_pair(getattr(row,'observation',''),(getattr(row,'review',{}) or {}).get('OBSERVACION',getattr(row,'observation','')))
         if pair:
             self.work_compare.set_pair(*pair)
-            if not self.work_compare.winfo_manager():self.work_compare.pack(fill='x',pady=4)
+            if not self.work_compare.winfo_manager():self.work_compare.pack(fill='both',expand=True)
         elif self.work_compare.winfo_manager():self.work_compare.pack_forget()
 
     def _update_work_case_detail(self,row):
         self.work_case_detail.set_text(compact_case_detail_text(self.work,row,getattr(self,'drafts',[])))
 
     def _resolution_detail(self,event=None):
+        if self.busy:return
         if not getattr(self,'work',None) or not self.words.selection():return
         rid=self.words.selection()[0].split('|',1)[0]
         row=next((r for r in self.work.rows if r.id==rid),None)
@@ -341,7 +320,7 @@ class App(ctk.CTk):
         pair=edited_pair(project.original_text,project.text)
         if pair:
             self.resolution_compare.set_pair(*pair)
-            if not self.resolution_compare.winfo_manager():self.resolution_compare.pack(fill='x',pady=4)
+            if not self.resolution_compare.winfo_manager():self.resolution_compare.pack(fill='both',expand=True)
         elif self.resolution_compare.winfo_manager():self.resolution_compare.pack_forget()
 
     def _update_mail_case_detail(self):
@@ -376,33 +355,57 @@ class App(ctk.CTk):
             self._run('Leyendo nombres de hojas…',lambda:list_workbook_sheets(path),lambda names:self.sheet_box.configure(values=['',*names]))
 
     def _capture_observation(self):
+        if self.busy:return
         if self.observation_id and self.work:
             row=next((r for r in self.work.rows if r.id==self.observation_id),None)
             if row:
                 text=self.observation_editor.get('1.0','end-1c')
                 if text!=row.review.get('OBSERVACION',row.observation):
                     row.review['OBSERVACION']=text
+                    self.work.revision+=1
                     if self.records.exists(row.id):self.records.set(row.id,'Observación',text)
                 self._set_work_comparison(row);self._update_work_case_detail(row)
+        if hasattr(self,'record_form') and self.work:self.record_form.capture()
     def _apply_observation(self):
         self._capture_observation();self._save_session()
         self.status.set('Edición incorporada a esta sesión y a sus productos.')
 
     def _detail(self,event=None):
+        if self.busy:return
         self._capture_observation()
         if self.work and self.records.selection():
             row=next(r for r in self.work.rows if r.id==self.records.selection()[0])
             self.observation_id=row.id
             self.detail.set('; '.join(row.warnings))
             self.observation_editor.delete('1.0','end');self.observation_editor.insert('1.0',row.review.get('OBSERVACION',row.observation))
+            self.observation_editor._textbox.edit_reset()
+            if hasattr(self,'record_form'):self.record_form.load(row)
             self._update_work_case_detail(row);self._set_work_comparison(row)
     def _refresh(self):
+        self._refresh_resolved()
+
+    def _refresh_resolved(self, resolutions=None, path=None):
         work=self._require_work()
+        self._save_session()
+        snapshot=deepcopy(work)
+        if path:snapshot.output=path
+        def action():
+            from .sync import SyncConflict
+            try:return snapshot.refresh(resolutions),snapshot
+            except SyncConflict as exc:
+                exc.path=snapshot.output
+                raise
         def done(result):
-            if result:
-                self._clear_drafts();self._show_work()
-            self._save_session();self.status.set('Cambios incorporados. Prepara los correos y proyectos con los datos actualizados.' if result else 'La copia no ha cambiado.')
-        self._run('Incorporando cambios de la copia…',work.refresh,done)
+            changed,updated=result
+            self.work=updated
+            if changed:
+                self._show_work()
+                from .session import restore
+                restore(self)
+            self._save_session()
+            self._update_context()
+            self.status.set('Cambios conciliados. Los productos afectados necesitan actualizarse.' if changed else 'La copia no ha cambiado.')
+        self._run('Incorporando cambios de la copia…',action,done)
 
     def _export_statistics(self):
         from .statistics import export_summary
@@ -410,21 +413,9 @@ class App(ctk.CTk):
         if path:self._run('Generando resumen de constancias…',lambda:export_summary(work,path),lambda p:(self._save_session(),self.status.set('Resumen exportado: '+p)))
 
     def _locate(self):
-        work=self._require_work();path=filedialog.askopenfilename(filetypes=[('Excel','*.xls *.xlsx *.xlsm')])
-        if path:
-            old=work.output
-            def relocate():
-                work.output=path
-                try:return work.refresh()
-                except Exception:
-                    work.output=old
-                    raise
-            def done(changed):
-                if changed:
-                    self._clear_drafts();self._show_work()
-                self._save_session();self._update_context()
-                self.status.set('Copia localizada. Cambios incorporados; prepara los productos actualizados.' if changed else 'Copia localizada; los productos preparados se conservan.')
-            self._run('Comprobando copia localizada…',relocate,done)
+        self._require_work()
+        path=filedialog.askopenfilename(filetypes=[('Excel','*.xls *.xlsx *.xlsm')])
+        if path:self._refresh_resolved(path=path)
 
     def _external(self):
         path=filedialog.askopenfilename(filetypes=[('Excel','*.xlsx *.xls *.xlsm')])
@@ -467,10 +458,12 @@ class App(ctk.CTk):
             d=self.drafts[self.draft_index];d.to=self.to.get();d.cc=self.cc.get();d.subject=self.subject.get();d.body=self.body.get('1.0','end-1c');d.attachments=[p for p in self.attach.get().split('\n') if p]
             self._update_mail_case_detail();self._update_mail_comparison()
     def _select_mail(self,event=None):
+        if self.busy:return
         self._capture_mail()
         if not self.mail_list.curselection():return
         self.draft_index=self.mail_list.curselection()[0];d=self.drafts[self.draft_index]
         self.to.set(d.to);self.cc.set(d.cc);self.subject.set(d.subject);self.body.delete('1.0','end');self.body.insert('1.0',d.body);self.attach.set('\n'.join(d.attachments))
+        self.body._textbox.edit_reset()
         self._update_mail_case_detail();self._update_mail_comparison()
     def _attachment(self):
         paths=filedialog.askopenfilenames()
@@ -483,59 +476,33 @@ class App(ctk.CTk):
         self._run('Guardando únicamente un borrador en Outlook…',lambda:create_draft(work,draft,confirmed=True),lambda r:(self._save_session(),self.status.set('Borrador guardado en Outlook. No se envió ningún correo.')))
 
     def _word_page(self):
-        page=self.pages['Resoluciones']
-        actions=ttk.Frame(page);actions.pack(fill='x')
-        self.manual_word=tk.StringVar(value=KIND_LABELS['PC_IE'])
-        ttk.Label(actions,text='Tipo:').pack(side='left')
-        self.word_type_box=ttk.Combobox(actions,textvariable=self.manual_word,values=[KIND_LABELS[k] for k in KINDS],state='readonly',width=43);self.word_type_box.pack(side='left',padx=6)
-        Tooltip(self.word_type_box,'PC_IE: '+RES_HELP['PC_IE']+'\nPC_INFO: '+RES_HELP['PC_INFO']+'\nNOMENCL: '+RES_HELP['NOMENCL'])
-        ttk.Button(actions,text='Aplicar tipo a la selección',fg_color='transparent',border_width=1,command=lambda:self._guard(self._assign_word_type)).pack(side='left')
-        ttk.Button(actions,text='Agregar desde Trabajo',fg_color='transparent',border_width=1,command=lambda:self._guard(self._add_words)).pack(side='left',padx=4)
-        ttk.Button(actions,text='Cargar planilla modificada',fg_color='transparent',border_width=1,command=lambda:self._guard(self._external)).pack(side='right')
-        actions2=ttk.Frame(page);actions2.pack(fill='x',pady=5)
-        ttk.Button(actions2,text='Seleccionar todos',fg_color='transparent',border_width=1,command=lambda:self.words.selection_set(self.words.get_children())).pack(side='left')
-        ttk.Button(actions2,text='Preparar / actualizar proyectos',fg_color='transparent',border_width=1,command=lambda:self._guard(self._prepare_words)).pack(side='left',padx=5)
-        ttk.Button(actions2,text='Generar Word',command=lambda:self._guard(self._generate_words)).pack(side='right')
-        ttk.Button(actions2,text='Abrir Word generado',fg_color='transparent',border_width=1,command=lambda:self._guard(lambda:self._open(self.last_word))).pack(side='right',padx=5)
-        resolution_filterbar=ttk.Frame(page);resolution_filterbar.pack(fill='x',pady=(0,4))
-        self.resolution_search=tk.StringVar();self.resolution_filter=tk.StringVar(value='Todos')
-        ttk.Label(resolution_filterbar,text='Buscar:').pack(side='left')
-        self.resolution_search_entry=ttk.Entry(resolution_filterbar,textvariable=self.resolution_search,width=28);self.resolution_search_entry.pack(side='left',padx=(5,10))
-        ttk.Label(resolution_filterbar,text='Origen:').pack(side='left')
-        resolution_filter_box=ttk.Combobox(resolution_filterbar,textvariable=self.resolution_filter,values=['Todos','Definido en RES','Ajustado manualmente','Sugerencia automática','RES antiguo'],state='readonly',width=25);resolution_filter_box.pack(side='left',padx=5)
-        self.resolution_search.trace_add('write',self._apply_resolution_filter);resolution_filter_box.bind('<<ComboboxSelected>>',self._apply_resolution_filter)
-        split=ttk.Panedwindow(page,orient='horizontal');split.pack(fill='both',expand=True)
-        left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=2);split.add(right,weight=3)
-        self.words=self._tree(left,('RIT','Tribunal','Tipo','Origen'))
-        self.words.bind('<<TreeviewSelect>>',self._resolution_detail)
-        self.words.column('Tipo',width=245)
-        self.words.tag_configure('res_explicit',background='#1f3b2d',foreground='#d9fbe7')
-        self.words.tag_configure('res_manual',background='#234047',foreground='#d8f6fa')
-        self.words.tag_configure('res_legacy',background='#4a3b20',foreground='#fff0c2')
-        self.project_list=tk.Listbox(left,height=5,exportselection=False);self.project_list.pack(fill='x')
-        self.project_list.bind('<<ListboxSelect>>',self._select_project)
-        self.resolution_case_detail=CaseDetailPanel(right);self.resolution_case_detail.pack(fill='x',pady=(0,5))
-        ttk.Label(right,text='Proyecto editable. Los datos ausentes quedan como [COMPLETAR ...].').pack(anchor='w')
-        self.project_editor=ScrolledText(right,wrap='word',height=18,font=('Segoe UI',11),undo=True);self.project_editor.pack(fill='both',expand=True)
-        self.resolution_compare=ComparisonPanel(right);self.resolution_compare.pack(fill='x',pady=4);self.resolution_compare.pack_forget()
+        from .resolution_view import build
+        build(self)
+
     def _capture_project(self):
         if self.project_index is not None and self.project_index<len(self.projects):
             self.projects[self.project_index].text=self.project_editor.get('1.0','end-1c')
             self._update_resolution_comparison()
     def _select_project(self,event=None):
+        if self.busy:return
         self._capture_project()
         if self.project_list.curselection():
             self.project_index=self.project_list.curselection()[0]
             project=self.projects[self.project_index]
             self.project_editor.delete('1.0','end');self.project_editor.insert('1.0',project.text)
+            self.project_editor._textbox.edit_reset()
             rid=project.record_ids[0] if project.record_ids else None
             row=next((r for r in self.work.rows if r.id==rid),None) if rid and self.work else None
             if row:self.resolution_case_detail.set_text(case_detail_text(self.work,row,getattr(self,'drafts',[])))
             self._update_resolution_comparison()
+            from .resolution_view import show_values
+            show_values(self,project)
     def _prepare_words(self,then_generate=False):
         work=self._require_work()
+        from .sync import require_current_copy
+        require_current_copy(work)
         self._capture_project()
-        edits={(p.court,p.rit,p.kind):(p.values,p.text) for p in self.projects if p.text!=p.original_text}
+        previous_projects=deepcopy(self.projects)
         selected=list(self.words.selection()) or [iid for iid in getattr(self,'_resolution_all_iids',self.words.get_children()) if self.words.exists(iid)]
         if not selected:
             selections=automatic_project_selections(work,kind_code(self.manual_word.get()) or 'PC_IE')
@@ -547,9 +514,9 @@ class App(ctk.CTk):
             self.projects,errors=result;self.project_index=None;self.project_list.delete(0,'end')
             self.project_editor.delete('1.0','end')
             self._prepared_selection=tuple(selected)
-            for p in self.projects:
-                previous=edits.get((p.court,p.rit,p.kind))
-                if previous and previous[0]==p.values:p.text=previous[1]
+            from .session import merge_project_edits
+            merge_project_edits(previous_projects,self.projects)
+            if hasattr(self,'generate_word_button'):self.generate_word_button.configure(text=f'Generar {len(self.projects)} proyectos')
             for p in self.projects:self.project_list.insert('end',p.court+' · '+p.rit+' · '+kind_label(p.kind)+' · '+str(len(p.record_ids))+' registros')
             if self.projects:self.project_list.selection_set(0);self._select_project()
             self.status.set(f'{len(self.projects)} proyectos agrupados; {len(errors)} matrices pendientes.')
@@ -559,6 +526,9 @@ class App(ctk.CTk):
 
     def _generate_words(self):
         work=self._require_work()
+        from .product_state import stale
+        if any(stale(work,p) for p in self.projects):
+            self._prepare_words(then_generate=True);return
         selected=tuple(self.words.selection() or tuple(iid for iid in getattr(self,'_resolution_all_iids',self.words.get_children()) if self.words.exists(iid)))
         if not self.projects or selected!=getattr(self,'_prepared_selection',None):self._prepare_words(then_generate=True);return
         self._capture_project()
@@ -577,19 +547,25 @@ class App(ctk.CTk):
         advanced_nb=ttk.Notebook(advanced);advanced_nb.pack(fill='both',expand=True)
 
         params_scroll=ScrollPane(basic_nb);basic_nb.add(params_scroll,text='Parámetros');params=params_scroll.body
-        self.param_vars={}
+        self.config_search=tk.StringVar()
+        ttk.Label(params,text='Buscar parámetro').grid(row=0,column=0,sticky='w',padx=8,pady=(2,5))
+        self.config_search_entry=ttk.Entry(params,textvariable=self.config_search,width=32)
+        self.config_search_entry.grid(row=0,column=1,columnspan=3,sticky='ew',padx=8,pady=(2,5))
+        self.config_search.trace_add('write',self._filter_config_parameters)
+        self.param_vars={};self._config_parameter_widgets=[]
         for i,(key,number) in enumerate(self.cfg.data['umbrales'].items()):
             var=tk.StringVar(value=str(number));self.param_vars[key]=var
-            ttk.Label(params,text=PARAMETER_LABELS[key]+' (días)').grid(row=i//2,column=(i%2)*2,sticky='w',padx=8,pady=4)
-            ttk.Entry(params,textvariable=var,width=8).grid(row=i//2,column=(i%2)*2+1)
-        ttk.Button(params,text='Guardar umbrales',command=lambda:self._guard(self._save_params)).grid(row=8,column=0,pady=12)
+            label=ttk.Label(params,text=PARAMETER_LABELS[key]+' (días)');label.grid(row=i//2+1,column=(i%2)*2,sticky='w',padx=8,pady=4)
+            entry=ttk.Entry(params,textvariable=var,width=8);entry.grid(row=i//2+1,column=(i%2)*2+1)
+            self._config_parameter_widgets.append((key,label,entry))
+        ttk.Button(params,text='Guardar umbrales',command=lambda:self._guard(self._save_params)).grid(row=9,column=0,pady=12)
         self.disabled={}
         for i,key in enumerate(['COMUN.CURADOR','COMUN.OIDO','COMUN.PROX_AUDIENCIA','COMUN.PROXIMA_MAYORIA']):
             v=tk.BooleanVar(value=key not in self.cfg.data['desactivadas']);self.disabled[key]=v
-            ttk.Checkbutton(params,text='Advertir '+key.split('.')[1].replace('_',' ').lower(),variable=v).grid(row=9+i,column=0,columnspan=4,sticky='w')
+            ttk.Checkbutton(params,text='Advertir '+key.split('.')[1].replace('_',' ').lower(),variable=v).grid(row=10+i,column=0,columnspan=4,sticky='w')
 
         mail=ttk.Frame(basic_nb,padding=8);basic_nb.add(mail,text='Plantillas correo')
-        self.tpl_key=tk.StringVar(value='espera');box=NamedChoice(mail,keyvariable=self.tpl_key,names=lambda:{k:v['nombre'] for k,v in self.cfg.data['correos']['plantillas'].items()},state='readonly',width=35);box.grid(row=0,column=0);box.bind('<<ComboboxSelected>>',self._load_tpl)
+        self.tpl_key=tk.StringVar(value='espera');box=NamedChoice(mail,keyvariable=self.tpl_key,names=lambda:{k:v['nombre']+(' · archivada' if v.get('archivada') else '') for k,v in self.cfg.data['correos']['plantillas'].items()},state='readonly',width=35);box.grid(row=0,column=0);box.bind('<<ComboboxSelected>>',self._load_tpl)
         self.tpl_name=tk.StringVar();self.tpl_subject=tk.StringVar();self.tpl_req=tk.BooleanVar();self.tpl_modes=tk.BooleanVar()
         self._field(mail,'Nombre',self.tpl_name,1);self._field(mail,'Asunto',self.tpl_subject,2)
         self.tpl_body=ScrolledText(mail,wrap='word',height=7,undo=True,font=('Segoe UI',11));self.tpl_body.grid(row=3,column=0,columnspan=2,sticky='nsew');mail.rowconfigure(3,weight=1)
@@ -604,14 +580,17 @@ class App(ctk.CTk):
         self.tpl_box=box
         ttk.Button(mail,text='Nueva plantilla',command=lambda:self._guard(self._new_tpl)).grid(row=5,column=1,sticky='w');self._load_tpl()
 
+        from .personalization_view import template_actions,contact_actions
+        template_actions(self,mail)
         contacts=ttk.Frame(basic_nb,padding=8);basic_nb.add(contacts,text='Contactos')
         self.contact_name=tk.StringVar();self.contact_mail=tk.StringVar();self.contact_alias=tk.StringVar()
-        self._field(contacts,'Programa / tribunal',self.contact_name,0);self._field(contacts,'Correos (; separados)',self.contact_mail,1);self._field(contacts,'Alias opcional',self.contact_alias,2)
+        self._field(contacts,'Programa / tribunal',self.contact_name,0);self._field(contacts,'Correos (; separados)',self.contact_mail,1);self._field(contacts,'Alias (; separados)',self.contact_alias,2)
         ttk.Button(contacts,text='Guardar contacto',command=lambda:self._guard(self._save_contact)).grid(row=3,column=0)
         ttk.Button(contacts,text='Importar catastro Excel',command=lambda:self._guard(self._import_contacts)).grid(row=3,column=1,sticky='w')
         self.contact_list=tk.Listbox(contacts,exportselection=False);self.contact_list.grid(row=4,column=0,columnspan=2,sticky='nsew');contacts.rowconfigure(4,weight=1)
         self.contact_list.bind('<<ListboxSelect>>',self._select_contact)
         ttk.Button(contacts,text='Eliminar contacto seleccionado',command=lambda:self._guard(self._delete_contact)).grid(row=5,column=0)
+        contact_actions(self,contacts)
         self._list_contacts()
 
         office=ttk.Frame(basic_nb,padding=8);basic_nb.add(office,text='Outlook y CC')
@@ -639,6 +618,15 @@ class App(ctk.CTk):
         ttk.Button(matrix,text='Reemplazar matriz…',command=lambda:self._guard(self._import_word)).pack(side='left',padx=4)
         ttk.Button(matrices,text='Importar paquete de plantillas ZIP',command=lambda:self._guard(self._import_templates_zip)).grid(row=4,column=0,pady=8,sticky='w')
         ttk.Label(matrices,text='Carpetas LAJA, MULCHEN y TOME; tipos PC_IE.docx, PC_INFO.docx y NOMENCL.docx.',wraplength=640).grid(row=3,column=0,columnspan=2,sticky='w')
+
+    def _filter_config_parameters(self,*_):
+        query=normalize(self.config_search.get()) if hasattr(self,'config_search') else ''
+        for key,label,entry in getattr(self,'_config_parameter_widgets',[]):
+            visible=not query or query in normalize(PARAMETER_LABELS[key]+' '+key)
+            if visible:
+                label.grid();entry.grid()
+            else:
+                label.grid_remove();entry.grid_remove()
 
     def _save_params(self):
         from copy import deepcopy
@@ -692,9 +680,11 @@ class App(ctk.CTk):
         cfg=deepcopy(self.cfg.data);tpl=cfg['correos']['plantillas'][key]
         tpl.update(nombre=self.tpl_name.get().strip(),asunto=self.tpl_subject.get(),cuerpo=self.tpl_body.get('1.0','end-1c'),adjunto='obligatorio' if self.tpl_req.get() else 'opcional',usa_modalidades=self.tpl_modes.get())
         if not tpl['nombre']:raise ValueError('La plantilla necesita un nombre.')
-        if cfg!=self.cfg.data:self.cfg.save(cfg)
+        if cfg!=self.cfg.data:
+            cfg.setdefault('template_backups',{})[key]=deepcopy(self.cfg.data['correos']['plantillas'][key])
+            self.cfg.save(cfg)
         keys=list(cfg['correos']['plantillas'])
-        self.tpl_box.configure(values=keys);self.kind_box.configure(values=keys)
+        self.tpl_box.configure(values=keys);self.kind_box.configure(values=[k for k in keys if not cfg['correos']['plantillas'][k].get('archivada',False)])
         if notify:self.status.set('Plantilla guardada; se aplica al preparar correos nuevos.')
 
     def _new_tpl(self):
@@ -709,32 +699,38 @@ class App(ctk.CTk):
 
     def _list_contacts(self):
         self.contact_list.delete(0,'end')
-        for k in self.cfg.data['correos']['tribunales']:self.contact_list.insert('end','Tribunal: '+k)
-        for k in sorted(self.cfg.data['contactos']):self.contact_list.insert('end',k)
+        query=normalize(self.contact_search.get()) if hasattr(self,'contact_search') else ''
+        names=['Tribunal: '+key for key in self.cfg.data['correos']['tribunales']]+sorted(self.cfg.data['contactos'])
+        for name in names:
+            aliases=' '.join(key for key,target in self.cfg.data['aliases'].items() if target==name)
+            if not query or query in normalize(name+' '+aliases):self.contact_list.insert('end',name)
 
     def _select_contact(self,event=None):
         if self.contact_list.curselection():
-            k=self.contact_list.get(self.contact_list.curselection()[0]);self.contact_name.set(k);self.contact_alias.set('')
-            self.contact_mail.set('; '.join(self.cfg.data['correos']['tribunales'][k.split(': ',1)[1]]['para']) if k.startswith('Tribunal: ') else self.cfg.data['contactos'][k])
+            name=self.contact_list.get(self.contact_list.curselection()[0])
+            self._editing_contact_name=name;self.contact_name.set(name)
+            self.contact_alias.set('; '.join(key for key,target in self.cfg.data['aliases'].items() if target==name))
+            self.contact_mail.set('; '.join(self.cfg.data['correos']['tribunales'][name.split(': ',1)[1]]['para']) if name.startswith('Tribunal: ') else self.cfg.data['contactos'][name])
 
     def _save_contact(self):
-        from copy import deepcopy
-        from .config import emails
-        cfg=deepcopy(self.cfg.data);name=self.contact_name.get().strip();mail='; '.join(emails(self.contact_mail.get()))
-        if not name:raise ValueError('Indica un nombre.')
-        if name.startswith('Tribunal: '):cfg['correos']['tribunales'][name.split(': ',1)[1]]['para']=emails(mail)
-        else:
-            cfg['contactos'][name]=mail
-            if self.contact_alias.get().strip():cfg['aliases'][self.contact_alias.get().strip()]=name
-        self.cfg.save(cfg);self._list_contacts()
+        from .personalization import save_contact
+        previous=deepcopy(self.cfg.data)
+        cfg=save_contact(previous,self.contact_name.get(),self.contact_mail.get(),self.contact_alias.get().split(';'),previous=getattr(self,'_editing_contact_name',None))
+        self.cfg.save(cfg);self._contact_undo=previous
+        self._editing_contact_name=self.contact_name.get().strip()
+        self._list_contacts()
+        self.status.set('Contacto y alias guardados. Deshacer está disponible.')
 
     def _delete_contact(self):
         from copy import deepcopy
         name=self.contact_name.get();cfg=deepcopy(self.cfg.data)
+        self._contact_undo=deepcopy(cfg)
         if name.startswith('Tribunal: '):cfg['correos']['tribunales'][name.split(': ',1)[1]]['para']=[]
         else:
             cfg['contactos'].pop(name,None);cfg['aliases']={k:v for k,v in cfg['aliases'].items() if v!=name}
         self.cfg.save(cfg);self._list_contacts()
+        self._editing_contact_name=None
+        self.status.set('Contacto eliminado. Puedes deshacer esta acción.')
 
     def _import_contacts(self):
         path=filedialog.askopenfilename(filetypes=[('Excel','*.xlsx *.xls')])
@@ -774,7 +770,31 @@ class App(ctk.CTk):
         ttk.Button(top,text='Consultar Outlook',command=lambda:self._guard(self._sent_query)).grid(row=5,column=0)
         ttk.Button(top,text='Filtrar resultado',command=self._filter_sent).grid(row=5,column=1,sticky='w')
         ttk.Button(top,text='Exportar Excel',command=lambda:self._guard(self._export_sent)).grid(row=5,column=1,sticky='e')
-        self.sent=self._tree(page,('Fecha','Destinatario','Asunto'))
+        history=ttk.Notebook(page);history.pack(fill='both',expand=True)
+        outlook=ttk.Frame(history);local=ttk.Frame(history)
+        history.add(local,text='Actividad local');history.add(outlook,text='Enviados de Outlook')
+        self.sent=self._tree(outlook,('Fecha','Destinatario','Asunto'))
+        self.activity=self._tree(local,('Fecha','Tipo','Estado','Archivo / detalle'))
+        self.activity.bind('<Double-1>',lambda event:self._open_activity())
+        ttk.Label(local,text='La actividad local registra productos y borradores guardados en esta aplicación. No implica que un correo haya sido enviado.',text_color=ttk.MUTED,wraplength=900).pack(fill='x',pady=4)
+
+    def _update_local_activity(self):
+        if not hasattr(self,'activity'):return
+        self.activity.delete(*self.activity.get_children())
+        work=getattr(self,'work',None)
+        if not work:return
+        for key,receipt in reversed(list(getattr(work,'receipts',{}).items())):
+            kind=str(receipt.get('kind','producto'))
+            state=str(receipt.get('state','generado'))
+            path=receipt.get('path') or receipt.get('entry_id') or key
+            self.activity.insert('', 'end', iid=str(key), values=(date.today().isoformat(),kind,state,str(path)))
+
+    def _open_activity(self):
+        if not hasattr(self,'activity') or not self.activity.selection():return
+        key=self.activity.selection()[0]
+        receipt=getattr(getattr(self,'work',None),'receipts',{}).get(key,{})
+        path=receipt.get('path','')
+        if path and Path(path).exists():self._open(path)
 
     def _sent_query(self):
         start=date.fromisoformat(self.start.get());end=date.fromisoformat(self.end.get());account=self.cfg.data.get('cuenta_outlook') or None
@@ -801,3 +821,4 @@ def main():
     personal_main()
 
 if __name__=='__main__':main()
+

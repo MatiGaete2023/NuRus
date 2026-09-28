@@ -10,6 +10,10 @@ Dev12 aplica las redacciones aprobadas de Espera, Cumplimiento e Informes y una 
 
 La prueba real del 22-09 confirmó procesamiento/modificación de Excel, RES categórico, generación de resoluciones, creación/edición de borradores y parámetros. Ver [`docs/CONGELAMIENTO_CANDIDATA_20260922.md`](docs/CONGELAMIENTO_CANDIDATA_20260922.md). La próxima fase es usar esta candidata durante uno o dos ciclos normales y registrar solo incidencias reales; aún no se genera `.exe` ni se promueve a 1.0.
 
+## Implementación de la auditoría del 28-09-2026
+
+La rama de trabajo incorpora conciliación segura de Excel, recuperación completa de sesiones, decisiones explícitas por registro, control de productos obsoletos, edición contextual de `FECHA_OBS`/`TT`/`CC`/`RES`, diseño adaptable a ventanas pequeñas, gestión de contactos y plantillas, y separación entre actividad local y Enviados de Outlook. La documentación técnica y los criterios de verificación están en [`docs/IMPLEMENTACION_AUDITORIA_20260928.md`](docs/IMPLEMENTACION_AUDITORIA_20260928.md).
+
 ## Cambios de esta actualización
 
 El [pulido final dev11](docs/UX_FINAL_20260922.md) agrega búsqueda y filtros en Trabajo/Resoluciones, descripciones legibles de tipos de resolución, color por origen, barra de contexto, acceso a carpeta de salida y atajos mínimos. La visualización prioriza excepciones y mantiene los registros ocultos por filtro fuera de cualquier eliminación o cambio. No se agregan contadores laterales ni empaquetado `.exe`.
@@ -70,3 +74,4 @@ El paquete Python sigue llamándose `nurus` para mantener instalaciones y archiv
 La CI ejecuta instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev12`. La evidencia exacta del commit y de la ejecución está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md); no se atribuyen los resultados anteriores a cambios nuevos.
 
 La validación automática no reemplaza la prueba final con Excel/Outlook institucionales. Consulta primero `docs/ESTADO_CONSOLIDADO_20260920.md` y `docs/INDICE_DOCUMENTACION.md`; la implementación, verificación, auditorías y documentos históricos quedan enlazados desde ese índice.
+

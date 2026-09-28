@@ -1,5 +1,7 @@
 """Salidas desde el trabajo compartido. No modifica RUS ni envía correos."""
 from collections import defaultdict
+from copy import deepcopy
+from .template_validation import render
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from hashlib import sha256
@@ -26,6 +28,7 @@ def _final_observation_allows_program_mail(work,row,kind):
     Solo interviene cuando existe trazabilidad del motor o una edición real sobre la
     propuesta. Una planilla externa sin reglas conserva el flujo manual histórico.
     """
+    if row.decisions.get('structured'):return True
     if kind not in _PROGRAM_MAIL_KINDS:return True
     review=getattr(row,'review',{}) or {}
     if 'OBSERVACION' not in review:return True
@@ -62,6 +65,9 @@ class Draft:
     kind: str = ''
     recipient_type: str = ''
     record_ids: list = field(default_factory=list)
+    dependency_hash: str = ''
+    original: dict = field(default_factory=dict)
+    options: dict = field(default_factory=dict)
 
 
 _MONTHS = ('', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre')
@@ -96,7 +102,7 @@ def date_in_words(value):
 
 def value(work,row,key):
     """Texto operativo de una celda sin perder ceros ni exponer horas de Excel."""
-    raw=row.values.get(work.mapping.get(key,''),'')
+    raw=getattr(row,'overrides',{}).get(key,row.values.get(work.mapping.get(key,''),''))
     if raw is None:return ''
     if isinstance(raw,(datetime,date)):return raw.strftime('%d/%m/%Y')
     return str(raw)
@@ -156,7 +162,9 @@ def _table(work,rows,path,kind=''):
         for cell in cells:cell.border=border
     for index,header in enumerate(headers,1):
         sheet.column_dimensions[get_column_letter(index)].width=38 if header=='NOMBRE' else 24
-    write_new_file(Path(path),book.save)
+    from .attachment_store import workbook_bytes
+    content=workbook_bytes(book)
+    write_new_file(Path(path),lambda destination: Path(destination).write_bytes(content))
     return str(path)
 
 
@@ -185,9 +193,11 @@ def draft_fingerprint(draft):
 
 def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto'):
     if recipient_scope not in {'auto','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
-    work.refresh()
+    from .sync import require_current_copy
+    require_current_copy(work)
     cfg=work.config
     tpl=cfg['correos']['plantillas'][kind]
+    if tpl.get('archivada'):raise ValueError('La plantilla está archivada. Actívala en Configuración para utilizarla.')
     to_program=recipient_scope=='programas' or (recipient_scope=='auto' and kind.startswith('programa_'))
     automatic_kind=kind in {'programa_espera','programa_vencido','programa_por_vencer','medidas'}
     if tpl.get('usa_modalidades') and not modalities.strip():raise ValueError('Indica las modalidades efectivamente comprendidas.')
@@ -198,7 +208,10 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
         # Las comunicaciones automáticas respetan la regla por fila. Una entrada externa
         # sin trazabilidad solo conserva el uso histórico cuando el tipo se pidió de forma
         # explícita; si hay NURUS_REGLAS, no puede arrastrar filas fuera del umbral.
-        if automatic_kind:
+        from .record_edits import mail_decision
+        decision=mail_decision(row,kind)
+        if decision=='omit':continue
+        if automatic_kind and decision!='include':
             external_without_trace=bool(getattr(work,'external_input',False) and not getattr(row,'rules',None))
             if kind not in row.actions and not (manual_selection or external_without_trace):continue
             if not manual_selection and not _final_observation_allows_program_mail(work,row,kind):continue
@@ -216,7 +229,7 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
             for _,key,_,_ in Formatter().parse(text):
                 if key and not context.get(key,'').strip():raise ValueError('Completa '+key+' para esta plantilla.')
         to=resolve_contact(cfg,program) if to_program else '; '.join(court_cfg['para'])
-        draft=Draft(tpl['asunto'].format_map(context),tpl['cuerpo'].format_map(context),to,
+        draft=Draft(render(tpl['asunto'],context),render(tpl['cuerpo'],context),to,
                     '; '.join(emails(CC+';'+cfg['correos'].get('cc_adicional',''))),required=tpl['adjunto']=='obligatorio')
         from nurus.rus.rules import as_date
         dates=[as_date(r.values.get(work.mapping.get('vencimiento',''))) for r in rows]
@@ -235,6 +248,10 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
                 target=folder/'adjuntos'/uuid4().hex
                 target.mkdir(parents=True,exist_ok=True)
                 draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx'),kind))
+        from .product_state import stamp
+        stamp(work,draft)
+        draft.original={key:deepcopy(getattr(draft,key)) for key in ('to','cc','subject','body','attachments')}
+        draft.options=dict(modalities=modalities,period=period,selected=selected,manual_selection=manual_selection,modality_keys=modality_keys,recipient_scope=recipient_scope)
         draft.key=draft_fingerprint(draft)
         output.append(draft)
     return output
@@ -243,9 +260,10 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
 def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None,recipient_scope='todos'):
     """Prepara en una sola operación todas las comunicaciones que surgen del trabajo."""
     if recipient_scope not in {'todos','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
-    work.refresh()
+    from .sync import require_current_copy
+    require_current_copy(work)
     cfg=work.config
-    templates=cfg['correos']['plantillas']
+    templates={key:template for key,template in cfg['correos']['plantillas'].items() if not template.get('archivada',False)}
     mode=str(getattr(work,'mode','')).lower()
     kinds=[]
     if recipient_scope!='programas' and mode in {'espera','cumplimiento','informes'} and mode in templates:kinds.append(mode)
@@ -255,6 +273,7 @@ def prepare_required_drafts(work,*,modalities='',period='',selected=None,directo
     for row in work.rows:
         if row.excluded or (selected_ids is not None and row.id not in selected_ids) or not selected_row(work,row,modality_keys):continue
         action_kinds.update(action for action in row.actions if action in templates)
+        action_kinds.update(kind for kind,decision in row.decisions.get('mail',{}).items() if decision=='include' and kind in templates)
     for kind in ('programa_espera','programa_vencido','programa_por_vencer','medidas'):
         if kind not in action_kinds:
             continue
@@ -304,6 +323,8 @@ def create_drafts(work,drafts):
 
 def create_draft(work,draft,*,confirmed=False):
     if not confirmed:raise ValueError('Revisa destinatarios, texto y adjuntos antes de crear el borrador.')
+    from .product_state import require_fresh
+    require_fresh(work,draft)
     draft.key=draft_fingerprint(draft)
     if draft.key in work.receipts:raise ValueError('Este borrador ya se creó o su guardado quedó incierto; revisa Outlook antes de repetir.')
     to='; '.join(emails(draft.to));cc='; '.join(emails(CC+';'+draft.cc))
@@ -377,6 +398,7 @@ def word_values(work,row):
     vals={key.upper():value(work,row,key) for key in ('rit','rut','nombre','programa')}
     resolution=as_date(row.values.get(work.mapping.get('resolucion','')))
     vals.update(FECHA=date_in_words(date.today()),FECHA_RESOLUCION=date_in_words(resolution) if resolution else '',DURACION=durations[0] if len(durations)==1 else '')
+    vals.update(row.word_overrides)
     return vals
 
 
@@ -392,3 +414,4 @@ def template_variables(path):
                     text=''.join(p.itertext())
                     result.update(re.findall(r'\{\{([A-Z_]+)\}\}',text))
     return result
+

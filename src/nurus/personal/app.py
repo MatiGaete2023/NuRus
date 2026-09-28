@@ -85,21 +85,26 @@ class App(_BaseApp):
         self._display_prepared_drafts(source,'{count} borradores del alcance elegido. Preparar todos incorpora las gestiones faltantes.',keep_source=True)
 
     def _display_prepared_drafts(self,drafts,message,keep_source=False):
-        if not keep_source:self._draft_scope_source=list(drafts)
+        if not keep_source:
+            from .session import merge_draft_edits
+            drafts=merge_draft_edits(getattr(self,'_draft_scope_source',self.drafts),drafts)
+            self._draft_scope_source=list(drafts)
         target=self.mail_target.get() if hasattr(self,'mail_target') else 'todos'
         drafts=drafts_for_scope(drafts,target)
         originals=getattr(self,'_draft_originals',{})
         for draft in drafts:
-            originals.setdefault(id(draft),{'to':draft.to,'cc':draft.cc,'subject':draft.subject,'body':draft.body})
+            originals.setdefault(id(draft),draft.original or {'to':draft.to,'cc':draft.cc,'subject':draft.subject,'body':draft.body})
         self._draft_originals=originals
         self.drafts=drafts;self.mail_list.delete(0,'end');self.draft_index=None
+        self.mail_list.work=getattr(self,'work',None)
         self.mail_list.set_drafts(drafts,getattr(getattr(self,'work',None),'receipts',{}))
         if drafts:self.mail_list.selection_set(0);self._select_mail()
         else:self._clear_mail_editor()
+        if hasattr(self,'save_all_button'):self.save_all_button.configure(text=f'Guardar {len(drafts)} en Outlook')
         self.status.set(message.format(count=len(drafts)))
 
     def _prepare_mail(self):
-        work=self._require_work();self._sync_mail_config(work)
+        work=self._require_work();self._capture_mail();self._sync_mail_config(work)
         kind=self.mail_kind.get();tpl=work.config['correos']['plantillas'][kind]
         target=self.mail_target.get()
         keys=self._selected_mail_modalities()
@@ -112,10 +117,10 @@ class App(_BaseApp):
         self._run('Preparando textos y adjuntos…',lambda:prepare_drafts(work,kind,modalities=phrase,period=period,selected=selected,manual_selection=manual,modality_keys=modality_keys,recipient_scope='auto' if target=='todos' else target),done)
 
     def _prepare_all_mail(self):
-        work=self._require_work();self._sync_mail_config(work)
+        work=self._require_work();self._capture_mail();self._sync_mail_config(work)
         keys=self._selected_mail_modalities()
         if not keys:raise ValueError('Selecciona al menos una modalidad para preparar el conjunto de correos del trabajo.')
-        phrase=alcance_modalidades(keys);selected=self._mail_selected_ids(work,manual=False);period=self.period.get();target=self.mail_target.get()
+        phrase=alcance_modalidades(keys);selected=self._mail_selected_ids(work,manual=self.manual_mail.get());period=self.period.get();target=self.mail_target.get()
         def done(drafts):self._display_prepared_drafts(drafts,'{count} correos preparados para el alcance elegido. Todavía no se guardaron en Outlook.')
         self._run('Preparando todos los correos necesarios del trabajo…',lambda:prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys,recipient_scope=target),done)
 
@@ -132,7 +137,7 @@ class App(_BaseApp):
         self._sync_mail_config(work)
         keys=self._selected_mail_modalities()
         if not keys:raise ValueError('Selecciona al menos una modalidad.')
-        selected=self._mail_selected_ids(work,manual=False)
+        selected=self._mail_selected_ids(work,manual=self.manual_mail.get())
         period=self.period.get();phrase=alcance_modalidades(keys);target=self.mail_target.get()
         def action():
             drafts=prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys,recipient_scope=target)
@@ -185,12 +190,16 @@ class App(_BaseApp):
         path=folder/(Path(self.work.path).stem+' - revisable '+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+Path(self.work.path).suffix)
         work=self.work
         def done(result):
+            from uuid import uuid4
+            if hasattr(self.work,'receipts'):
+                self.work.receipts[uuid4().hex]={'kind':'excel','state':'generated','path':result}
             self._show_work(reset_projects=False);self._save_session();self._update_context();self.status.set('Excel generado: '+result+' · Disponible en Correos y Resoluciones.')
         self._run('Exportando copia preservada con Excel…',lambda:work.export(path),done)
 
     def _show_work(self,reset_projects=True):
         if not self.work:return
         self.mode.set(self.work.mode);self.file.set(self.work.path);self.observation_id=None
+        self.work_primary_button.configure(text='Exportar copia actual')
         self.observation_editor.delete('1.0','end')
         for iid in list(getattr(self,'_work_all_iids',self.records.get_children())):
             if self.records.exists(iid):self.records.delete(iid)
@@ -205,12 +214,12 @@ class App(_BaseApp):
         if reset_projects:
             self._resolution_all_iids=[];self._resolution_search_text={}
         for row in self.work.rows:
-            state='Excluido' if row.excluded else 'Revisar aviso' if row.warnings else 'Propuesta'
+            state='Excluido' if row.excluded else 'Con aviso' if row.warnings else 'Editado aquí' if row.overrides or row.word_overrides or row.review else 'Propuesta'
             tags=[]
             if row.excluded:tags.append('excluded')
             elif row.warnings:tags.append('warning')
             if row.id in resolution_ids:tags.append('resolution')
-            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=tuple(tags))
+            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'nombre'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=tuple(tags))
             self._work_all_iids.append(row.id)
             self._work_search_text[row.id]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa'))
         for rid,kind in selections if reset_projects else []:
@@ -275,16 +284,23 @@ class App(_BaseApp):
                 work=getattr(self,'work',None)
                 row=next((r for r in work.rows if r.id==rid),None) if work else None
                 search_map[target]=' '.join(str(value(work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa')) if row else ''
+            work=getattr(self,'work',None)
+            if work:
+                from .resolutions import _case_key
+                from .record_edits import apply
+                row=next(r for r in work.rows if r.id==rid)
+                apply(work,[r.id for r in work.rows if _case_key(work,r)==_case_key(work,row)],decisions={'resolution':kind})
             new.append(target)
         if hasattr(self,'_apply_resolution_filter'):self._apply_resolution_filter()
         self.words.selection_set(tuple(iid for iid in dict.fromkeys(new) if self.words.exists(iid)))
-        self._clear_projects()
+        if getattr(self,'work',None):self._save_session()
         self.status.set(f'{kind_label(kind)} aplicado solo a {len(selected)} selección(es).')
 
     def _add_words(self):
         work=self._require_work();kind=kind_code(self.manual_word.get()) or 'PC_IE';selected=list(self.records.selection())
         if not selected:raise ValueError('Selecciona en Trabajo los registros que quieres agregar manualmente como proyecto.')
-        self._clear_projects()
+        from .record_edits import apply
+        apply(work,selected,decisions={'resolution':kind})
         for rid in selected:
             row=next(r for r in work.rows if r.id==rid)
             if row.excluded:continue
@@ -304,3 +320,4 @@ def main():
 
 
 if __name__=='__main__':main()
+
