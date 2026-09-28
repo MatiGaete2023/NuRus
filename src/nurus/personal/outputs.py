@@ -14,7 +14,7 @@ import re
 from nurus.domain.models import Product, ProductKind, ProductStatus, Template
 from nurus.adapters.outlook import save_draft, DraftSaveUncertain
 from nurus.rus.columns import normalize
-from nurus.rus.rules import tribunal
+from .courts import court_key, court_contact
 from nurus.services.file_output import write_new_file
 from .config import CC, emails
 
@@ -216,12 +216,12 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
             if kind not in row.actions and not (manual_selection or external_without_trace):continue
             if not manual_selection and not _final_observation_allows_program_mail(work,row,kind):continue
         if kind=='proyectos' and not manual_selection and not getattr(work,'external_input',False) and row.id not in {rid for r in work.receipts.values() if r.get('kind')=='word' for rid in r.get('record_ids',[r.get('record_id')])}:continue
-        court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
+        court=court_key(value(work,row,'tribunal'))
         program=value(work,row,'programa') if to_program else ''
         groups[(court,normalize(program))].append(row)
     output=[]
     for (court,_),rows in groups.items():
-        court_cfg=cfg['correos']['tribunales'].get(court,{'nombre':court,'para':[]})
+        court_cfg=court_contact(cfg,value(work,rows[0],'tribunal'))
         program=value(work,rows[0],'programa')
         context={'TRIBUNAL':court_cfg['nombre'],'PROGRAMA':program,'FECHA':date.today().strftime('%d/%m/%Y'),
                  'ALCANCE_MODALIDADES':modalities,'PERIODO':period,'TABLA_REGISTROS':'\n'.join(value(work,r,'rit')+' — '+value(work,r,'nombre') for r in rows)}
@@ -414,4 +414,3 @@ def template_variables(path):
                     text=''.join(p.itertext())
                     result.update(re.findall(r'\{\{([A-Z_]+)\}\}',text))
     return result
-

@@ -1,7 +1,7 @@
 """Controles y redacción de la pestaña Correos, inspirados en el creador CSMP v2.1."""
 import re
 
-from nurus.rus.rules import tribunal
+from .courts import court_key
 from .modalities import MODALITIES
 from .outputs import value
 
@@ -29,11 +29,11 @@ def alcance_modalidades(keys):
 
 def selected_court_record_ids(work,court_keys):
     """Filtra el trabajo por los tribunales seleccionados en la interfaz."""
-    allowed={str(key).strip().upper() for key in court_keys or []}
+    allowed={court_key(key) for key in court_keys or []}
     if not allowed:return []
     result=[]
     for row in work.rows:
         raw=value(work,row,'tribunal')
-        court=(tribunal(raw) or raw).strip().upper()
+        court=court_key(raw)
         if court in allowed:result.append(row.id)
     return result
