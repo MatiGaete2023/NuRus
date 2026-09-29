@@ -1,5 +1,9 @@
 # Correos de Mulchén — 28 de septiembre de 2026
 
+**Actualización del 29-09:** el fallo concreto ya se reprodujo al seleccionar
+solo Residencial: faltaba reconocer RTA/RTT/RVA. Ver la
+[corrección del filtro de modalidades](correccion_residencial_20260929.md).
+
 ## Hallazgo y alcance
 
 El motor ya reconocía `Mulchén`, `MULCHEN`, `MULCHËN`, acentos Unicode

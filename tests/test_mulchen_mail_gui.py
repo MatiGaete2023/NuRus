@@ -20,16 +20,17 @@ def probe(tmp_path):
     from unittest.mock import patch
     from nurus.personal.app import App
     from nurus.personal.config import Configuration
-    from test_audit_integrity_20260928 import source
+    from test_residential_mail import residential_work
     cfg = Configuration(tmp_path/'profile')
     # Configuración antigua con clave descriptiva en lugar del ID estable.
     cfg.data['correos']['tribunales']['MULCHËN'] = cfg.data['correos']['tribunales'].pop('MULCHEN')
     app = App(cfg)
     try:
-        app.work = source(tmp_path/'original.xlsx', external=True)
+        app.work = residential_work(tmp_path)
         app._show_work()
         app.mail_target.set('tribunales')
         app.mail_kind.set('cumplimiento')
+        for key,var in app.modality_vars.items():var.set(key == 'RES')
         app.mail_courts.selection_set(app.mail_court_keys.index('MULCHËN'))
         app.tabs.select(app.pages['Correos'])
         errors = []
@@ -47,7 +48,7 @@ def probe(tmp_path):
                 app.update_idletasks()
                 assert not errors, errors
                 assert len(app.drafts) == 1
-                assert len(app.drafts[0].record_ids) == (1 if manual else 2)
+                assert len(app.drafts[0].record_ids) == (1 if manual else 7)
                 assert app.draft_index == 0
                 assert app.to.get() == '; '.join(cfg.data['correos']['tribunales']['MULCHËN']['para'])
                 assert 'Mulchén' in app.subject.get()
