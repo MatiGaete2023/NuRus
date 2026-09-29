@@ -18,6 +18,9 @@ def save_contact(config, name, address, aliases=(), *, previous=None):
         return result
     if previous and previous.startswith('Tribunal: '):
         raise ValueError('La clave del tribunal se conserva; selecciona Nuevo para crear un programa.')
+    if any(normalize(alias)==normalize(name) and target!=previous
+           for alias,target in result['aliases'].items()):
+        raise ValueError('El nombre ya es alias de otro contacto: '+name)
     others={normalize(key) for key in result['contactos'] if key!=previous}
     if normalize(name) in others and name!=previous:
         raise ValueError('Ya existe otro contacto con ese nombre. No se reemplazó.')
@@ -38,10 +41,13 @@ def save_contact(config, name, address, aliases=(), *, previous=None):
 
 
 def duplicate_template(config, key, name):
+    from .mail_category import category, CATEGORIES
     result=deepcopy(config)
     target='particular_'+uuid4().hex[:10]
     template=deepcopy(result['correos']['plantillas'][key])
-    template.update(nombre=name.strip() or template['nombre']+' · copia',archivada=False)
+    operational=category(template,key)
+    template.update(nombre=name.strip() or template['nombre']+' · copia',archivada=False,
+                    categoria=operational if operational in CATEGORIES else '')
     result['correos']['plantillas'][target]=template
     validate(result)
     return result,target
@@ -62,4 +68,3 @@ def restore_template(config,key):
     result['correos']['plantillas'][key]['archivada']=False
     validate(result)
     return result
-

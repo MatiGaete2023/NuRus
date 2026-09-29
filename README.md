@@ -1,14 +1,19 @@
 # CSMP Assistant personal — Windows
 
-Versión **0.4.0.dev12**, candidata de evolución UX al 22 de septiembre de 2026 en la rama `ux-observaciones-20260922`. Parte de la candidata funcional dev11 validada en uso real y conserva sus invariantes. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
+Versión **0.4.0.dev13**, actualizada el 29 de septiembre de 2026 en la rama `codex/auditoria-ux-20260925-final`. Aplicación de uso personal en Windows con Python 3.12–3.14. Prepara copias de Excel, proyectos Word y borradores editables de Outlook; el registro oficial se realiza en RUS. El [informe de revisión y ejecución](docs/REVISION_Y_PLAN_20260929.md) describe los hallazgos, soluciones y verificación de esta versión.
 
-## Evolución dev12 en validación
+## Cambios actuales
 
-Dev12 aplica las redacciones aprobadas de Espera, Cumplimiento e Informes y una mejora UX acotada: detalle de causa, siguiente incidencia, comparación de ediciones, acciones primarias, configuración Básico/Avanzado, reanudación explícita y ayuda RES. Ver [`docs/UX_OBSERVACIONES_DEV12_20260922.md`](docs/UX_OBSERVACIONES_DEV12_20260922.md). La CI de la rama está verde en Windows/Python 3.12–3.14; todavía requiere prueba real visual/operativa antes de integrarse a `main`.
+- Mulchén acepta nombres completos, abreviados, mayúsculas, tildes y diéresis. Residencial incluye RTA, RTT y RVA.
+- Los filtros de correo tienen una pestaña propia y un resumen visible; un resultado vacío explica qué revisar.
+- Las plantillas duplicadas conservan su comportamiento. Configuración permite elegirlo también en copias antiguas.
+- Los productos usan las fechas corregidas, detectan cambios de su grupo y conservan los adjuntos retirados al actualizar.
+- La recuperación conserva filtros, selección y separadores. Un error al guardar mantiene la ventana abierta.
+- El historial del trabajo registra fechas reales; los recibos antiguos sin fecha se identifican como tales.
 
-## Estado de congelamiento
+## Evolución y antecedentes
 
-La prueba real del 22-09 confirmó procesamiento/modificación de Excel, RES categórico, generación de resoluciones, creación/edición de borradores y parámetros. Ver [`docs/CONGELAMIENTO_CANDIDATA_20260922.md`](docs/CONGELAMIENTO_CANDIDATA_20260922.md). La próxima fase es usar esta candidata durante uno o dos ciclos normales y registrar solo incidencias reales; aún no se genera `.exe` ni se promueve a 1.0.
+Las pruebas reales del 22 de septiembre de 2026 corresponden a dev11. Los checkpoints dev11/dev12 se conservan como antecedentes en el [índice documental](docs/INDICE_DOCUMENTACION.md), sin atribuir su aceptación o CI a este código nuevo. Esta distribución usa los lanzadores BAT; aún no se genera `.exe`.
 
 ## Implementación de la auditoría del 28-09-2026
 
@@ -26,8 +31,8 @@ La [auditoría y limpieza dev8](docs/LIMPIEZA_ASISTENTE_20260921.md) retira la i
 
 ## Instalación y actualización
 
-1. Descarga el ZIP de `main` y extrae su contenido en una carpeta nueva para no arrastrar archivos retirados. La rama `csmp-personal-2026-09-13` se conserva como historial de integración del producto personal.
-2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat`.
+1. Descarga el ZIP de **`codex/auditoria-ux-20260925-final`**, que contiene esta versión, y extrae su contenido en una carpeta nueva. `main` conserva la candidata anterior hasta su integración.
+2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat` desde esa misma carpeta. Repite la instalación al actualizar: el lanzador usa el paquete instalado en `.venv-csmp`, no los archivos fuente recién descargados. Comprueba **0.4.0.dev13** en el título de la ventana.
 3. Se admite Python 3.12, 3.13 o 3.14. El entorno queda en `.venv-csmp` dentro de la carpeta de la aplicación. No requiere permisos de administrador ni Node. El instalador incorpora `customtkinter` 5.2.x dentro de ese entorno aislado.
 4. Excel de escritorio y Outlook clásico son necesarios para la ruta completa de uso institucional. La instalación normal puede descargar dependencias Python; si existe `paquetes/`, el instalador usa ese repositorio local.
 
@@ -43,7 +48,7 @@ También puedes cargar una planilla modificada/externa. Se buscan encabezados en
 
 ## Correos
 
-Las modalidades se seleccionan con casillas: Residencial, Ambulatorio, Familia de acogida y DCE. FAS se clasifica como Familia de acogida. Los campos Para, CC, asunto, cuerpo y adjuntos son editables antes de guardar.
+Las modalidades se seleccionan en **Filtros**: Residencial, Ambulatorio, Familia de acogida y DCE. RTA/RTT/RVA se clasifican como Residencial y FAS como Familia de acogida. Los campos Para, CC, asunto, cuerpo y adjuntos son editables antes de guardar.
 
 **Preparar todos** respeta el alcance elegido: **Solo programas** genera las gestiones a programas sin añadir el informativo al tribunal; **Solo tribunales** prepara sus comunicaciones; **Ambos** conserva el conjunto anterior. No seleccionar un tribunal en los filtros incluye todas las causas. Las tarjetas muestran programa, tribunal y vencimiento si están disponibles en los datos; seleccionar una tarjeta carga el editor. **Guardar todos** puede guardar un lote ya preparado o, si todavía no existe vista previa, preparar y guardar el conjunto necesario en una sola acción. No existe envío automático. Si no se conoce el destinatario, Para queda vacío. Siempre se incorpora la copia institucional configurada.
 
@@ -71,7 +76,6 @@ El paquete Python sigue llamándose `nurus` para mantener instalaciones y archiv
 
 ## Estado de verificación
 
-La CI ejecuta instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev12`. La evidencia exacta del commit y de la ejecución está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md); no se atribuyen los resultados anteriores a cambios nuevos.
+La CI está configurada para instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14, incluida la rama `codex/**`. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev13`. La evidencia efectivamente obtenida está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md) y el [informe actual](docs/REVISION_Y_PLAN_20260929.md).
 
-La validación automática no reemplaza la prueba final con Excel/Outlook institucionales. Consulta primero `docs/ESTADO_CONSOLIDADO_20260920.md` y `docs/INDICE_DOCUMENTACION.md`; la implementación, verificación, auditorías y documentos históricos quedan enlazados desde ese índice.
-
+La validación automática no reemplaza una prueba con la instalación concreta de Excel/Outlook. El [índice documental](docs/INDICE_DOCUMENTACION.md) distingue instrucciones actuales y evidencia histórica.

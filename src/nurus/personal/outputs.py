@@ -17,6 +17,7 @@ from nurus.rus.columns import normalize
 from .courts import court_key, court_contact
 from nurus.services.file_output import write_new_file
 from .config import CC, emails
+from .mail_category import category
 
 
 _PROGRAM_MAIL_KINDS={'programa_espera','programa_vencido','programa_por_vencer'}
@@ -152,7 +153,7 @@ def _table(work,rows,path,kind=''):
         if keys:
             sheet.append([value(work,row,key) for key in keys])
         else:
-            sheet.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[value(work,row,'vencimiento') or value(work,row,'espera'),str(row.review.get('OBSERVACION',row.observation))])
+            sheet.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[due_value(work,row,kind),str(row.review.get('OBSERVACION',row.observation))])
         for cell in sheet[sheet.max_row]:cell.data_type='s'
     sheet.freeze_panes='A2';sheet.auto_filter.ref=sheet.dimensions
     for cell in sheet[1]:cell.font=Font(bold=True)
@@ -191,15 +192,21 @@ def draft_fingerprint(draft):
     return sha256(json.dumps(payload,ensure_ascii=False,sort_keys=True).encode('utf-8')).hexdigest()
 
 
-def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto'):
+def due_value(work,row,kind):
+    if kind=='medidas' and str(getattr(work,'mode','')).upper()=='CUMPLIMIENTO':return value(work,row,'egreso_proy')
+    return value(work,row,'vencimiento') or value(work,row,'espera')
+
+
+def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto'):
     if recipient_scope not in {'auto','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     from .sync import require_current_copy
     require_current_copy(work)
     cfg=work.config
     tpl=cfg['correos']['plantillas'][kind]
+    operational=category(tpl,kind)
     if tpl.get('archivada'):raise ValueError('La plantilla está archivada. Actívala en Configuración para utilizarla.')
-    to_program=recipient_scope=='programas' or (recipient_scope=='auto' and kind.startswith('programa_'))
-    automatic_kind=kind in {'programa_espera','programa_vencido','programa_por_vencer','medidas'}
+    to_program=recipient_scope=='programas' or (recipient_scope=='auto' and operational.startswith('programa_'))
+    automatic_kind=operational in {'programa_espera','programa_vencido','programa_por_vencer','medidas'}
     if tpl.get('usa_modalidades') and not modalities.strip():raise ValueError('Indica las modalidades efectivamente comprendidas.')
     from .modalities import selected_row
     groups=defaultdict(list)
@@ -209,13 +216,13 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
         # sin trazabilidad solo conserva el uso histórico cuando el tipo se pidió de forma
         # explícita; si hay NURUS_REGLAS, no puede arrastrar filas fuera del umbral.
         from .record_edits import mail_decision
-        decision=mail_decision(row,kind)
+        decision=mail_decision(row,operational)
         if decision=='omit':continue
         if automatic_kind and decision!='include':
             external_without_trace=bool(getattr(work,'external_input',False) and not getattr(row,'rules',None))
-            if kind not in row.actions and not (manual_selection or external_without_trace):continue
-            if not manual_selection and not _final_observation_allows_program_mail(work,row,kind):continue
-        if kind=='proyectos' and not manual_selection and not getattr(work,'external_input',False) and row.id not in {rid for r in work.receipts.values() if r.get('kind')=='word' for rid in r.get('record_ids',[r.get('record_id')])}:continue
+            if operational not in row.actions and not (manual_selection or external_without_trace):continue
+            if not manual_selection and not _final_observation_allows_program_mail(work,row,operational):continue
+        if operational=='proyectos' and not manual_selection and not getattr(work,'external_input',False) and row.id not in {rid for r in work.receipts.values() if r.get('kind')=='word' for rid in r.get('record_ids',[r.get('record_id')])}:continue
         court=court_key(value(work,row,'tribunal'))
         program=value(work,row,'programa') if to_program else ''
         groups[(court,normalize(program))].append(row)
@@ -232,7 +239,7 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
         draft=Draft(render(tpl['asunto'],context),render(tpl['cuerpo'],context),to,
                     '; '.join(emails(CC+';'+cfg['correos'].get('cc_adicional',''))),required=tpl['adjunto']=='obligatorio')
         from nurus.rus.rules import as_date
-        dates=[as_date(r.values.get(work.mapping.get('vencimiento',''))) for r in rows]
+        dates=[as_date(due_value(work,r,operational)) for r in rows]
         dates=[d for d in dates if d]
         draft.recipient_type='programas' if to_program else 'tribunales'
         draft.program=program if to_program else ''
@@ -247,7 +254,7 @@ def prepare_drafts(work,kind,*,modalities='',period='',confirmed_scope=False,sel
             for name,subset in by_program.items():
                 target=folder/'adjuntos'/uuid4().hex
                 target.mkdir(parents=True,exist_ok=True)
-                draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx'),kind))
+                draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx'),operational))
         from .product_state import stamp
         stamp(work,draft)
         draft.original={key:deepcopy(getattr(draft,key)) for key in ('to','cc','subject','body','attachments')}
@@ -337,19 +344,22 @@ def create_draft(work,draft,*,confirmed=False):
     tpl=Template('personal','Correo revisado',ProductKind.EMAIL,'','',())
     product=Product(ProductKind.EMAIL,tpl,{},recipient=to,cc=cc,attachments=attachments,required_attachment=draft.required,
                     status=ProductStatus.READY,rendered_subject=draft.subject,rendered_body=draft.body)
-    work.receipts[draft.key]={'kind':'draft','state':'saving'}
+    from .activity import receipt as activity_receipt
+    activity=activity_receipt('draft','saving',record_ids=draft.record_ids,subject=draft.subject,
+                              court=draft.court,program=draft.program,type=draft.kind)
+    work.receipts[draft.key]=activity
     if getattr(work,'storage_directory',None):work.save(work.storage_directory)
     try:
         receipt=save_draft(product,confirmed=True,account_key=work.config.get('cuenta_outlook') or None,preserve_signature=True)
     except DraftSaveUncertain:
-        work.receipts[draft.key]={'kind':'draft','state':'uncertain'}
+        activity['state']='uncertain'
         if getattr(work,'storage_directory',None):work.save(work.storage_directory)
         raise
     except Exception:
         work.receipts.pop(draft.key,None)
         if getattr(work,'storage_directory',None):work.save(work.storage_directory)
         raise
-    work.receipts[draft.key]={'kind':'draft','state':'created','entry_id':receipt.entry_id,'store_id':receipt.store_id}
+    activity.update(state='created',entry_id=receipt.entry_id,store_id=receipt.store_id)
     if getattr(work,'storage_directory',None):work.save(work.storage_directory)
     return receipt
 
@@ -396,7 +406,7 @@ def word_values(work,row):
     from nurus.rus.rules import as_date
     durations=[str(v) for k,v in row.values.items() if normalize(k) in ('duracion','plazo','vigencia')]
     vals={key.upper():value(work,row,key) for key in ('rit','rut','nombre','programa')}
-    resolution=as_date(row.values.get(work.mapping.get('resolucion','')))
+    resolution=as_date(value(work,row,'resolucion'))
     vals.update(FECHA=date_in_words(date.today()),FECHA_RESOLUCION=date_in_words(resolution) if resolution else '',DURACION=durations[0] if len(durations)==1 else '')
     vals.update(row.word_overrides)
     return vals

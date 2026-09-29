@@ -5,7 +5,7 @@ import customtkinter as ctk
 from . import ui
 from .widgets import ScrollPane, NamedChoice
 from .record_edits import MAIL_KINDS, WORD_FIELDS, apply, undo
-from .outputs import value, word_values
+from .outputs import word_values
 
 RES_NAMES = {'auto':'Automático', 'none':'Sin proyecto', 'PC_IE':'PC_IE · Ingreso efectivo',
              'PC_INFO':'PC_INFO · Informe', 'NOMENCL':'NOMENCL · Nomenclatura', 'review':'Según RES de Excel'}
@@ -156,4 +156,3 @@ class RecordForm:
             self.dirty=False
             window.destroy();self.app._show_work();self.app._save_session()
         ui.Button(window,text='Aplicar cambios marcados',command=lambda:self.app._guard(commit)).pack(pady=12)
-

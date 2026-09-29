@@ -367,7 +367,9 @@ def generate_projects(work,projects,destination):
             composer.append(doc)
         write_new_file(Path(destination),composer.save)
     for project in projects:
-        work.receipts[uuid4().hex]={'kind':'word','record_ids':project.record_ids,'record_id':project.record_ids[0],'path':str(destination),'type':project.kind}
+        from .activity import receipt
+        work.receipts[uuid4().hex]=receipt('word','generated',record_ids=project.record_ids,
+                                         record_id=project.record_ids[0],path=str(destination),type=project.kind,
+                                         court=project.court,rit=project.rit)
     if getattr(work,'storage_directory',None):work.save(work.storage_directory)
     return str(destination)
-

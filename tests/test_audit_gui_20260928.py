@@ -36,6 +36,12 @@ def test_full_session_and_contextual_fields_recover(tmp_path):
         for p in projects:app.project_list.insert('end',p.rit)
         app.project_list.selection_set(0);app._select_project()
         app.project_editor.insert('end','\nEdición personal del proyecto')
+        for key,var in app.modality_vars.items():var.set(key=='AMB')
+        app.mail_courts.selection_set(app.mail_court_keys.index('MULCHEN'))
+        app.manual_mail.set(True)
+        app.resolution_search.set('X-1');app.resolution_filter.set('Definido en RES')
+        app.records.selection_set(work.rows[0].id)
+        app.work_sash_ratio=.35;app.resolution_sash_ratio=.4
         app._save_session()
         expected_drafts=[asdict(item) for item in app.drafts]
         expected_projects=[asdict(item) for item in app.projects]
@@ -45,6 +51,12 @@ def test_full_session_and_contextual_fields_recover(tmp_path):
         reopened._continue_resume()
         assert [asdict(item) for item in reopened.drafts]==expected_drafts
         assert [asdict(item) for item in reopened.projects]==expected_projects
+        assert reopened._selected_mail_modalities()==['AMB']
+        assert reopened._selected_mail_courts()==['MULCHEN']
+        assert reopened.manual_mail.get()
+        assert reopened.resolution_search.get()=='X-1' and reopened.resolution_filter.get()=='Definido en RES'
+        assert reopened.work_sash_ratio==.35 and reopened.resolution_sash_ratio==.4
+        assert reopened.work.rows[0].id in reopened.records.selection()
         row=reopened.work.rows[0]
         assert row.review['TT']==0 and row.review['CC']==1
         assert row.word_overrides['DURACION']=='noventa días'
@@ -82,7 +94,48 @@ def _layout_probe(tmp_path,size):
         app._display_prepared_drafts([Draft('Asunto','Texto\n'*40,program='Programa')],'{count} preparados')
         app.update_idletasks();app.update()
         assert app.body.winfo_height()>=120
+        # Abrir filtros nunca resta alto al editor: usa el mismo panel por pestañas.
+        app.mail_tabs.select(app.mail_options_tab);app.update_idletasks();app.update()
+        assert app.mail_options_tab.winfo_ismapped()
+        app.mail_tabs.select(app.mail_compose_tab);app.update_idletasks();app.update()
+        assert app.body.winfo_height()>=120
         for widget in (app.body,app.save_all_button):
             assert widget.winfo_rooty()+widget.winfo_height()<=app.winfo_rooty()+app.winfo_height()
     finally:app.destroy()
 
+
+@pytest.mark.skipif(os.name!='nt',reason='Windows GUI contract')
+def test_invalid_editable_draft_does_not_hide_cards_or_editor(tmp_path):
+    import subprocess
+    import sys
+    env=dict(os.environ,PYTHONPATH=os.pathsep.join(sys.path))
+    code='from pathlib import Path; import sys; from test_audit_gui_20260928 import _invalid_card_probe; _invalid_card_probe(Path(sys.argv[1]))'
+    result=subprocess.run([sys.executable,'-c',code,str(tmp_path)],env=env,capture_output=True,text=True,timeout=45)
+    assert result.returncode==0,result.stdout+'\n'+result.stderr
+
+
+def _invalid_card_probe(tmp_path):
+    from nurus.personal.app import App
+    from nurus.personal.config import Configuration
+    from nurus.personal.outputs import Draft
+    app=App(Configuration(tmp_path/'profile'))
+    try:
+        app.tabs.select(app.pages['Correos'])
+        app._display_prepared_drafts([Draft('Error','Texto',to='sin arroba',program='Uno'),
+                                     Draft('Correcto','Texto',to='uno@example.cl',program='Dos')],'{count} preparados')
+        app.update_idletasks();app.update()
+        assert len(app.mail_list.cards)==2
+        assert app.to.get()=='sin arroba'
+        app.mail_list._choose(1)
+        assert app.to.get()=='uno@example.cl'
+        assert app.body.winfo_ismapped()
+        # Sesión antigua: la ausencia de preferencias nuevas conserva los valores iniciales.
+        from types import SimpleNamespace
+        from nurus.personal.session import restore
+        initial=app._selected_mail_modalities()
+        app.work=SimpleNamespace(receipts={},session={'version':2,'drafts':[],'projects':[],
+                                 'preferences':{'mail_target':'tribunales','mail_kind':'espera'}})
+        restore(app)
+        assert app._selected_mail_modalities()==initial
+        assert not app.manual_mail.get()
+    finally:app.destroy()

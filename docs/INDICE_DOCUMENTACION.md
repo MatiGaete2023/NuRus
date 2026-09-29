@@ -1,8 +1,18 @@
 # Índice y vigencia de documentación
 
-Actualizado: 22 de septiembre de 2026. Versión de la rama candidata: **0.4.0.dev12**. `main` conserva dev11 hasta validación e integración.
+Actualizado: 29 de septiembre de 2026. Versión de trabajo: **0.4.0.dev13** en `codex/auditoria-ux-20260925-final`. `main` conserva la candidata anterior hasta su integración.
 
 ## Documentos vigentes para CSMP Assistant personal
+
+- `REVISION_Y_PLAN_20260929.md`: referencia actual de revisión, pasos de implementación y evidencia por cada mejora.
+- `../README.md`: instalación, actualización y uso de dev13.
+- `VERIFICACION_PERSONAL.md`: resultados registrados y límites de validación.
+- `ACEPTACION_CSMP_PERSONAL.md`: protocolo de Office y aceptación real fechada, sin trasladar resultados antiguos a dev13.
+- `IMPLEMENTACION.md`: portada operativa actual.
+- `IMPLEMENTACION_AUDITORIA_20260928.md`: cambios heredados en integridad, recuperación y edición.
+- `correccion_mulchen_20260928.md` y `correccion_residencial_20260929.md`: antecedentes del arreglo de Mulchén y RTA/RTT/RVA.
+
+## Referencias funcionales y checkpoints anteriores
 
 - `UX_OBSERVACIONES_DEV12_20260922.md`: checkpoint de la evolución dev12, redacciones aprobadas, UX acotada, límites y validación pendiente.
 
@@ -13,7 +23,7 @@ Actualizado: 22 de septiembre de 2026. Versión de la rama candidata: **0.4.0.de
 - `LIMPIEZA_ASISTENTE_20260921.md`: auditoría dev8, código retirado, errores corregidos y verificación.
 - `REVISION_USABILIDAD_20260921.md`: evidencia fechada de dev7; mejoras previas que se conservan.
 
-- `ESTADO_CONSOLIDADO_20260920.md`: **referencia canónica de estado**; reúne evolución, observaciones del usuario, soluciones, decisiones, conflictos y próximos pasos.
+- `ESTADO_CONSOLIDADO_20260920.md`: checkpoint histórico; reúne evolución, observaciones del usuario, soluciones y decisiones anteriores.
 - `../README.md`: instalación, uso y alcance actual.
 - `IMPLEMENTACION.md`: portada del estado operativo del repositorio.
 - `IMPLEMENTACION_PERSONAL.md`: comportamiento funcional vigente, incluido el alcance de correos y cierre dev9.
@@ -29,7 +39,7 @@ Actualizado: 22 de septiembre de 2026. Versión de la rama candidata: **0.4.0.de
 - `CAMBIOS_USO_20260914.md`: estado consolidado de la versión 0.4.0.dev5 al 14-09-2026. Se conserva como trazabilidad y no describe la release vigente.
 - Los documentos fechados entre el 8 y el 13 de septiembre (`AUDITORIA_*`, `CHECKPOINT_*`, `REVISION_*`, `EJECUCION_*`, `RENDIMIENTO_*`, `README_NURUS_DEV7.md`, `INSTALACION_Y_EXCEPCION_*` y equivalentes) describen estados anteriores. Se conservan para trazabilidad y **no sustituyen** los documentos vigentes anteriores.
 
-Referencias históricas a CI Linux, versiones dev1/dev2/dev6/dev7 anteriores, excepción obligatoria de cruce o arquitecturas previas deben interpretarse dentro de su fecha. La coincidencia del identificador “dev6” con documentación histórica no convierte aquella documentación en vigente: la candidata de esta rama se identifica como 0.4.0.dev12; `main` sigue en dev11 hasta integración. La evidencia se registra en `VERIFICACION_PERSONAL.md`.
+Referencias históricas a CI Linux, versiones anteriores, excepción obligatoria de cruce o arquitecturas previas deben interpretarse dentro de su fecha. La versión de trabajo actual es 0.4.0.dev13. La evidencia nueva se registra en `REVISION_Y_PLAN_20260929.md`; `VERIFICACION_PERSONAL.md` conserva también los resultados fechados anteriores.
 
 La rama `revision-producto-csmp-2026-09-13` conserva una auditoría documental independiente del 13-09; sus conclusiones relevantes están incorporadas en `ESTADO_CONSOLIDADO_20260920.md` y no requieren fusionar su runtime.
 

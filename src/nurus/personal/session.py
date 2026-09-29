@@ -1,6 +1,5 @@
 """Complete, versioned recovery state; no widget is the sole owner of an edit."""
 from dataclasses import asdict
-from copy import deepcopy
 
 from .outputs import Draft
 from .resolutions import Project
@@ -33,9 +32,16 @@ def capture(app):
         prepared_selection=list(getattr(app, '_prepared_selection', None) or []),
         last_word=app.last_word,
         preferences={key: getattr(app, key).get() for key in
-                     ('folder', 'period', 'mail_target', 'mail_kind', 'work_search', 'work_filter')
+                     ('folder', 'period', 'mail_target', 'mail_kind', 'work_search', 'work_filter',
+                      'resolution_search','resolution_filter','manual_mail')
                      if hasattr(app, key)},
     )
+    prefs=app.work.session['preferences']
+    if hasattr(app,'modality_vars'):prefs['modalities']=[key for key,var in app.modality_vars.items() if var.get()]
+    if hasattr(app,'_selected_mail_courts'):prefs['courts']=app._selected_mail_courts()
+    if hasattr(app,'records'):prefs['records']=list(app.records.selection())
+    for key in ('work_sash_ratio','resolution_sash_ratio'):
+        if hasattr(app,key):prefs[key]=getattr(app,key)
 
 
 def restore(app):
@@ -48,8 +54,24 @@ def restore(app):
     drafts = [Draft(**data) for data in saved.get('drafts', [])]
     projects = [Project(**data) for data in saved.get('projects', [])]
     for key, value in saved.get('preferences', {}).items():
-        if key in ('folder', 'period', 'mail_target', 'mail_kind', 'work_search', 'work_filter') and hasattr(app, key):
+        if key in ('folder', 'period', 'mail_target', 'mail_kind', 'work_search', 'work_filter',
+                   'resolution_search','resolution_filter','manual_mail') and hasattr(app, key):
+            if key=='mail_kind' and value not in app.cfg.data['correos']['plantillas']:continue
+            if key=='mail_target' and value not in ('todos','programas','tribunales'):continue
             getattr(app, key).set(value)
+    prefs=saved.get('preferences',{})
+    if 'modalities' in prefs and hasattr(app,'modality_vars'):
+        for key,var in app.modality_vars.items():var.set(key in prefs['modalities'])
+    if 'courts' in prefs and hasattr(app,'mail_courts'):
+        app.mail_courts.selection_clear(0,'end')
+        for index,key in enumerate(app.mail_court_keys):
+            if key in prefs['courts']:app.mail_courts.selection_set(index)
+    if 'records' in prefs and hasattr(app,'records'):
+        app.records.selection_set([rid for rid in prefs['records'] if app.records.exists(rid)])
+    for key in ('work_sash_ratio','resolution_sash_ratio'):
+        ratio=prefs.get(key)
+        if isinstance(ratio,(int,float)) and .1<=ratio<=.9:setattr(app,key,ratio)
+    if hasattr(app,'_mail_kind_changed'):app._mail_kind_changed()
     app._display_prepared_drafts(drafts, '{count} borradores recuperados.')
     app.projects = projects
     app.project_index = None
@@ -81,6 +103,9 @@ def merge_draft_edits(old_drafts, new_drafts):
         # additions/removals survive, without retaining an obsolete generated file.
         originals = old.original.get('attachments', [])
         additions = [path for path in old.attachments if path not in originals]
+        from pathlib import Path
+        removed={Path(path).name for path in originals if path not in old.attachments}
+        draft.attachments=[path for path in draft.attachments if Path(path).name not in removed]
         if originals and not any(path in old.attachments for path in originals):
             draft.attachments = []
         draft.attachments.extend(path for path in additions if path not in draft.attachments)
@@ -101,4 +126,3 @@ def merge_project_edits(previous, projects):
         if old.text!=old.original_text:
             project.text=old.text
             project.review_required=old.review_required or project.original_text!=old.original_text
-

@@ -12,7 +12,7 @@ from .ui import Textbox as ScrolledText
 
 from .app_base import App as _BaseApp
 from .mail_view import build_mail_page
-from .mail_controls import alcance_modalidades, selected_court_record_ids
+from .mail_controls import alcance_modalidades, selected_court_record_ids, empty_preparation_message
 from .outputs import prepare_drafts, prepare_required_drafts, create_drafts, drafts_for_scope, value
 from .resolutions import automatic_project_selections, unique_case_selections, resolution_selection_source, kind_code, kind_label
 from .statistics import summarize
@@ -54,8 +54,12 @@ class App(_BaseApp):
 
     def _mail_modality_changed(self):
         keys=self._selected_mail_modalities() if hasattr(self,'modality_vars') else []
-        phrase=alcance_modalidades(keys)
-        self.mail_scope.set('Redacción automática: '+phrase+'.' if phrase else 'Sin modalidades seleccionadas.')
+        names={'RES':'Residencial','AMB':'Ambulatorio','FAE':'FAE / FAS','DCE':'DCE'}
+        scope=', '.join(names[key] for key in keys) if len(keys)<4 else 'Todas las modalidades'
+        courts=self._selected_mail_courts() if hasattr(self,'mail_courts') else []
+        court_scope=f'{len(courts)} tribunal(es)' if courts else 'Todos los tribunales'
+        manual=hasattr(self,'manual_mail') and self.manual_mail.get()
+        self.mail_scope.set((scope or 'Sin modalidades')+' · '+court_scope+' · '+('Filas seleccionadas' if manual else 'Todas las filas elegibles'))
 
     def _mail_kind_changed(self,event=None):
         kind=self.mail_kind.get();tpl=self.cfg.data['correos']['plantillas'].get(kind,{})
@@ -84,24 +88,26 @@ class App(_BaseApp):
         source=getattr(self,'_draft_scope_source',self.drafts)
         self._display_prepared_drafts(source,'{count} borradores del alcance elegido. Preparar todos incorpora las gestiones faltantes.',keep_source=True)
 
-    def _display_prepared_drafts(self,drafts,message,keep_source=False):
+    def _display_prepared_drafts(self,drafts,message,keep_source=False,empty_message=None):
         if not keep_source:
             from .session import merge_draft_edits
             drafts=merge_draft_edits(getattr(self,'_draft_scope_source',self.drafts),drafts)
             self._draft_scope_source=list(drafts)
         target=self.mail_target.get() if hasattr(self,'mail_target') else 'todos'
         drafts=drafts_for_scope(drafts,target)
-        originals=getattr(self,'_draft_originals',{})
         for draft in drafts:
-            originals.setdefault(id(draft),draft.original or {'to':draft.to,'cc':draft.cc,'subject':draft.subject,'body':draft.body})
-        self._draft_originals=originals
+            if not draft.original:
+                draft.original={key:deepcopy(getattr(draft,key)) for key in ('to','cc','subject','body','attachments')}
         self.drafts=drafts;self.mail_list.delete(0,'end');self.draft_index=None
         self.mail_list.work=getattr(self,'work',None)
-        self.mail_list.set_drafts(drafts,getattr(getattr(self,'work',None),'receipts',{}))
+        if not drafts and not empty_message and getattr(self,'_draft_scope_source',[]):
+            empty_message='No hay borradores preparados para este destino. Preparar todos incorpora las gestiones del alcance elegido.'
+        self.mail_list.set_drafts(drafts,getattr(getattr(self,'work',None),'receipts',{}),empty_message=empty_message)
         if drafts:self.mail_list.selection_set(0);self._select_mail()
         else:self._clear_mail_editor()
+        if drafts and not keep_source and hasattr(self,'mail_tabs'):self.mail_tabs.select(self.mail_compose_tab)
         if hasattr(self,'save_all_button'):self.save_all_button.configure(text=f'Guardar {len(drafts)} en Outlook')
-        self.status.set(message.format(count=len(drafts)))
+        self.status.set(empty_message if not drafts and empty_message else message.format(count=len(drafts)))
 
     def _prepare_mail(self):
         work=self._require_work();self._capture_mail();self._sync_mail_config(work)
@@ -113,7 +119,8 @@ class App(_BaseApp):
         manual=self.manual_mail.get();selected=self._mail_selected_ids(work,manual=manual)
         modality_keys=keys if tpl.get('usa_modalidades') else None
         period=self.period.get()
-        def done(drafts):self._display_prepared_drafts(drafts,'{count} borradores preparados para revisión; todavía no se guardaron en Outlook.')
+        def done(drafts):self._display_prepared_drafts(drafts,'{count} borradores preparados para revisión; todavía no se guardaron en Outlook.',
+                                                    empty_message=empty_preparation_message(work,selected,modality_keys,kind) if not drafts else None)
         self._run('Preparando textos y adjuntos…',lambda:prepare_drafts(work,kind,modalities=phrase,period=period,selected=selected,manual_selection=manual,modality_keys=modality_keys,recipient_scope='auto' if target=='todos' else target),done)
 
     def _prepare_all_mail(self):
@@ -121,7 +128,8 @@ class App(_BaseApp):
         keys=self._selected_mail_modalities()
         if not keys:raise ValueError('Selecciona al menos una modalidad para preparar el conjunto de correos del trabajo.')
         phrase=alcance_modalidades(keys);selected=self._mail_selected_ids(work,manual=self.manual_mail.get());period=self.period.get();target=self.mail_target.get()
-        def done(drafts):self._display_prepared_drafts(drafts,'{count} correos preparados para el alcance elegido. Todavía no se guardaron en Outlook.')
+        def done(drafts):self._display_prepared_drafts(drafts,'{count} correos preparados para el alcance elegido. Todavía no se guardaron en Outlook.',
+                                                    empty_message=empty_preparation_message(work,selected,keys) if not drafts else None)
         self._run('Preparando todos los correos necesarios del trabajo…',lambda:prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys,recipient_scope=target),done)
 
     def _send_all(self):
@@ -192,7 +200,8 @@ class App(_BaseApp):
         def done(result):
             from uuid import uuid4
             if hasattr(self.work,'receipts'):
-                self.work.receipts[uuid4().hex]={'kind':'excel','state':'generated','path':result}
+                from .activity import receipt
+                self.work.receipts[uuid4().hex]=receipt('excel','generated',path=result,record_ids=[row.id for row in self.work.rows])
             self._show_work(reset_projects=False);self._save_session();self._update_context();self.status.set('Excel generado: '+result+' · Disponible en Correos y Resoluciones.')
         self._run('Exportando copia preservada con Excel…',lambda:work.export(path),done)
 
@@ -320,4 +329,3 @@ def main():
 
 
 if __name__=='__main__':main()
-

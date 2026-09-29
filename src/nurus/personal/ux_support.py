@@ -8,7 +8,7 @@ from pathlib import Path
 
 from nurus.rus.columns import normalize
 from .outputs import value, draft_fingerprint
-from .resolutions import KINDS, kind_label, resolution_kind
+from .resolutions import KINDS, resolution_kind
 
 
 RES_HELP = {

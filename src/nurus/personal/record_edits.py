@@ -1,6 +1,5 @@
 """Validated edits and decisions shared by the UI, workbook and session."""
 from copy import deepcopy
-from datetime import datetime
 import json
 
 MAIL_KINDS = ('programa_espera', 'programa_vencido', 'programa_por_vencer', 'medidas')
@@ -177,4 +176,3 @@ def recalculate(work, row):
     row.rules = list(dict.fromkeys(event for event in ctx['events'] if event not in work.config['desactivadas']))
     row.actions = actions_for(row.rules)
     row.warnings = warnings
-

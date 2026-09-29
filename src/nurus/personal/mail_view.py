@@ -32,10 +32,11 @@ class DraftCards(ctk.CTkScrollableFrame):
         self.selection_set(index)
         if self._callback:self._callback(None)
 
-    def set_drafts(self,drafts,receipts=None):
+    def set_drafts(self,drafts,receipts=None,empty_message=None):
         self.delete();self.drafts=list(drafts)
         if not drafts:
-            ctk.CTkLabel(self,text='Prepara correos para ver\\nlos programas y sus causas.'.replace('\\n','\n'),text_color=ui.MUTED).pack(padx=10,pady=24)
+            ctk.CTkLabel(self,text=empty_message or 'Prepara correos para ver los borradores.',wraplength=205,
+                         justify='left',text_color=ui.MUTED).pack(padx=10,pady=24)
         for i,draft in enumerate(drafts):
             card=ctk.CTkFrame(self,fg_color=ui.PANEL,corner_radius=10,border_width=1,border_color='#36414e')
             card.pack(fill='x',padx=4,pady=6);self.cards.append(card)
@@ -48,14 +49,18 @@ class DraftCards(ctk.CTkScrollableFrame):
             badges=ctk.CTkFrame(card,fg_color='transparent');badges.pack(fill='x',padx=12,pady=(2,10))
             expired=bool(draft.due and draft.due<date.today().isoformat())
             from .outputs import draft_fingerprint
-            receipt=(receipts or {}).get(draft_fingerprint(draft),{}).get('state')
+            problem=False
+            try:receipt=(receipts or {}).get(draft_fingerprint(draft),{}).get('state')
+            except (ValueError,OSError):receipt=None;problem=True
+            if (draft.required and not draft.attachments) or any(not Path(path).is_file() for path in draft.attachments):problem=True
             saved=receipt=='created'
             edited=any(getattr(draft,key)!=draft.original.get(key,getattr(draft,key)) for key in ('to','cc','subject','body','attachments'))
             text='Guardado en Outlook' if saved else 'Guardado incierto' if receipt in {'saving','uncertain'} else 'Editado' if edited else 'Preparado'
+            if problem:text='Revisar destinatarios / adjuntos'
             work=getattr(self,'work',None)
             if work:
                 from .product_state import stale
-                if stale(work,draft):text='Necesita actualizar'
+                if not problem and stale(work,draft):text='Necesita actualizar'
             ctk.CTkLabel(badges,text=text,fg_color='#245f54' if saved else ui.BLUE,corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w')
             if draft.due:
                 ctk.CTkLabel(badges,text='Fecha vencida' if expired else 'Por vencer',fg_color='#813c32' if expired else '#665220',corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w',pady=(4,0))
@@ -102,36 +107,17 @@ def build_mail_page(app):
     app.kind_box=NamedChoice(top,keyvariable=app.mail_kind,names=lambda:{k:v['nombre'] for k,v in app.cfg.data['correos']['plantillas'].items() if not v.get('archivada',False)},state='readonly',width=32)
     app.kind_box.grid(row=0,column=1,sticky='ew');app.kind_box.bind('<<ComboboxSelected>>',app._mail_kind_changed)
     ui.Button(top,text='Preparar tipo',fg_color='transparent',border_width=1,command=lambda:app._guard(app._prepare_mail)).grid(row=0,column=2,padx=7)
-    options=ctk.CTkFrame(page,fg_color='#28313c');options.grid(row=2,column=0,sticky='ew',padx=8,pady=4);options.grid_remove()
     def toggle():
-        if options.winfo_manager():options.grid_remove()
-        else:options.grid()
+        tabs.select(compose if tabs.select()==str(options) else options)
     ui.Button(top,text='Filtros / opciones',fg_color='transparent',border_width=1,command=toggle).grid(row=0,column=3)
     toolbar=ctk.CTkFrame(page,fg_color='transparent');toolbar.grid(row=1,column=0,sticky='ew',padx=8,pady=(2,6))
     ui.Button(toolbar,text='Preparar todos',fg_color='transparent',border_width=1,command=lambda:app._guard(app._prepare_all_mail)).pack(side='left')
     ui.Button(toolbar,text='Cargar planilla',fg_color='transparent',border_width=1,command=lambda:app._guard(app._external)).pack(side='left',padx=7)
     app.mail_note=tk.StringVar();ui.Label(toolbar,textvariable=app.mail_note,wraplength=380,text_color=ui.MUTED).pack(side='left',padx=7)
 
-    # Filtrar causas por tribunal es independiente de elegir a quién se dirige el correo.
-    court_panel=ctk.CTkFrame(options,fg_color='transparent');court_panel.pack(side='left',fill='both',expand=True,padx=8,pady=6)
-    ui.Label(court_panel,text='Tribunal de las causas (filtro opcional)').pack(anchor='w')
-    app.mail_court_keys=list(cfg['tribunales'])
-    app.mail_courts=tk.Listbox(court_panel,selectmode='extended',exportselection=False,height=3,font=('Segoe UI',10))
-    app.mail_courts.pack(fill='x')
-    for key in app.mail_court_keys:app.mail_courts.insert('end',cfg['tribunales'][key].get('nombre',key))
-    ui.Label(court_panel,text='Sin selección: todos los tribunales',text_color=ui.MUTED).pack(anchor='w')
-    app.period=tk.StringVar(value=cfg.get('periodo_default') or date.today().strftime('%m/%Y'))
-    period_bar=ctk.CTkFrame(court_panel,fg_color='transparent');period_bar.pack(fill='x',pady=3)
-    ui.Label(period_bar,text='Período').pack(side='left');ctk.CTkEntry(period_bar,textvariable=app.period,width=90).pack(side='left',padx=8)
-    modes=ctk.CTkFrame(options,fg_color='transparent');modes.pack(side='left',fill='both',expand=True,padx=8,pady=6)
-    app.modality_vars={};defaults=set(cfg.get('modalidades_default') or MODALITIES.values())
-    for key,title in [('RES','Residencial'),('AMB','Ambulatorio'),('FAE','Familia de acogida (FAE / FAS)'),('DCE','Diagnóstico clínico (DCE)')]:
-        var=tk.BooleanVar(value=MODALITIES[key] in defaults);app.modality_vars[key]=var
-        ui.Checkbutton(modes,text=title,variable=var,command=app._mail_modality_changed).pack(anchor='w',pady=2)
-    app.mail_scope=tk.StringVar();ui.Label(modes,textvariable=app.mail_scope,wraplength=300,text_color=ui.MUTED).pack(anchor='w')
-    app.manual_mail=tk.BooleanVar()
-    ui.Checkbutton(modes,text='Solo filas seleccionadas en Trabajo',variable=app.manual_mail).pack(anchor='w',pady=4)
-    ui.Button(modes,text='Adjuntar a todos…',fg_color='transparent',border_width=1,command=lambda:app._guard(app._attachment_all)).pack(anchor='w')
+    app.mail_scope=tk.StringVar()
+    app.mail_filters_summary=ui.Label(page,textvariable=app.mail_scope,text_color=ui.MUTED,anchor='w')
+    app.mail_filters_summary.grid(row=2,column=0,sticky='ew',padx=8)
 
     content=ctk.CTkFrame(page,fg_color='transparent');content.grid(row=3,column=0,sticky='nsew',padx=8,pady=(0,8))
     content.grid_rowconfigure(0,weight=1);content.grid_columnconfigure(1,weight=1)
@@ -140,7 +126,9 @@ def build_mail_page(app):
     editor=ctk.CTkFrame(content,fg_color=ui.PANEL)
     editor.grid(row=0,column=1,sticky='nsew');editor.grid_columnconfigure(0,weight=1);editor.grid_rowconfigure(0,weight=1)
     tabs=ui.Notebook(editor);tabs.grid(row=0,column=0,sticky='nsew')
+    app.mail_tabs=tabs
     compose=ctk.CTkFrame(tabs,fg_color=ui.PANEL)
+    app.mail_compose_tab=compose
     tabs.add(compose,text='Correo')
     compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1,minsize=80)
     ui.Label(compose,text='Correo editable',font=('Segoe UI',16,'bold')).grid(row=0,column=0,columnspan=2,sticky='w',padx=12,pady=(8,4))
@@ -162,5 +150,30 @@ def build_mail_page(app):
     app.mail_records_panel=ui.Frame(details.body);app.mail_records_panel.pack(fill='x')
     changes=ui.Frame(tabs);tabs.add(changes,text='Cambios');changes.grid_columnconfigure(0,weight=1);changes.grid_rowconfigure(0,weight=1)
     app.mail_compare=ComparisonPanel(changes);app.mail_compare.grid(row=0,column=0,sticky='nsew',padx=8,pady=8)
+    from .widgets import ScrollPane
+    options=ScrollPane(tabs);tabs.add(options,text='Filtros')
+    app.mail_options_tab=options
+    build_mail_options(app,options.body,cfg)
     app._mail_kind_changed();app._mail_modality_changed()
 
+
+def build_mail_options(app,options,cfg):
+    court_panel=ctk.CTkFrame(options,fg_color='transparent');court_panel.pack(fill='x',padx=8,pady=6)
+    ui.Label(court_panel,text='Tribunal de las causas (sin selección: todos)').pack(anchor='w')
+    app.mail_court_keys=list(cfg['tribunales'])
+    app.mail_courts=tk.Listbox(court_panel,selectmode='extended',exportselection=False,height=3,font=('Segoe UI',10))
+    app.mail_courts.pack(fill='x')
+    for key in app.mail_court_keys:app.mail_courts.insert('end',cfg['tribunales'][key].get('nombre',key))
+    app.mail_courts.bind('<<ListboxSelect>>',lambda event:app._mail_modality_changed())
+    app.period=tk.StringVar(value=cfg.get('periodo_default') or date.today().strftime('%m/%Y'))
+    period_bar=ctk.CTkFrame(court_panel,fg_color='transparent');period_bar.pack(fill='x',pady=3)
+    ui.Label(period_bar,text='Período').pack(side='left');ctk.CTkEntry(period_bar,textvariable=app.period,width=180).pack(side='left',padx=8)
+    modes=ctk.CTkFrame(options,fg_color='transparent');modes.pack(fill='x',padx=8,pady=6)
+    app.modality_vars={};defaults=set(cfg.get('modalidades_default') or MODALITIES.values())
+    for key,title in [('RES','Residencial'),('AMB','Ambulatorio'),('FAE','Familia de acogida (FAE / FAS)'),('DCE','Diagnóstico clínico (DCE)')]:
+        var=tk.BooleanVar(value=MODALITIES[key] in defaults);app.modality_vars[key]=var
+        ui.Checkbutton(modes,text=title,variable=var,command=app._mail_modality_changed).pack(anchor='w',pady=2)
+    app.manual_mail=tk.BooleanVar()
+    app.manual_mail.trace_add('write',lambda *_:app._mail_modality_changed())
+    ui.Checkbutton(modes,text='Solo filas seleccionadas en Trabajo',variable=app.manual_mail).pack(anchor='w',pady=4)
+    ui.Button(modes,text='Adjuntar a todos…',fg_color='transparent',border_width=1,command=lambda:app._guard(app._attachment_all)).pack(anchor='w')

@@ -137,6 +137,8 @@ def validate(cfg):
     allowed={'COMUN.CURADOR','COMUN.OIDO','COMUN.PROX_AUDIENCIA','COMUN.PROXIMA_MAYORIA'}
     if not set(cfg['desactivadas'])<=allowed:raise ValueError('Solo pueden desactivarse advertencias complementarias.')
     for tpl in cfg['correos']['plantillas'].values():
+        from .mail_category import CATEGORIES
+        if tpl.get('categoria','') not in ('',*CATEGORIES):raise ValueError('Categoría de correo inválida.')
         for key in ('asunto','cuerpo'):
             fields=variables(tpl[key], VARIABLES)
             if not fields<=VARIABLES:raise ValueError('Variable de correo desconocida: '+str(fields-VARIABLES))
@@ -202,4 +204,3 @@ class Configuration:
         if self.path.exists():shutil.copyfile(self.path,self.path.with_suffix('.bak'))
         atomic_json(self.path,data)
         self.data=deepcopy(data)
-

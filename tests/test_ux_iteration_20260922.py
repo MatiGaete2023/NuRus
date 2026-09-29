@@ -96,9 +96,9 @@ def test_ui_source_keeps_secondary_actions_and_exposes_requested_hierarchy():
     assert 'Guardar borradores' in mail and 'Guardar este' in mail and 'Preparar todos' in mail
     assert "text='Básico'" in app and "text='Avanzado'" in app
     assert 'Siguiente aviso' in work
-    assert 'CaseDetailPanel' in app and 'ComparisonPanel' in app
+    assert 'CaseDetailPanel' in work and 'ComparisonPanel' in work
+    assert 'CaseDetailPanel' in mail and 'ComparisonPanel' in mail
     assert "tabs.add(changes,text='Cambios')" in work
     assert "split.add(table,weight=2);split.add(edit,weight=3)" in work
     assert "messagebox.showinfo('Catastro incorporado'" not in app
     assert "✓ Catastro incorporado" in app
-

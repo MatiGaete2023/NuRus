@@ -8,25 +8,26 @@ ROOT=Path(__file__).parents[1]
 
 def test_release_version_and_current_docs_are_aligned():
     project=tomllib.loads((ROOT/'pyproject.toml').read_text(encoding='utf-8'))
-    assert project['project']['version']==nurus.__version__=='0.4.0.dev12'
+    assert project['project']['version']==nurus.__version__
     current_docs=[
-        ROOT/'README.md', ROOT/'docs/UX_OBSERVACIONES_DEV12_20260922.md',
+        ROOT/'README.md', ROOT/'docs/IMPLEMENTACION.md',
         ROOT/'docs/VERIFICACION_PERSONAL.md', ROOT/'docs/ACEPTACION_CSMP_PERSONAL.md',
         ROOT/'docs/INDICE_DOCUMENTACION.md', ROOT/'docs/ESTADO_CONSOLIDADO_20260920.md',
     ]
     for path in current_docs:
         text=path.read_text(encoding='utf-8')
-        assert '0.4.0.dev12' in text, path
+        assert nurus.__version__ in text[:1000], path
     historical=(ROOT/'docs/CAMBIOS_USO_20260914.md').read_text(encoding='utf-8')
     assert '0.4.0.dev5' in historical
-    assert '0.4.0.dev12' not in historical
+    assert nurus.__version__ not in historical
     index=(ROOT/'docs/INDICE_DOCUMENTACION.md').read_text(encoding='utf-8')
     assert 'CAMBIOS_USO_20260916.md' in index
     assert 'ESTADO_CONSOLIDADO_20260920.md' in index
     assert 'CAMBIOS_USO_20260914.md' in index and 'histórico' in index.lower()
     readme=current_docs[0].read_text(encoding='utf-8')
     assert 'Windows/Linux' not in readme
-    assert '22 de septiembre de 2026' in readme
+    assert '29 de septiembre de 2026' in readme
+    assert 'codex/auditoria-ux-20260925-final' in readme
     personal=(ROOT/'docs/IMPLEMENTACION_PERSONAL.md').read_text(encoding='utf-8')
     assert 'excepción documentada' not in personal.lower()
     assert 'Pendientes externos: PC_INFO de Laja' not in personal
@@ -43,8 +44,9 @@ def test_workflow_and_distribution_match_current_release():
     workflow=(ROOT/'.github/workflows/tests.yml').read_text(encoding='utf-8')
     assert 'actions/checkout@v7' in workflow
     assert 'actions/setup-python@v7' in workflow
-    assert 'CSMP_Assistant_personal_0.4.0-dev12.zip' in workflow
-    assert 'CSMP-Windows-dev12' in workflow
+    assert f'CSMP_Assistant_personal_{nurus.__version__.replace(".dev","-dev")}.zip' in workflow
+    assert f'CSMP-Windows-{nurus.__version__.split(".")[-1]}' in workflow
+    assert "'codex/**'" in workflow
 
 
 def test_gitignore_covers_local_csmp_environment_and_build_outputs():

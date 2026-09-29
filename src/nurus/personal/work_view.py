@@ -1,6 +1,5 @@
 """Work page: compact controls and an editor that always has usable space."""
 import tkinter as tk
-import customtkinter as ctk
 from . import ui
 from .widgets import CaseDetailPanel, ComparisonPanel, ScrollPane
 from .record_view import RecordForm
@@ -55,7 +54,7 @@ def build(app):
         app.records.column(name,width=width,minwidth=65)
     app.records.tag_configure('excluded',background='#665220',foreground='#fff2cc')
     app.records.tag_configure('warning',background='#653b29',foreground='#ffe2cd')
-    app.records.bind('<<TreeviewSelect>>',lambda event:app._guard(app._detail))
+    app.records.bind('<<TreeviewSelect>>',lambda event:None if app.busy else app._guard(app._detail))
     footer=ui.Frame(edit);footer.pack(side='bottom',fill='x',pady=(5,0))
     def maximize():
         if str(table) in split.panes():split.forget(table)
@@ -87,4 +86,3 @@ def build(app):
     split.bind('<Configure>',fit)
     split.bind('<Map>',lambda event:app.after_idle(fit))
     split.bind('<ButtonRelease-1>',remember)
-

@@ -1,4 +1,4 @@
-> Actualización vigente: **0.4.0.dev11**, 22-09-2026. `PANEL_CORREOS_20260921.md` describe la interfaz y el alcance de destinatarios; `LIMPIEZA_ASISTENTE_20260921.md` registra la limpieza dev8 y `VERIFICACION_PERSONAL.md` contiene la evidencia de cierre. La descripción funcional fechada que sigue conserva decisiones anteriores que continúan vigentes.
+> Versión actual: **0.4.0.dev13**, 29-09-2026. [REVISION_Y_PLAN_20260929.md](REVISION_Y_PLAN_20260929.md) y el README describen los paneles, recuperación y correcciones vigentes. La descripción fechada que sigue conserva decisiones funcionales anteriores; no acredita la verificación de esta versión nueva.
 
 # Implementación CSMP Assistant personal — 16 de septiembre de 2026
 

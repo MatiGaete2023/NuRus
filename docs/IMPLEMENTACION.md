@@ -1,12 +1,12 @@
 # Estado operativo — CSMP Assistant personal
 
-Actualizado: 22 de septiembre de 2026. Versión **0.4.0.dev11**. Único producto: Asistente personal Windows, Python 3.12–3.14.
+Actualizado: 29 de septiembre de 2026. Versión **0.4.0.dev13**. Único producto: Asistente personal Windows, Python 3.12–3.14. La referencia actual es [REVISION_Y_PLAN_20260929.md](REVISION_Y_PLAN_20260929.md); los resultados de versiones anteriores que siguen son evidencia histórica.
 
 ## Código vigente
 
 - Entrada: `Abrir_CSMP.bat` → `nurus.personal.app`. Los accesos anteriores solo redirigen aquí.
 - `personal/app.py` define el flujo; `app_base.py` los controles compartidos, sin métodos operativos duplicados. La antigua clase `NuRusApp` y `product_ui.py` fueron retiradas.
-- Lectores, exportación preservada, adaptadores Office y servicios compartidos se conservan. No se cambia el formato de configuración, sesiones ni planillas existentes.
+- Lectores, exportación preservada, adaptadores Office y servicios compartidos se conservan. Las categorías de plantilla y preferencias adicionales son campos opcionales compatibles con configuraciones y sesiones anteriores.
 - Una sola carga, cinco áreas, productos editables; sin aprobación individual ni envío automático. Trabajo y Resoluciones tienen búsqueda/filtros visuales; avisos y excepciones concentran el resaltado. Original intacto; nunca escribe RUS/SATURNO.
 - Cumplimiento sin cruce advierte y omite C-10. No requiere excepción.
 - Un Word agrupado por tribunal/RIT/tipo; `RES` categórico (`PC_IE`, `PC_INFO`, `NOMENCL`) es la fuente humana prioritaria; seis matrices Laja/Mulchén. No se inventan matrices Tomé.

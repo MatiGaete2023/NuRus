@@ -37,3 +37,18 @@ def selected_court_record_ids(work,court_keys):
         court=court_key(raw)
         if court in allowed:result.append(row.id)
     return result
+
+
+def empty_preparation_message(work,selected,modality_keys,kind=''):
+    from .modalities import selected_row
+    ids=set(selected) if selected is not None else {row.id for row in work.rows}
+    chosen=[row for row in work.rows if row.id in ids]
+    active=[row for row in chosen if not row.excluded]
+    included=[row for row in active if selected_row(work,row,modality_keys)]
+    if not chosen:return 'No hay filas del tribunal o de la selección elegida. Revisa Filtros.'
+    if not active:return 'Todas las filas elegidas están excluidas del lote. Revisa su inclusión en Trabajo.'
+    if not included:
+        return f'Las {len(active)} filas elegidas quedan fuera de las modalidades seleccionadas. Revisa Filtros o corrige el programa en Trabajo.'
+    template=work.config['correos']['plantillas'].get(kind,{})
+    name=template.get('nombre','el conjunto de correos')
+    return f'No hay gestiones habilitadas para {name}. Revisa el tipo de correo, las reglas y las decisiones incluir/omitir en Trabajo.'

@@ -1,4 +1,11 @@
-# Verificación vigente — CSMP Assistant personal 0.4.0.dev12
+# Evidencia actual — 0.4.0.dev13
+
+La revisión del 29-09-2026 y sus resultados están en
+[REVISION_Y_PLAN_20260929.md](REVISION_Y_PLAN_20260929.md). Los resultados de CI y
+uso real fechados que siguen corresponden a sus respectivos commits y versiones.
+No prueban por sí solos la versión actual. El workflow incluye ahora `codex/**`.
+
+# Verificación histórica — CSMP Assistant personal 0.4.0.dev12
 
 Estado de la rama dev12: **CANDIDATA DE EVOLUCIÓN CON CI VERDE; CORRECCIONES DE USO REAL EN VERIFICACIÓN**. Dev11 sigue siendo la última candidata con validación funcional amplia hasta que dev12 complete la nueva prueba operativa.
 

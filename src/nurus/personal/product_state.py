@@ -6,14 +6,21 @@ import json
 from nurus.rus.columns import normalize
 
 
-def fingerprint(work, record_ids, kind):
+def fingerprint(work, record_ids, kind, recipient_type=''):
     ids = set(record_ids)
     rows = getattr(work, 'rows', [])
     mapping = getattr(work, 'mapping', {})
+    cfg = getattr(work, 'config', {})
+    templates=cfg.get('correos',{}).get('plantillas',{})
+    is_mail=kind in templates or recipient_type in {'programas','tribunales'}
+    from .mail_category import category
+    from .courts import court_key
+    operational=category(templates.get(kind,{}),kind)
+    to_program=recipient_type=='programas' or (not recipient_type and operational.startswith('programa_'))
 
     def group(row):
-        fields = ('tribunal', 'programa') if kind.startswith('programa_') else ('tribunal', 'rit')
-        return tuple(normalize(row.overrides.get(key, row.values.get(mapping.get(key, ''), ''))) for key in fields)
+        fields = ('tribunal','programa') if is_mail and to_program else ('tribunal',) if is_mail else ('tribunal','rit')
+        return tuple((court_key if key=='tribunal' else normalize)(row.overrides.get(key, row.values.get(mapping.get(key, ''), ''))) for key in fields)
 
     groups = {group(row) for row in rows if row.id in ids}
     records=[]
@@ -24,21 +31,20 @@ def fingerprint(work, record_ids, kind):
         record['values']={key:row.values.get(column,'') for key,column in mapping.items()}
         records.append(record)
     records.sort(key=lambda row: row['id'])
-    cfg = getattr(work, 'config', {})
     configuration = {key: cfg.get(key) for key in ('correos', 'contactos', 'aliases', 'firma')}
-    payload = {'records': records, 'config': configuration, 'kind': kind, 'ids': sorted(ids)}
+    payload = {'records': records, 'config': configuration, 'kind': kind, 'ids': sorted(ids), 'recipient_type':recipient_type}
     return sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def stamp(work, product):
-    product.dependency_hash = fingerprint(work, product.record_ids, product.kind)
+    product.dependency_hash = fingerprint(work, product.record_ids, product.kind,getattr(product,'recipient_type',''))
     if hasattr(product, 'template_hash'):
         product.template_hash = sha256(Path(product.template).read_bytes()).hexdigest()
 
 
 def stale(work, product):
     expected = getattr(product, 'dependency_hash', '')
-    if expected and expected != fingerprint(work, product.record_ids, product.kind):
+    if expected and expected != fingerprint(work, product.record_ids, product.kind,getattr(product,'recipient_type','')):
         return True
     if getattr(product, 'template_hash', ''):
         path = Path(product.template)
@@ -52,4 +58,3 @@ def require_fresh(work, product):
     if stale(work, product):
         raise ValueError('Este producto necesita actualizarse porque cambiaron sus registros o plantilla. '
                          'Prepara nuevamente y revisa los cambios antes de guardar.')
-

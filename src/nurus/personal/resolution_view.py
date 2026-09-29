@@ -2,7 +2,7 @@
 import tkinter as tk
 from . import ui
 from .widgets import CaseDetailPanel, ComparisonPanel, ScrollPane
-from .resolutions import KINDS, KIND_LABELS, kind_code, _case_key
+from .resolutions import KINDS, KIND_LABELS, _case_key
 
 
 class ProjectSelection:
@@ -133,4 +133,3 @@ def rerender(project):
         document=render_project(project,Path(directory)/'vista.docx')
         project.original_text='\n'.join(p.text for p in paragraphs(document))
         project.text=project.original_text
-

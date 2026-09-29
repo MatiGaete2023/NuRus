@@ -14,11 +14,11 @@ from . import ui as ttk
 from .ui import Textbox as ScrolledText
 
 from .config import Configuration, PARAMETER_LABELS, VARIABLES
-from .widgets import ScrollPane, NamedChoice, CaseDetailPanel, ComparisonPanel, Tooltip
+from .widgets import ScrollPane, NamedChoice, Tooltip
 from .ux_support import case_detail_text, compact_case_detail_text, grouped_draft_detail, edited_pair, incident_ids, resume_available, resume_description, RES_HELP
 from .work import Work
 from .outputs import create_draft, import_contacts
-from .resolutions import KINDS, KIND_LABELS, kind_code, kind_label, prepare_projects, generate_projects, automatic_project_selections
+from .resolutions import KINDS, kind_code, kind_label, prepare_projects, generate_projects, automatic_project_selections
 from .importing import SheetChoice
 from nurus.rus.reader import list_workbook_sheets
 from nurus.rus.columns import normalize
@@ -29,7 +29,8 @@ class App(ctk.CTk):
         ctk.set_appearance_mode('Dark');ctk.set_default_color_theme('blue')
         super().__init__()
         self.configure(fg_color=ttk.BG);ttk.install_theme(self)
-        self.title('CSMP Assistant personal');self.geometry('1120x720');self.minsize(820,560)
+        from nurus import __version__
+        self.title('CSMP Assistant personal · '+__version__);self.geometry('1120x720');self.minsize(820,560)
         self.cfg=configuration or Configuration()
         self.work=None;self.drafts=[];self.draft_index=None;self.report=None;self.busy=False
         self.projects=[];self.project_index=None;self.last_word='';self.observation_id=None
@@ -116,12 +117,14 @@ class App(ctk.CTk):
                         self.status.set(str(result));messagebox.showerror('No se completó la operación',str(result))
                     self._save_session()
         except queue.Empty:pass
-        self.after(100,self._poll)
+        except (ValueError,OSError) as exc:
+            self.status.set('No se pudo guardar la recuperación: '+str(exc))
+        finally:self.after(100,self._poll)
 
     def _autosave(self):
         if self.work and not self.busy:
             try:self._save_session()
-            except ValueError as exc:self.status.set('Edición pendiente de corregir: '+str(exc))
+            except (ValueError,OSError) as exc:self.status.set('No se pudo guardar la recuperación: '+str(exc))
         self.after(15000,self._autosave)
 
     def _save_session(self):
@@ -132,15 +135,18 @@ class App(ctk.CTk):
                 capture(self)
                 self.work.save(self.cfg.directory/'sesion')
                 self._update_local_activity()
-            except OSError as exc:self.status.set('No se pudo guardar la recuperación: '+str(exc))
+            except OSError as exc:
+                self.status.set('No se pudo guardar la recuperación: '+str(exc))
+                raise
 
     def _close(self):
         if self.busy:messagebox.showinfo('Operación en curso','Espera a que termine antes de cerrar.');return
         try:
             self._save_text(notify=False);self._save_tpl(notify=False)
-        except ValueError as exc:
-            messagebox.showerror('Configuración pendiente',str(exc));return
-        self._save_session();self.destroy()
+            self._save_session()
+        except (ValueError,OSError) as exc:
+            messagebox.showerror('No se pudo guardar antes de cerrar',str(exc));return
+        self.destroy()
 
     def _require_work(self):
         if self.busy:raise ValueError('Hay una operación en curso.')
@@ -335,7 +341,7 @@ class App(ctk.CTk):
         if self.draft_index is None or self.draft_index>=len(self.drafts):
             self.mail_compare.grid_remove();return
         draft=self.drafts[self.draft_index]
-        original=getattr(self,'_draft_originals',{}).get(id(draft))
+        original=draft.original
         if not original:self.mail_compare.grid_remove();return
         before='Para: '+original['to']+'\nCC: '+original['cc']+'\nAsunto: '+original['subject']+'\n\n'+original['body']
         after='Para: '+draft.to+'\nCC: '+draft.cc+'\nAsunto: '+draft.subject+'\n\n'+draft.body
@@ -440,7 +446,7 @@ class App(ctk.CTk):
         ttk.Button(window,text='Usar hoja',command=apply).pack(pady=15)
 
     def _clear_drafts(self):
-        self.drafts=[];self._draft_scope_source=[];self._draft_originals={};self.draft_index=None;self.mail_list.delete(0,'end')
+        self.drafts=[];self._draft_scope_source=[];self.draft_index=None;self.mail_list.delete(0,'end')
         self._clear_mail_editor();self._clear_projects()
     def _clear_projects(self):
         self.projects=[];self.project_index=None
@@ -567,6 +573,7 @@ class App(ctk.CTk):
         mail=ttk.Frame(basic_nb,padding=8);basic_nb.add(mail,text='Plantillas correo')
         self.tpl_key=tk.StringVar(value='espera');box=NamedChoice(mail,keyvariable=self.tpl_key,names=lambda:{k:v['nombre']+(' · archivada' if v.get('archivada') else '') for k,v in self.cfg.data['correos']['plantillas'].items()},state='readonly',width=35);box.grid(row=0,column=0);box.bind('<<ComboboxSelected>>',self._load_tpl)
         self.tpl_name=tk.StringVar();self.tpl_subject=tk.StringVar();self.tpl_req=tk.BooleanVar();self.tpl_modes=tk.BooleanVar()
+        self.tpl_category=tk.StringVar()
         self._field(mail,'Nombre',self.tpl_name,1);self._field(mail,'Asunto',self.tpl_subject,2)
         self.tpl_body=ScrolledText(mail,wrap='word',height=7,undo=True,font=('Segoe UI',11));self.tpl_body.grid(row=3,column=0,columnspan=2,sticky='nsew');mail.rowconfigure(3,weight=1)
         ttk.Checkbutton(mail,text='Adjunto obligatorio',variable=self.tpl_req).grid(row=4,column=0)
@@ -576,7 +583,12 @@ class App(ctk.CTk):
         variable_bar=ttk.Frame(mail);variable_bar.grid(row=6,column=0,columnspan=2,sticky='ew',pady=5)
         ttk.Combobox(variable_bar,textvariable=self.tpl_variable,values=['{'+v+'}' for v in sorted(VARIABLES)],state='readonly',width=24).pack(side='left')
         ttk.Button(variable_bar,text='Insertar en cuerpo',command=lambda:self.tpl_body.insert('insert',self.tpl_variable.get())).pack(side='left',padx=4)
-        ttk.Label(mail,text='Los cambios se guardan también al cambiar de plantilla o cerrar.').grid(row=7,column=0,columnspan=2,sticky='w')
+        ttk.Label(mail,text='Comportamiento del correo').grid(row=7,column=0,sticky='w')
+        from .config import defaults
+        NamedChoice(mail,keyvariable=self.tpl_category,names=lambda:{'':'General · selección explícita',
+                    **{key:tpl['nombre'] for key,tpl in defaults()['correos']['plantillas'].items()}},
+                    state='readonly',width=34).grid(row=7,column=1,sticky='ew')
+        ttk.Label(mail,text='Los cambios se guardan también al cambiar de plantilla o cerrar.').grid(row=9,column=0,columnspan=2,sticky='w')
         self.tpl_box=box
         ttk.Button(mail,text='Nueva plantilla',command=lambda:self._guard(self._new_tpl)).grid(row=5,column=1,sticky='w');self._load_tpl()
 
@@ -673,12 +685,18 @@ class App(ctk.CTk):
         self.tpl_name.set(tpl['nombre']);self.tpl_subject.set(tpl['asunto'])
         self.tpl_body.delete('1.0','end');self.tpl_body.insert('1.0',tpl['cuerpo']);self.tpl_body.edit_reset()
         self.tpl_req.set(tpl['adjunto']=='obligatorio');self.tpl_modes.set(tpl.get('usa_modalidades',False))
+        if hasattr(self,'tpl_category'):
+            from .mail_category import category,CATEGORIES
+            operational=category(tpl,self._editing_tpl_key)
+            self.tpl_category.set(operational if operational in CATEGORIES else '')
 
     def _save_tpl(self,notify=True):
         key=getattr(self,'_editing_tpl_key',None)
         if not key:return
         cfg=deepcopy(self.cfg.data);tpl=cfg['correos']['plantillas'][key]
         tpl.update(nombre=self.tpl_name.get().strip(),asunto=self.tpl_subject.get(),cuerpo=self.tpl_body.get('1.0','end-1c'),adjunto='obligatorio' if self.tpl_req.get() else 'opcional',usa_modalidades=self.tpl_modes.get())
+        if hasattr(self,'tpl_category') and ('categoria' in tpl or self.tpl_category.get()!=key):
+            tpl['categoria']=self.tpl_category.get()
         if not tpl['nombre']:raise ValueError('La plantilla necesita un nombre.')
         if cfg!=self.cfg.data:
             cfg.setdefault('template_backups',{})[key]=deepcopy(self.cfg.data['correos']['plantillas'][key])
@@ -772,22 +790,20 @@ class App(ctk.CTk):
         ttk.Button(top,text='Exportar Excel',command=lambda:self._guard(self._export_sent)).grid(row=5,column=1,sticky='e')
         history=ttk.Notebook(page);history.pack(fill='both',expand=True)
         outlook=ttk.Frame(history);local=ttk.Frame(history)
-        history.add(local,text='Actividad local');history.add(outlook,text='Enviados de Outlook')
+        history.add(local,text='Actividad del trabajo');history.add(outlook,text='Enviados de Outlook')
         self.sent=self._tree(outlook,('Fecha','Destinatario','Asunto'))
         self.activity=self._tree(local,('Fecha','Tipo','Estado','Archivo / detalle'))
         self.activity.bind('<Double-1>',lambda event:self._open_activity())
-        ttk.Label(local,text='La actividad local registra productos y borradores guardados en esta aplicación. No implica que un correo haya sido enviado.',text_color=ttk.MUTED,wraplength=900).pack(fill='x',pady=4)
+        ttk.Label(local,text='Productos y borradores del trabajo activo. Los borradores guardados no acreditan un envío.',text_color=ttk.MUTED,wraplength=900).pack(fill='x',pady=4)
 
     def _update_local_activity(self):
         if not hasattr(self,'activity'):return
         self.activity.delete(*self.activity.get_children())
         work=getattr(self,'work',None)
         if not work:return
-        for key,receipt in reversed(list(getattr(work,'receipts',{}).items())):
-            kind=str(receipt.get('kind','producto'))
-            state=str(receipt.get('state','generado'))
-            path=receipt.get('path') or receipt.get('entry_id') or key
-            self.activity.insert('', 'end', iid=str(key), values=(date.today().isoformat(),kind,state,str(path)))
+        from .activity import activity_rows
+        for key,values in activity_rows(getattr(work,'receipts',{})):
+            self.activity.insert('', 'end', iid=key, values=values)
 
     def _open_activity(self):
         if not hasattr(self,'activity') or not self.activity.selection():return
@@ -821,4 +837,3 @@ def main():
     personal_main()
 
 if __name__=='__main__':main()
-

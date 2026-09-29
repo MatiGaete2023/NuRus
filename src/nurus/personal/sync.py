@@ -98,6 +98,11 @@ def refresh(work, resolutions=None):
     if data['digest'] == work.output_hash:
         return False
     incoming = associate(work, data)
+    from copy import copy
+    recalculation=copy(work)
+    recalculation.mapping=data['mapping']
+    recalculation.header=data['header']
+    recalculation.sheet=data['sheet']
     conflicts = []
     updated = deepcopy(work.rows)
     for row in updated:
@@ -148,7 +153,7 @@ def refresh(work, resolutions=None):
                              for key, column in work.mapping.items() if key not in IDENTITY_FIELDS)
         row.values = values
         if changed_source and (row.rules or not getattr(work, 'external_input', False)):
-            recalculate(work, row)
+            recalculate(recalculation, row)
     if conflicts:
         raise SyncConflict(conflicts)
     from .work import _sync_resolution_warning
@@ -177,4 +182,3 @@ def require_current_copy(work):
         raise ValueError('La copia fue movida. Usa Localizar copia antes de preparar productos.')
     if sha256(path.read_bytes()).hexdigest() != work.output_hash:
         raise ValueError('Excel tiene cambios pendientes. Usa Actualizar desde Excel antes de preparar o guardar productos.')
-
