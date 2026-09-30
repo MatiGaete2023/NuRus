@@ -29,6 +29,9 @@ def fingerprint(work, record_ids, kind, recipient_type=''):
         record={key:getattr(row,key) for key in
                 ('id','review','observation','actions','excluded','decisions','overrides','word_overrides')}
         record['values']={key:row.values.get(column,'') for key,column in mapping.items()}
+        if is_mail:
+            from .outputs import due_value
+            record['mail_metric']=due_value(work,row,operational)
         records.append(record)
     records.sort(key=lambda row: row['id'])
     configuration = {key: cfg.get(key) for key in ('correos', 'contactos', 'aliases', 'firma')}

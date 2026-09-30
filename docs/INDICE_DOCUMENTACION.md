@@ -1,13 +1,14 @@
 # Índice y vigencia de documentación
 
-Actualizado: 29 de septiembre de 2026. Versión de trabajo: **0.4.0.dev13** en `codex/auditoria-ux-20260925-final`. `main` conserva la candidata anterior hasta su integración.
+Actualizado: 30 de septiembre de 2026. Versión de trabajo: **0.4.0.dev14** en `codex/auditoria-ux-20260925-final`. `main` conserva la candidata anterior hasta su integración.
 
 ## Documentos vigentes para CSMP Assistant personal
 
 - `REVISION_Y_PLAN_20260929.md`: referencia actual de revisión, pasos de implementación y evidencia por cada mejora.
-- `../README.md`: instalación, actualización y uso de dev13.
+- `CORRECCION_ADJUNTOS_20260930.md`: parche dev14 de bordes y campos operativos de nóminas.
+- `../README.md`: instalación, actualización y uso de dev14.
 - `VERIFICACION_PERSONAL.md`: resultados registrados y límites de validación.
-- `ACEPTACION_CSMP_PERSONAL.md`: protocolo de Office y aceptación real fechada, sin trasladar resultados antiguos a dev13.
+- `ACEPTACION_CSMP_PERSONAL.md`: protocolo de Office y aceptación real fechada, sin trasladar resultados antiguos a dev14.
 - `IMPLEMENTACION.md`: portada operativa actual.
 - `IMPLEMENTACION_AUDITORIA_20260928.md`: cambios heredados en integridad, recuperación y edición.
 - `correccion_mulchen_20260928.md` y `correccion_residencial_20260929.md`: antecedentes del arreglo de Mulchén y RTA/RTT/RVA.

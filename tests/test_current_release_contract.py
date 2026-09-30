@@ -26,7 +26,7 @@ def test_release_version_and_current_docs_are_aligned():
     assert 'CAMBIOS_USO_20260914.md' in index and 'histórico' in index.lower()
     readme=current_docs[0].read_text(encoding='utf-8')
     assert 'Windows/Linux' not in readme
-    assert '29 de septiembre de 2026' in readme
+    assert '30 de septiembre de 2026' in readme
     assert 'codex/auditoria-ux-20260925-final' in readme
     personal=(ROOT/'docs/IMPLEMENTACION_PERSONAL.md').read_text(encoding='utf-8')
     assert 'excepción documentada' not in personal.lower()

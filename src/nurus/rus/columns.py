@@ -36,6 +36,9 @@ COMMON: dict[str, tuple[str, ...]] = {
     "rut": ("RUT", "RUT MENOR", "RUT NNA", "RUT LITIGANTE"),
 }
 
+VENCIMIENTO_ALIASES = ("FECHA VENCIMIENTO", "FEC.VENCIMIENTO", "FEC. VENCIMIENTO",
+                       "F. VENCIMIENTO", "F.VENCIMIENTO", "FVENCIMIENTO", "FECHA DE VENCIMIENTO")
+
 MODE_COLUMNS: dict[Mode, dict[str, tuple[str, ...]]] = {
     Mode.ESPERA: {"espera": ("T ESPERA", "T_ESPERA", "DIAS_ESPERA", "TESPERA", "DÍAS DE ESPERA", "DIAS DE ESPERA")},
     Mode.CUMPLIMIENTO: {
@@ -47,7 +50,7 @@ MODE_COLUMNS: dict[Mode, dict[str, tuple[str, ...]]] = {
         "ficha_ind": ("FEC.ACT.F.INDIVIDUAL", "FEC. ACT. F. INDIVIDUAL", "FEC ACT F INDIVIDUAL"),
     },
     Mode.INFORMES: {
-        "vencimiento": ("FECHA VENCIMIENTO", "FEC.VENCIMIENTO", "FEC. VENCIMIENTO"),
+        "vencimiento": VENCIMIENTO_ALIASES,
         # FECHA INGRESO y FEC. INGRESO EFECTIVO son datos distintos en los
         # libros RUS. I-01/I-02 no consumen la primera; no deben colisionar.
         "ingreso": ("FEC.INGRESO EFECTIVO", "FEC. INGRESO EFECTIVO", "FEC INGRESO EFECTIVO"),
@@ -60,7 +63,7 @@ H2_COLUMNS: dict[str, tuple[str, ...]] = {
     "nombre": ("NOMBRE MENOR", "NOMBRE"),
     "tribunal": ("TRIBUNAL",),
     "programa": ("NOMBRE CENTRO", "DERIVACION", "DERIVACIÓN"),
-    "vencimiento": ("FECHA VENCIMIENTO", "FEC.VENCIMIENTO", "FEC. VENCIMIENTO"),
+    "vencimiento": VENCIMIENTO_ALIASES,
 }
 
 

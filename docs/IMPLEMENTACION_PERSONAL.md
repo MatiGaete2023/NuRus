@@ -1,4 +1,4 @@
-> Versión actual: **0.4.0.dev13**, 29-09-2026. [REVISION_Y_PLAN_20260929.md](REVISION_Y_PLAN_20260929.md) y el README describen los paneles, recuperación y correcciones vigentes. La descripción fechada que sigue conserva decisiones funcionales anteriores; no acredita la verificación de esta versión nueva.
+> Versión actual: **0.4.0.dev14**, 30-09-2026. [CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md) y el README describen los paneles, recuperación y correcciones vigentes. La descripción fechada que sigue conserva decisiones funcionales anteriores; no acredita la verificación de esta versión nueva.
 
 # Implementación CSMP Assistant personal — 16 de septiembre de 2026
 

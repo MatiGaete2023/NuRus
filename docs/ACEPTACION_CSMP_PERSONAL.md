@@ -1,9 +1,9 @@
-# Protocolo actual — 0.4.0.dev13
+# Protocolo actual — 0.4.0.dev14
 
-La evidencia automática actual está en [REVISION_Y_PLAN_20260929.md](REVISION_Y_PLAN_20260929.md).
+La evidencia automática actual está en [CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md).
 La aceptación institucional del 22-09 que sigue se conserva como evidencia de
 dev11. Las comprobaciones de Office pendientes no se convierten en aprobadas por
-las pruebas simuladas de dev13.
+las pruebas simuladas de dev14.
 
 # Aceptación histórica — CSMP Assistant personal 0.4.0.dev12
 

@@ -1,7 +1,7 @@
-# Evidencia actual — 0.4.0.dev13
+# Evidencia actual — 0.4.0.dev14
 
-La revisión del 29-09-2026 y sus resultados están en
-[REVISION_Y_PLAN_20260929.md](REVISION_Y_PLAN_20260929.md). Los resultados de CI y
+La corrección del 30-09-2026 y sus resultados están en
+[CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md). Los resultados de CI y
 uso real fechados que siguen corresponden a sus respectivos commits y versiones.
 No prueban por sí solos la versión actual. El workflow incluye ahora `codex/**`.
 

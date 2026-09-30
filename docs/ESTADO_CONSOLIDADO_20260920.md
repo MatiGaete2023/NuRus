@@ -1,5 +1,5 @@
-> Checkpoint histórico de dev11/dev12. Para el estado actual **0.4.0.dev13** y
-> su implementación del 29-09, consulta [REVISION_Y_PLAN_20260929.md](REVISION_Y_PLAN_20260929.md)
+> Checkpoint histórico de dev11/dev12. Para el estado actual **0.4.0.dev14** y
+> su implementación del 30-09, consulta [CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md)
 > y el [README](../README.md). Las decisiones y verificaciones fechadas de este
 > documento siguen siendo antecedentes, no resultados de la versión nueva.
 

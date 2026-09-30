@@ -146,18 +146,19 @@ def _table(work,rows,path,kind=''):
         headers=['RIT','TRIBUNAL','NOMBRE','DERIVACION','F. VENCIMIENTO']
         keys=('rit','tribunal','nombre','programa','vencimiento')
     else:
-        headers=['RIT','TRIBUNAL','RUT','NOMBRE','PROGRAMA','VENCIMIENTO / ESPERA','OBSERVACION']
+        metric_header={'espera':'T ESPERA','vencimiento':'F. VENCIMIENTO','egreso_proy':'F. EGRESO PROYECTADO'}[mail_metric_key(work,kind)]
+        headers=['RIT','TRIBUNAL','RUT','NOMBRE','PROGRAMA',metric_header,'OBSERVACION']
         keys=None
     sheet.append(headers)
     for row in rows:
         if keys:
-            sheet.append([value(work,row,key) for key in keys])
+            sheet.append([mail_metric_value(work,row,key) or 'Sin dato' if key in ('espera','vencimiento') else value(work,row,key) for key in keys])
         else:
-            sheet.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[due_value(work,row,kind),str(row.review.get('OBSERVACION',row.observation))])
+            sheet.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[due_value(work,row,kind) or 'Sin dato',str(row.review.get('OBSERVACION',row.observation))])
         for cell in sheet[sheet.max_row]:cell.data_type='s'
     sheet.freeze_panes='A2';sheet.auto_filter.ref=sheet.dimensions
     for cell in sheet[1]:cell.font=Font(bold=True)
-    thin=Side(style='thin')
+    thin=Side(style='thin',color='FF000000')
     border=Border(left=thin,right=thin,top=thin,bottom=thin)
     for cells in sheet.iter_rows(min_row=1,max_row=sheet.max_row,min_col=1,max_col=sheet.max_column):
         for cell in cells:cell.border=border
@@ -192,9 +193,35 @@ def draft_fingerprint(draft):
     return sha256(json.dumps(payload,ensure_ascii=False,sort_keys=True).encode('utf-8')).hexdigest()
 
 
+def mail_metric_key(work,kind):
+    """Fecha o días correspondientes al correo, sin intercambiar magnitudes."""
+    if kind in ('espera','programa_espera'):return 'espera'
+    if kind in ('informes','programa_vencido','programa_por_vencer'):return 'vencimiento'
+    if kind in ('cumplimiento','medidas'):return 'egreso_proy'
+    mode=str(getattr(work,'mode','')).upper()
+    if mode=='CUMPLIMIENTO':return 'egreso_proy'
+    if mode=='INFORMES' or (not mode and 'vencimiento' in work.mapping):return 'vencimiento'
+    return 'espera'
+
+
+def mail_metric_value(work,row,key):
+    """Lee también columnas presentes fuera del modo activo y sesiones antiguas.
+
+    Las correcciones, incluido cero o vacío explícito, tienen prioridad. Una
+    columna ambigua produce un error en lugar de elegir una fecha arbitraria.
+    """
+    if key in getattr(row,'overrides',{}) or key in work.mapping:return value(work,row,key).strip()
+    from nurus.rus.columns import map_columns
+    mode={'espera':'ESPERA','vencimiento':'INFORMES','egreso_proy':'CUMPLIMIENTO'}[key]
+    column=map_columns(row.values.keys(),mode).get(key)
+    raw=row.values.get(column,'')
+    if raw is None:return ''
+    if isinstance(raw,(date,datetime)):return raw.strftime('%d/%m/%Y')
+    return str(raw).strip()
+
+
 def due_value(work,row,kind):
-    if kind=='medidas' and str(getattr(work,'mode','')).upper()=='CUMPLIMIENTO':return value(work,row,'egreso_proy')
-    return value(work,row,'vencimiento') or value(work,row,'espera')
+    return mail_metric_value(work,row,mail_metric_key(work,kind))
 
 
 def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto'):

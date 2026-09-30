@@ -1,6 +1,6 @@
 # Estado operativo — CSMP Assistant personal
 
-Actualizado: 29 de septiembre de 2026. Versión **0.4.0.dev13**. Único producto: Asistente personal Windows, Python 3.12–3.14. La referencia actual es [REVISION_Y_PLAN_20260929.md](REVISION_Y_PLAN_20260929.md); los resultados de versiones anteriores que siguen son evidencia histórica.
+Actualizado: 30 de septiembre de 2026. Versión **0.4.0.dev14**. Único producto: Asistente personal Windows, Python 3.12–3.14. La referencia actual es [CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md); los resultados de versiones anteriores que siguen son evidencia histórica.
 
 ## Código vigente
 
