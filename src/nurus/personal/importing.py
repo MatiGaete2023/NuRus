@@ -4,6 +4,7 @@ from pathlib import Path
 from hashlib import sha256
 import json
 from nurus.rus.columns import map_columns, normalize, ColumnMappingError
+from nurus.rus.reader import _engine
 
 class SheetChoice(ValueError):
     def __init__(self,names):
@@ -17,7 +18,7 @@ def read_external(path,mode='ESPERA',sheet=None):
     requested=str(mode).upper()
     distinctive={'ESPERA':'espera','CUMPLIMIENTO':'dias_cumpl','INFORMES':'vencimiento'}
     candidates=[]
-    with pd.ExcelFile(BytesIO(content),engine='xlrd' if path.suffix.lower()=='.xls' else 'openpyxl') as book:
+    with pd.ExcelFile(BytesIO(content),engine=_engine(path,content[:4096])) as book:
         for name in book.sheet_names:
             if sheet and name!=sheet:continue
             preview=pd.read_excel(book,sheet_name=name,header=None,nrows=60,dtype=object,keep_default_na=False)

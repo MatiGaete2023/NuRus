@@ -101,6 +101,10 @@ class Work:
         self.source_hash=batch.workbook_sha256
         self.content=batch.source_bytes
         self.warnings=list(batch.warnings)
+        from .sitfa import inspect_batch,source_index
+        self.compatibility=inspect_batch(batch,date.fromisoformat(self.as_of))
+        self.warnings.extend(self.compatibility['mensajes'])
+        self.sitfa_sources=source_index(batch.source_bytes)
         self.needs_cross=False
         self.cross_missing=self.mode=='CUMPLIMIENTO' and not batch.cross_records
         self.rows=[]
@@ -238,6 +242,8 @@ class Work:
         obj.sheet=data['sheet'];obj.header=data['header'];obj.mapping=data['mapping']
         obj.content=data['content'];obj.source_hash=data['digest'];obj.output_hash=data['digest'];obj.needs_cross=False;obj.cross_missing=False
         obj.external_input=True;obj.warnings=[];seen={}
+        from .sitfa import source_index
+        obj.sitfa_sources=source_index(data['content'])
         for number,values,review,rules in data['records']:
             identity='|'.join(historical_match(values.get(obj.mapping.get(k,''),'')) for k in ('rit','rut','nombre','tribunal','programa'))
             ordinal=seen.get(identity,0);seen[identity]=ordinal+1

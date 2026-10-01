@@ -22,6 +22,10 @@ from nurus.rus.columns import normalize
 
 class App(_BaseApp):
     def __init__(self,configuration=None):
+        if configuration is None:
+            import os
+            from .config import Configuration
+            configuration=Configuration(Path(os.environ.get('LOCALAPPDATA') or Path.home())/'CSMP_Personal_Experimental')
         super().__init__(configuration=configuration)
         width=min(1180,self.winfo_screenwidth()-60)
         height=min(820,self.winfo_screenheight()-110)
@@ -171,7 +175,12 @@ class App(_BaseApp):
         cfg=self.cfg.data
         def done(work):
             self.work=work;self._clear_drafts();self.observation_id=None;self._show_work();self._export_current()
-        self._run('Analizando '+mode+'…',lambda:Work(cfg).analyze(path,mode,sheet=sheet),done)
+        def analyze():
+            from .sitfa import inspect_input
+            report=inspect_input(path,mode,sheet)
+            if report['faltan']:raise ValueError('No se procesa un análisis incompleto: faltan '+', '.join(report['faltan'])+'. Revisa el libro o su exportación CSMP.')
+            return Work(cfg).analyze(path,mode,sheet=sheet)
+        self._run('Analizando '+mode+'…',analyze,done)
 
     def _export_current(self):
         self._capture_observation()
@@ -290,8 +299,20 @@ class App(_BaseApp):
         self._apply_resolution_filter()
 
 
-def main():
-    App().mainloop()
+def main(argv=None):
+    from .sitfa import startup_arguments
+    args=startup_arguments(argv);app=App()
+    app.title('CSMP Assistant · Experimental · Integración SITFA')
+    if args.archivo:
+        # Una precarga nueva no conserva productos visibles del trabajo recuperado.
+        app.work=None;app._clear_drafts();app._clear_projects();app.records.delete(*app.records.get_children())
+        app.context.set('Libro SITFA precargado · análisis pendiente')
+        app.file.set(str(args.archivo));app.mode.set(args.modo or 'ESPERA');app.sheet.set(args.hoja or '')
+        app.status.set('Libro precargado. Revisa modo/hoja y pulsa Comprobar columnas o PROCESAR. No se ha ejecutado el análisis.')
+        from nurus.rus.reader import list_workbook_sheets
+        app._run('Identificando hojas del libro precargado…',lambda:list_workbook_sheets(args.archivo),
+                 lambda names:(app.sheet_box.configure(values=['',*names]),app.status.set('Libro precargado. Elige modo/hoja y PROCESAR; la revisión anterior sigue separada.')))
+    app.mainloop()
 
 
 if __name__=='__main__':main()

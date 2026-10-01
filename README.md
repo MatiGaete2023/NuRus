@@ -1,5 +1,10 @@
 # CSMP Assistant personal — Windows
 
+**Rama experimental para comparación:** este checkout añade integración SITFA,
+precarga, comprobación de columnas y procedencia, con configuración independiente.
+Consulta [INTEGRACION_SITFA_EXPERIMENTAL.md](docs/INTEGRACION_SITFA_EXPERIMENTAL.md).
+La candidata original descrita abajo se conserva sin cambios en `main`.
+
 Versión **0.4.0.dev11**, estado consolidado al 22 de septiembre de 2026. **Candidata funcional congelada** para uso cotidiano controlado; no se agregan nuevas funciones durante esta fase. Esta rama está orientada exclusivamente a Windows. El asistente prepara insumos editables; el registro oficial de la gestión se realiza en RUS. No escribe en RUS/SATURNO y no envía correos. El estado completo, las decisiones, problemas resueltos y próximos pasos están en [`docs/ESTADO_CONSOLIDADO_20260920.md`](docs/ESTADO_CONSOLIDADO_20260920.md).
 
 ## Estado de congelamiento

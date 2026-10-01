@@ -263,6 +263,23 @@ class App(ctk.CTk):
         self.observation_editor.bind('<Control-Return>',lambda event:(self._guard(self._apply_observation),'break')[1])
         ttk.Button(edit,text='Aplicar edición · Ctrl+Enter',command=lambda:self._guard(self._apply_observation)).pack(anchor='e')
         ttk.Button(extra,text='Cargar planilla modificada',command=lambda:self._guard(self._external)).pack(side='left')
+        sitfa_controls=ttk.Frame(page);sitfa_controls.pack(fill='x',before=split,pady=3)
+        ttk.Button(sitfa_controls,text='Comprobar columnas',command=lambda:self._guard(self._inspect_input)).pack(side='left',padx=6)
+        ttk.Button(sitfa_controls,text='Abrir original SITFA',command=lambda:self._guard(self._open_sitfa_source)).pack(side='left',padx=6)
+
+    def _inspect_input(self):
+        from .sitfa import inspect_input
+        path=self.file.get();mode=self.mode.get();sheet=self.sheet.get() or None
+        def done(report):
+            message=report['estado']+'\n'+'\n'.join(report['mensajes'])
+            self.status.set(message.replace('\n',' · '));messagebox.showinfo('Compatibilidad del libro',message,parent=self)
+        self._run('Comprobando columnas y antigüedad…',lambda:inspect_input(path,mode,sheet),done)
+
+    def _open_sitfa_source(self):
+        from .sitfa import verified_source
+        work=self._require_work();selected=self.records.selection()
+        if len(selected)!=1:raise ValueError('Selecciona una fila para abrir su original.')
+        row=next(r for r in work.rows if r.id==selected[0]);self._open(verified_source(work,row))
 
     def _select_folder(self,var):
         path=filedialog.askdirectory()

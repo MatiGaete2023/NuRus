@@ -6,6 +6,7 @@ on:
       - main
       - csmp-personal-2026-09-13
       - csmp-ux-20260921
+      - 'experimento/**'
   pull_request:
 
 jobs:
@@ -94,3 +95,17 @@ jobs:
           name: nurus-wheel-${{ matrix.os }}-py${{ matrix.python }}
           path: |
             dist/*.whl
+
+      - name: Build experimental executable
+        if: matrix.python == '3.12' && startsWith(github.head_ref || github.ref_name, 'experimento/')
+        run: |
+          python -m pip install pyinstaller
+          python -m PyInstaller --noconfirm CSMP_Experimental.spec
+
+      - name: Experimental executable
+        if: matrix.python == '3.12' && startsWith(github.head_ref || github.ref_name, 'experimento/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSMP-experimental-Windows
+          path: dist/CSMP_Experimental/
+          if-no-files-found: error
