@@ -6,6 +6,7 @@ from pathlib import Path
 import platform
 import tempfile
 from zipfile import ZipFile
+from xml.etree import ElementTree
 
 from nurus.rus.columns import normalize
 from nurus.rus.rules import as_date, as_int
@@ -47,7 +48,11 @@ def _format(content):
         names = {name.lower() for name in package.namelist()}
         if 'xl/connections.xml' in names or any('macrosheets/' in name for name in names):
             raise ValueError('Este libro requiere revisar sus conexiones o macros XLM antes de abrirlo en Excel.')
-        return '.xlsm' if 'xl/vbaproject.bin' in names else '.xlsx'
+        types = ElementTree.fromstring(package.read('[Content_Types].xml'))
+        macro = any(item.attrib.get('PartName') == '/xl/workbook.xml' and
+                    item.attrib.get('ContentType') == 'application/vnd.ms-excel.sheet.macroEnabled.main+xml'
+                    for item in types)
+        return '.xlsm' if macro or 'xl/vbaproject.bin' in names else '.xlsx'
 
 
 def _native(content, target, sheet_name, updates):
@@ -114,6 +119,8 @@ def _portable(content, target, sheet_name, updates):
             sheet.cell(row, cc_column).value = charge
         book.save(target)
     finally:
+        if book.vba_archive is not None:
+            book.vba_archive.close()
         book.close()
 
 

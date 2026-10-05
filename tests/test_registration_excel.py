@@ -268,3 +268,25 @@ def test_existing_observation_can_return_its_date_without_becoming_new_managemen
     finally:
         book.close()
     assert adapter.saves == 0
+
+
+def test_macro_enabled_format_without_a_vba_project_is_preserved(tmp_path):
+    from io import BytesIO
+    from zipfile import ZipFile
+    original = source(tmp_path)
+    content = BytesIO()
+    with ZipFile(original) as before, ZipFile(content, 'w') as after:
+        for item in before.infolist():
+            data = before.read(item.filename)
+            if item.filename == '[Content_Types].xml':
+                data = data.replace(b'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml',
+                                    b'application/vnd.ms-excel.sheet.macroEnabled.main+xml')
+            after.writestr(item, data)
+    macro = tmp_path / 'registro.xlsm'
+    macro.write_bytes(content.getvalue())
+    path, work, journal, operation, adapter = registered(tmp_path, path=macro)
+    target = tmp_path / 'devuelto.xlsm'
+    portable(journal, path, target)
+    with ZipFile(target) as book:
+        assert b'application/vnd.ms-excel.sheet.macroEnabled.main+xml' in book.read('[Content_Types].xml')
+    assert journal.get(operation)['state'] == 'COMPROBADA' and adapter.saves == 1

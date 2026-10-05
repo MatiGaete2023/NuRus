@@ -31,7 +31,7 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 | C07 | Servicio común probado: máximo cuatro meses, última entrada del centro de cualquier autor, fechas empatadas y sin retroceso a entradas antiguas. | Conectar y verificar el lector real de bitácoras. |
 | C08 | Servicio probado: CC por tipo, respuestas desconocidas separadas, reiteraciones y deduplicación por ID remoto. | Lectura de textos completos, respuestas y paginación reales. |
 | C09 | Intención del texto efectivo del Excel, identidad/contexto y guardado único probados con adaptador ficticio. | Completar el adaptador real, campos y contrato de guardar/releer en RUS. |
-| C10 | Diario SQLite, recuperación sin reenvío y devolución por ingreso a una copia; conflictos y cortes probados con datos ficticios. | Prueba nativa de la devolución específica, prueba real RUS y aceptación del paquete dev16. |
+| C10 | Diario SQLite, recuperación sin reenvío y devolución por ingreso a una copia; conflictos y cortes probados con datos ficticios. | Prueba real RUS y aceptación del paquete dev16; devolución nativa verificada en XLS/XLSX/XLSM. |
 | C11 | Pendiente de bandeja de seguimiento conjunta. | Integrar firmas, bitácoras, respuestas y siguientes comprobaciones. |
 | C12 | Edición, contactos, matrices y configuración de la base preservadas. | Auditar y completar presets, columnas y preferencias avanzadas aún ausentes. |
 | C13 | Historial y búsqueda existentes preservados; revisión de firma persistente por ingreso real entre descargas. | Separar texto consultado/guardado y ampliar búsqueda de gestiones nuevas. |
@@ -70,3 +70,5 @@ Estas comprobaciones no equivalen a un registro real en RUS. La conexión de Chr
 La primera revisión del nuevo diario y escritor aprobó 30 pruebas locales con datos ficticios. Los ajustes posteriores incluyen etapa/modalidad, texto actual del archivo, fórmulas y acceso a Resultados en ventana pequeña; su prueba local quedó sin ejecutar porque la revisión automática alcanzó su límite de uso. Las pruebas Windows publicadas de dev15 ya finalizaron correctamente en las tres versiones de Python, y las del descargador en ambas.
 
 El adaptador real sigue pendiente. Estos módulos no acreditan aún escritura judicial ni la prueba nativa del nuevo retorno; véase REGISTRO_RECUPERABLE_20261005.md. Los ZIP dev15 entregados permanecen sin cambios.
+
+La revisión automática volvió a autorizar la ejecución local: 41 pruebas del registro/conciliación aprobadas, regresión completa de 442 aprobadas y una omitida, y 17 pruebas del escritor tras el ajuste de XLSM. La devolución nativa se comprobó en XLS, XLSX y XLSM; no utilizó RUS real.
