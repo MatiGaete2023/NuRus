@@ -1,6 +1,6 @@
 # CSMP Assistant personal — Windows
 
-**Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Integra dev14, procedencia SITFA, el flujo conjunto con alertas de firmas por ingreso y los informes independientes. Añade el diario recuperable de operaciones y la conciliación de fechas con Excel. La cobertura temporal de carga es parcial hasta comprobar su filtro. El adaptador real de lectura y guardado de bitácoras sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse la [guía de pruebas](docs/GUIA_PRUEBAS_INTEGRALES.md), el [diario y la conciliación](docs/REGISTRO_RECUPERABLE_20261005.md) y el [estado de los 32 elementos](docs/ESTADO_PLAN_INTEGRAL_20261005.md).
+**Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Integra dev14, procedencia SITFA, el flujo conjunto con alertas de firmas por ingreso y los informes independientes. Añade el diario recuperable de operaciones y la conciliación de fechas con Excel. La cobertura temporal de carga es parcial hasta comprobar su filtro. El adaptador real de lectura y guardado de bitácoras sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Para probar la copia corregida usa la rama `experimento/plan-integral-csmp-20261005-dev17-fix`. Véanse la [guía de pruebas](docs/GUIA_PRUEBAS_INTEGRALES.md), el [manual interactivo](docs/manual_usuario_csmp.html), la [auditoría completa](docs/AUDITORIA_COMPLETA_20261005.md), el [diario y la conciliación](docs/REGISTRO_RECUPERABLE_20261005.md) y el [estado de los 32 elementos](docs/ESTADO_PLAN_INTEGRAL_20261005.md).
 
 
 Base conservada: **0.4.0.dev14**, actualizada el 30 de septiembre de 2026 en `codex/auditoria-ux-20260925-final`. Aplicación de uso personal en Windows con Python 3.12–3.14. Prepara copias de Excel, proyectos Word y borradores editables de Outlook; el registro oficial se realiza en RUS. La [corrección de adjuntos](docs/CORRECCION_ADJUNTOS_20260930.md) documenta este parche sobre el [informe de revisión y ejecución dev13](docs/REVISION_Y_PLAN_20260929.md).
@@ -36,8 +36,8 @@ La [auditoría y limpieza dev8](docs/LIMPIEZA_ASISTENTE_20260921.md) retira la i
 
 ## Instalación y actualización
 
-1. Descarga el ZIP de **`codex/auditoria-ux-20260925-final`**, que contiene esta versión, y extrae su contenido en una carpeta nueva. `main` conserva la candidata anterior hasta su integración.
-2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat` desde esa misma carpeta. Repite la instalación al actualizar: el lanzador usa el paquete instalado en `.venv-csmp`, no los archivos fuente recién descargados. Comprueba **0.4.0.dev14** en el título de la ventana.
+1. Descarga el ZIP de la rama **`experimento/plan-integral-csmp-20261005-dev17-fix`**, que contiene esta versión corregida, y extrae su contenido en una carpeta nueva. `main` conserva la candidata anterior hasta su integración.
+2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat` desde esa misma carpeta. Repite la instalación al actualizar: el lanzador usa el paquete instalado en `.venv-csmp`, no los archivos fuente recién descargados. Comprueba **0.4.0.dev17** en el título de la ventana.
 3. Se admite Python 3.12, 3.13 o 3.14. El entorno queda en `.venv-csmp` dentro de la carpeta de la aplicación. No requiere permisos de administrador ni Node. El instalador incorpora `customtkinter` 5.2.x dentro de ese entorno aislado.
 4. Excel de escritorio y Outlook clásico son necesarios para la ruta completa de uso institucional. La instalación normal puede descargar dependencias Python; si existe `paquetes/`, el instalador usa ese repositorio local.
 
@@ -84,3 +84,4 @@ El paquete Python sigue llamándose `nurus` para mantener instalaciones y archiv
 La CI está configurada para instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14, incluida la rama `codex/**`. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev14`. La evidencia efectivamente obtenida está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md) y la [corrección actual](docs/CORRECCION_ADJUNTOS_20260930.md).
 
 La validación automática no reemplaza una prueba con la instalación concreta de Excel/Outlook. El [índice documental](docs/INDICE_DOCUMENTACION.md) distingue instrucciones actuales y evidencia histórica.
+
