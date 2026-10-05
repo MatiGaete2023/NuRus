@@ -1,6 +1,6 @@
 # Cómo probar CSMP y el descargador integrales
 
-Versiones: CSMP **0.4.0.dev15** y descargador/extensión **2.4.0**. Estos paquetes usan configuración propia de prototipo. Conservar las carpetas anteriores permite volver a la versión de uso.
+Versiones: CSMP **0.4.0.dev16** y descargador/extensión **2.4.0**. Estos paquetes usan configuración propia de prototipo. Conservar las carpetas anteriores permite volver a la versión de uso.
 
 ## Preparación
 
@@ -31,10 +31,10 @@ Versiones: CSMP **0.4.0.dev15** y descargador/extensión **2.4.0**. Estos paquet
 
 La carga se presenta con **cobertura parcial**: la muestra del sistema selecciona trámites que pueden firmarse después del día consultado. Hasta confirmar ese filtro, «Sin coincidencias en los informes consultados» no acredita ausencia de cambios en la causa.
 
-El analizador y exportador común de bitácoras tienen pruebas locales, pero el lector real, la revisión de calendario individual, el registro automático de observaciones y sus recibos siguen pendientes. Estos ejecutables no registran observaciones nuevas en RUS. El informe de gestión solo cuenta como nuevas las que tengan un recibo de registro comprobado; un Excel importado no basta.
+El analizador y exportador común de bitácoras, el diario de operaciones y la devolución de fechas de recibos comprobados tienen pruebas locales. Siguen pendientes el lector real, la revisión de calendario individual y el adaptador de registro automático. Estos ejecutables no registran observaciones nuevas en RUS. El informe de gestión solo cuenta como nuevas las que tengan un recibo de registro comprobado; un Excel importado no basta.
 
 La aceptación completa sigue el documento de estado de los 32 elementos, incluido en ambos paquetes. Una falla debe conservar el lote y sus manifiestos para localizar la consulta afectada; evitar copiar credenciales o códigos de conexión en informes públicos.
 
-## Fuente dev16 en desarrollo
+## Registro recuperable de dev16
 
-La rama incorpora el diario recuperable y la conciliación de fechas de registros comprobados. Las nuevas opciones de Resultados usan recibos locales; todavía no hay adaptador real ni envío desde la interfaz. Los ZIP dev15 entregados no incluyen este avance. Véase REGISTRO_RECUPERABLE_20261005.md para alcance y pruebas.
+El paquete dev16 incorpora el diario recuperable y la conciliación de fechas de registros comprobados. Las nuevas opciones de Resultados usan recibos locales; todavía no hay adaptador real ni envío desde la interfaz. La devolución se comprobó con Excel de escritorio en XLS, XLSX y XLSM, conservando el original, otras hojas, formatos y fórmulas. Véase REGISTRO_RECUPERABLE_20261005.md para alcance y pruebas.

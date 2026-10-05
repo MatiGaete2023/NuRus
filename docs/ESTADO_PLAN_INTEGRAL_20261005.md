@@ -4,7 +4,7 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 
 ## Versiones y ramas
 
-- CSMP: paquete probado 0.4.0.dev15 y avance de fuente 0.4.0.dev16: `experimento/plan-integral-csmp-20261002`, sobre la base corregida dev14. Configuración de prueba separada en `CSMP_Personal_Prototipo_Integral`.
+- CSMP: paquete Windows probado 0.4.0.dev16: `experimento/plan-integral-csmp-20261002`, sobre la base corregida dev14. Configuración de prueba separada en `CSMP_Personal_Prototipo_Integral`.
 - Descargador 2.4.0: `experimento/plan-integral-descargador-20261002`, sobre la línea experimental 2.3.1. Configuración separada en `SITFA_Descargador_Integral`.
 - El asistente histórico mantiene reglas, correos y proyectos limitados a Laja, Mulchén y Tomé. Las fuentes y alertas admiten todos los tribunales disponibles en la pantalla correspondiente.
 
@@ -49,7 +49,7 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 
 ## Pruebas verificadas
 
-- CSMP: 400 pruebas aprobadas y una omitida. La omitida corresponde a una condición de plataforma; no es prueba pendiente de registro RUS.
+- CSMP dev16: 443 pruebas aprobadas y una omitida en Windows, con Python 3.12, 3.13 y 3.14. La omitida corresponde a una condición de plataforma; no es prueba pendiente de registro RUS. CI del código: https://github.com/MatiGaete2023/NuRus/actions/runs/37348807233.
 - Descargador: 111 pruebas aprobadas antes de añadir la comprobación de arranque del paquete; ésta se ejecuta además sobre el ejecutable real.
 - Excel de escritorio: original intacto, tres ingresos conservados, cuatro columnas de actividad, colores azul/ámbar, bordes y formato original, TT/CC/FECHA_OBS vacíos.
 - Captura real de carga: 169 filas, comparación completa de sus 23 celdas y multiplicidad; 168 firmas válidas, 13 posteriores a la fecha consultada.
@@ -60,15 +60,15 @@ Estas comprobaciones no equivalen a un registro real en RUS. La conexión de Chr
 
 ## Siguiente tramo
 
-1. Verificar y entregar ambos ejecutables y la extensión de la misma versión; publicar el avance en las ramas nuevas.
+1. Probar el flujo completo con los ejecutables y la extensión publicados; el arranque aislado y los recursos empaquetados ya están verificados.
 2. Comprobar bitácora/calendario/historia de la sesión RUS y completar el lector común, la ficha y la auditoría independiente.
 3. Implementar recibos, registro exacto y devolución a Excel; validar un caso que el usuario elija expresamente antes del lote.
 4. Completar bandeja, configuración avanzada y variantes; ejecutar la aceptación de los 32 elementos y de los paquetes finales.
 
 ## Avance posterior: recibos y conciliación dev16
 
-La primera revisión del nuevo diario y escritor aprobó 30 pruebas locales con datos ficticios. Los ajustes posteriores incluyen etapa/modalidad, texto actual del archivo, fórmulas y acceso a Resultados en ventana pequeña; su prueba local quedó sin ejecutar porque la revisión automática alcanzó su límite de uso. Las pruebas Windows publicadas de dev15 ya finalizaron correctamente en las tres versiones de Python, y las del descargador en ambas.
+El diario conserva la intención antes del envío y consulta después de un corte sin repetir el guardado. La conciliación identifica el ingreso real aunque se reordenen las filas, utiliza la fecha comprobada y conserva TT/RES. Una entrada idéntica del mismo autor y día se reutiliza sin enviar ni contar otra gestión. Las pruebas locales emplearon un adaptador ficticio de RUS.
 
-El adaptador real sigue pendiente. Estos módulos no acreditan aún escritura judicial ni la prueba nativa del nuevo retorno; véase REGISTRO_RECUPERABLE_20261005.md. Los ZIP dev15 entregados permanecen sin cambios.
+La devolución nativa se comprobó en XLS, XLSX y XLSM, con original intacto, fórmulas, formatos y otras hojas conservados. Las 443 pruebas del código publicado aprobaron en las tres versiones Windows. El ejecutable dev16 incluye seis matrices Word, cinco revisiones y seis páginas; se comprobó su arranque también después de extraer el ZIP.
 
-La revisión automática volvió a autorizar la ejecución local: 41 pruebas del registro/conciliación aprobadas, regresión completa de 442 aprobadas y una omitida, y 17 pruebas del escritor tras el ajuste de XLSM. La devolución nativa se comprobó en XLS, XLSX y XLSM; no utilizó RUS real.
+El adaptador real sigue pendiente: esta entrega no acredita ni realiza escritura judicial desde la interfaz. Véase REGISTRO_RECUPERABLE_20261005.md. Los paquetes dev15 anteriores permanecen conservados.
