@@ -62,4 +62,3 @@ def resolve(app, conflict):
     ui.Button(buttons, text='Cancelar', command=window.destroy).pack(side='right')
     ui.Button(buttons, text='Aceptar y continuar', command=lambda: app._guard(accept)).pack(side='right', padx=6)
     show()
-

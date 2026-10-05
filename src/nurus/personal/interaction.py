@@ -26,4 +26,3 @@ def unlock(app):
     for widget,state in getattr(app,'_locked_inputs',[]):
         if widget.winfo_exists():widget.configure(state=state)
     app._locked_inputs=[]
-

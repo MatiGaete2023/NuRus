@@ -120,4 +120,3 @@ def test_active_assistant_import_does_not_load_historical_workflow_stack():
     env = dict(os.environ)
     env['PYTHONPATH'] = str(ROOT/'src')
     subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=env, check=True)
-

@@ -23,6 +23,10 @@ from nurus.rus.columns import normalize
 
 class App(_BaseApp):
     def __init__(self,configuration=None):
+        if configuration is None:
+            import os
+            from .config import Configuration
+            configuration=Configuration(Path(os.environ.get('LOCALAPPDATA') or Path.home())/'CSMP_Personal_Prototipo_Integral')
         super().__init__(configuration=configuration)
         width=min(1180,self.winfo_screenwidth()-60)
         height=min(820,self.winfo_screenheight()-110)
@@ -189,7 +193,12 @@ class App(_BaseApp):
         cfg=self.cfg.data
         def done(work):
             self.work=work;self._clear_drafts();self.observation_id=None;self._show_work();self._export_current()
-        self._run('Analizando '+mode+'…',lambda:Work(cfg).analyze(path,mode,sheet=sheet),done)
+        def analyze():
+            from .sitfa import inspect_input
+            report=inspect_input(path,mode,sheet)
+            if report['faltan']:raise ValueError('Faltan columnas para analizar: '+', '.join(report['faltan'])+'. Revisa el libro o su exportación para CSMP.')
+            return Work(cfg).analyze(path,mode,sheet=sheet)
+        self._run('Analizando '+mode+'…',analyze,done)
 
     def _export_current(self):
         self._capture_observation()
@@ -207,6 +216,8 @@ class App(_BaseApp):
 
     def _show_work(self,reset_projects=True):
         if not self.work:return
+        from .review_store import bind
+        bind(self.work,self.cfg.directory/'revisiones_firmas.json')
         self.mode.set(self.work.mode);self.file.set(self.work.path);self.observation_id=None
         self.work_primary_button.configure(text='Exportar copia actual')
         self.observation_editor.delete('1.0','end')
@@ -227,6 +238,8 @@ class App(_BaseApp):
             tags=[]
             if row.excluded:tags.append('excluded')
             elif row.warnings:tags.append('warning')
+            if not row.excluded and self.work.signed_activity.get(row.id,{}).get('pendientes'):
+                state='Firma por revisar';tags.append('signed')
             if row.id in resolution_ids:tags.append('resolution')
             self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'nombre'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=tuple(tags))
             self._work_all_iids.append(row.id)
@@ -324,8 +337,22 @@ class App(_BaseApp):
         self._apply_resolution_filter()
 
 
-def main():
-    App().mainloop()
+def main(argv=None):
+    from .sitfa import startup_arguments
+    args=startup_arguments(argv)
+    if args.verificar_paquete:
+        from .package_check import check
+        check(args.verificar_paquete);return
+    app=App()
+    if args.archivo:
+        app.work=None;app._clear_drafts();app._clear_projects();app.records.delete(*app.records.get_children())
+        app.context.set('Libro SITFA precargado · análisis pendiente')
+        app.file.set(str(args.archivo));app.mode.set(args.modo or 'ESPERA');app.sheet.set(args.hoja or '')
+        app.status.set('Libro precargado. Revisa modo/hoja y pulsa Procesar. Los productos anteriores siguen separados.')
+        from nurus.rus.reader import list_workbook_sheets
+        app._run('Identificando hojas del libro…',lambda:list_workbook_sheets(args.archivo),
+                 lambda names:app.sheet_box.configure(values=['',*names]))
+    app.mainloop()
 
 
 if __name__=='__main__':main()

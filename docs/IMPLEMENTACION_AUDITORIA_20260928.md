@@ -30,4 +30,3 @@ Las plantillas aceptan únicamente variables simples conocidas. El editor permit
 La suite ejecutada en Windows/Python 3.13 terminó con **306 pruebas correctas y 1 omitida**. Las nuevas pruebas cubren ordenación, encabezados desplazados, conciliación y conflictos, decisiones estructuradas, productos obsoletos, recuperación, campos contextuales, personalización y geometría a 1024×650 y 1180×820. El smoke de la ventana real terminó correctamente con captura adaptada por la limitación de `win32ui` del entorno de revisión.
 
 La integración real con una instalación concreta de Excel/Outlook debe verificarse en el equipo de uso antes de distribuir un ejecutable. La rama no envía correos durante las pruebas.
-

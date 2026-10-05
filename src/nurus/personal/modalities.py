@@ -19,7 +19,7 @@ def modality(program):
     return ''
 def selected_row(work,row,keys):
     if keys is None or set(keys)==set(MODALITIES):return True
-    explicit=next((str(v) for k,v in row.values.items() if normalize(k) in ('modalidad','tipo programa')), '')
+    explicit=str(row.values.get('SITFA_MODALIDAD','')) or next((str(v) for k,v in row.values.items() if normalize(k) in ('modalidad','tipo programa')), '')
     program=getattr(row,'overrides',{}).get('programa',row.values.get(work.mapping.get('programa',''),''))
     key=modality(explicit) or modality(program)
     return key in keys

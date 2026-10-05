@@ -1,5 +1,8 @@
 # Índice y vigencia de documentación
 
+**Prototipo 0.4.0.dev15 · 2 de octubre de 2026.** Integra dev14, procedencia SITFA y el flujo conjunto con alertas de firmas por ingreso. La cobertura temporal de carga es parcial hasta comprobar su filtro. La lectura y el registro automático de bitácoras del plan integral siguen en desarrollo; esta versión todavía no escribe observaciones en RUS. Véase `docs/PLAN_INTEGRAL_20261002.md`.
+
+
 Actualizado: 30 de septiembre de 2026. Versión de trabajo: **0.4.0.dev14** en `codex/auditoria-ux-20260925-final`. `main` conserva la candidata anterior hasta su integración.
 
 ## Documentos vigentes para CSMP Assistant personal

@@ -1,5 +1,8 @@
 # Estado operativo — CSMP Assistant personal
 
+**Prototipo 0.4.0.dev15 · 2 de octubre de 2026.** Integra dev14, procedencia SITFA y el flujo conjunto con alertas de firmas por ingreso. La cobertura temporal de carga es parcial hasta comprobar su filtro. La lectura y el registro automático de bitácoras del plan integral siguen en desarrollo; esta versión todavía no escribe observaciones en RUS. Véase `docs/PLAN_INTEGRAL_20261002.md`.
+
+
 Actualizado: 30 de septiembre de 2026. Versión **0.4.0.dev14**. Único producto: Asistente personal Windows, Python 3.12–3.14. La referencia actual es [CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md); los resultados de versiones anteriores que siguen son evidencia histórica.
 
 ## Código vigente

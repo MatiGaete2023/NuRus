@@ -1,5 +1,8 @@
 # Protocolo actual — 0.4.0.dev14
 
+**Prototipo 0.4.0.dev15 · 2 de octubre de 2026.** Integra dev14, procedencia SITFA y el flujo conjunto con alertas de firmas por ingreso. La cobertura temporal de carga es parcial hasta comprobar su filtro. La lectura y el registro automático de bitácoras del plan integral siguen en desarrollo; esta versión todavía no escribe observaciones en RUS. Véase `docs/PLAN_INTEGRAL_20261002.md`.
+
+
 La evidencia automática actual está en [CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md).
 La aceptación institucional del 22-09 que sigue se conserva como evidencia de
 dev11. Las comprobaciones de Office pendientes no se convierten en aprobadas por

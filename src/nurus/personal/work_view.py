@@ -36,6 +36,8 @@ def build(app):
         ('Procesar archivo',app._process),('Cargar revisada',app._external),('Localizar copia',app._locate),
         ('Abrir Excel',lambda:app._open(app._require_work().output)),('Abrir carpeta',app._open_output_folder),('Resumen',app._export_statistics)]):
         ui.Button(extra,text=label,width=110,fg_color='transparent',border_width=1,command=lambda fn=command:app._guard(fn)).grid(row=index//3,column=index%3,padx=3,pady=3,sticky='ew')
+    for index,(label,command) in enumerate([('Descargar y analizar',app._download_joint),('Comprobar columnas',app._inspect_input),('Abrir original SITFA',app._open_sitfa_source)]):
+        ui.Button(extra,text=label,width=110,fg_color='transparent',border_width=1,command=lambda fn=command:app._guard(fn)).grid(row=2,column=index,padx=3,pady=3,sticky='ew')
     extra.grid_columnconfigure((0,1,2),weight=1)
     app.summary=tk.StringVar();ui.Label(page,textvariable=app.summary,anchor='w').pack(fill='x')
     app.work_split=split=ui.Panedwindow(page,orient='vertical');split.pack(fill='both',expand=True)
@@ -54,6 +56,7 @@ def build(app):
         app.records.column(name,width=width,minwidth=65)
     app.records.tag_configure('excluded',background='#665220',foreground='#fff2cc')
     app.records.tag_configure('warning',background='#653b29',foreground='#ffe2cd')
+    app.records.tag_configure('signed',background='#243c56',foreground='#ddebf7')
     app.records.bind('<<TreeviewSelect>>',lambda event:None if app.busy else app._guard(app._detail))
     footer=ui.Frame(edit);footer.pack(side='bottom',fill='x',pady=(5,0))
     def maximize():
@@ -73,6 +76,7 @@ def build(app):
     app.record_form=RecordForm(app,tabs)
     detail=ScrollPane(tabs);tabs.add(detail,text='Detalle')
     app.work_case_detail=CaseDetailPanel(detail.body);app.work_case_detail.pack(fill='x',pady=4)
+    ui.Button(detail.body,text='Resoluciones firmadas · revisar',command=lambda:app._guard(app._open_signed_activity)).pack(anchor='w',pady=4)
     changes=ui.Frame(tabs);tabs.add(changes,text='Cambios')
     app.work_compare=ComparisonPanel(changes);app.work_compare.pack(fill='both',expand=True)
     def fit(event=None):

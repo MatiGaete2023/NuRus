@@ -330,6 +330,8 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         )
         if any('decisions_json' in record for record in snapshot['records']):
             titles = (*titles, 'NURUS_DECISIONES')
+        activity_titles=('ACTIVIDAD RECIENTE','ÚLTIMA FIRMA','RESOLUCIONES EN EL PERÍODO','DETALLE')
+        if any(record.get('activity_values') for record in snapshot['records']):titles=(*titles,*activity_titles)
         columns = _column_plan(headers, titles)
         observation_column = columns[observation_title]
         state_column = columns["NURUS_ESTADO_REVISION"]
@@ -360,6 +362,13 @@ def _portable_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             if stage == "reviewed":
                 for title, value in _reviewed_fields(record).items():
                     sheet.cell(row, columns[title]).value = _safe_cell(value)
+            for title,value in record.get('activity_values',{}).items():
+                if title not in activity_titles:raise ExportError('Columna de actividad no admitida.')
+                cell=sheet.cell(row,columns[title]);cell.value=_safe_cell(value)
+                cell.border=copy(sheet.cell(row,observation_column).border)
+            if record['decision']!='excluded' and record.get('activity_color'):
+                color={'azul':'DDEBF7','ambar':'FFF2CC'}[record['activity_color']]
+                sheet.cell(row,columns['ACTIVIDAD RECIENTE']).fill=PatternFill(fill_type='solid',fgColor=color)
 
         sheet.column_dimensions[get_column_letter(columns["NURUS_REGLAS"])].hidden = True
         if 'NURUS_DECISIONES' in columns:
@@ -521,6 +530,8 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         )
         if any('decisions_json' in record for record in snapshot['records']):
             titles = (*titles, 'NURUS_DECISIONES')
+        activity_titles=('ACTIVIDAD RECIENTE','ÚLTIMA FIRMA','RESOLUCIONES EN EL PERÍODO','DETALLE')
+        if any(record.get('activity_values') for record in snapshot['records']):titles=(*titles,*activity_titles)
         columns = _column_plan(headers, titles)
         observation_column = columns[observation_title]
         state_column = columns["NURUS_ESTADO_REVISION"]
@@ -548,6 +559,9 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
             if stage == "reviewed":
                 for title, value in _reviewed_fields(record).items():
                     writes[title].append((row, _safe_cell(value)))
+            for title,value in record.get('activity_values',{}).items():
+                if title not in activity_titles:raise ExportError('Columna de actividad no admitida.')
+                writes[title].append((row,_safe_cell(value)))
         for title, updates in writes.items():
             _native_write_column(sheet, columns[title], updates,
                                  keep_existing=stage == "proposal" and title == "OBSERVACION")
@@ -559,6 +573,10 @@ def _native_preserved(content: bytes, target: Path, snapshot: dict) -> None:
         _native_resolution_validation(book, sheet, columns["RES"], header_row + 1, last_row)
 
         operation = "marcar filas excluidas"
+        for record in records:
+            if record['decision']!='excluded' and record.get('activity_color'):
+                rgb={'azul':(221,235,247),'ambar':(255,242,204)}[record['activity_color']]
+                sheet.Cells(int(record['source_row']),columns['ACTIVIDAD RECIENTE']).Interior.Color=rgb[0]+rgb[1]*256+rgb[2]*65536
         last_column = max(used_last, *columns.values())
         excluded_color = 255 + 242 * 256 + 204 * 65536
         for record in records:
@@ -704,4 +722,3 @@ def export_preserved_workbook(
         backend=backend,
         allow_reduced_fidelity=allow_reduced_fidelity,
     )
-

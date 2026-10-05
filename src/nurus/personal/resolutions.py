@@ -288,6 +288,7 @@ def prepare_projects(work,selections,template_dir):
     by_id={r.id:r for r in work.rows};groups=OrderedDict();case_rows=OrderedDict()
     for row in work.rows:
         if row.excluded:continue
+        if tribunal(value(work,row,'tribunal')) is None:continue
         court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
         rit=value(work,row,'rit').strip()
         case_rows.setdefault((court,normalize(rit)),[]).append(row)
@@ -295,6 +296,7 @@ def prepare_projects(work,selections,template_dir):
         if rid not in by_id or kind not in KINDS:continue
         row=by_id[rid]
         if row.excluded:continue
+        if tribunal(value(work,row,'tribunal')) is None:continue
         court=tribunal(value(work,row,'tribunal')) or value(work,row,'tribunal')
         rit=value(work,row,'rit').strip()
         key=(court,normalize(rit),kind)

@@ -102,6 +102,8 @@ class Work:
         self.needs_cross=False
         self.cross_missing=False
         self.cross_dates={}
+        self.signed_activity={}
+        self.activity_reviewed={}
 
     def analyze(self,path,mode,*,sheet=None,cross_sheet=None,as_of=None):
         batch=read_workbook(path,mode,sheet_name=sheet,cross_sheet_name=cross_sheet)
@@ -114,6 +116,10 @@ class Work:
         self.source_hash=batch.workbook_sha256
         self.content=batch.source_bytes
         self.warnings=list(batch.warnings)
+        from .sitfa import inspect_batch,source_index
+        self.compatibility=inspect_batch(batch,date.fromisoformat(self.as_of))
+        self.warnings.extend(self.compatibility['mensajes'])
+        self.sitfa_sources=source_index(batch.source_bytes)
         self.needs_cross=False
         self.cross_missing=self.mode=='CUMPLIMIENTO' and not batch.cross_records
         self.rows=[]
@@ -151,11 +157,11 @@ class Work:
                         warnings.append('Días negativos y egreso futuro: verifica la contradicción; no se afirma que la medida esté vencida.')
                         ctx['invalid'].append('CUMPLIMIENTO.C04_VENCIDA')
                 court=tribunal(values.get(cols.get('tribunal',''),'')) or ''
-                if not court:warnings.append('Tribunal no reconocido; verifica acciones sugeridas.')
+                if not court:warnings.append('Tribunal fuera de Laja, Mulchén y Tomé: consulta y registro disponibles; sin reglas históricas.')
                 key=tuple(historical_match(values.get(cols.get(k,''),'')) for k in key_fields)
                 args={'incidencias':inc,'fila_excel':record.source.row_number}
                 if self.mode=='CUMPLIMIENTO':args['fecha_hoja2']=index.get(key)
-                observation=fn(values,court,cols,**args)
+                observation=fn(values,court,cols,**args) if court else ''
                 warnings.extend(i['MOTIVO'] for i in inc._items)
             except (ValueError,TypeError,KeyError) as exc:
                 observation=''
@@ -167,6 +173,8 @@ class Work:
             self.cross_dates[record.record_id]=index.get(identity_key)
             self.rows.append(Row(record.record_id,record.source.row_number,dict(record.values),observation,list(dict.fromkeys(events)),[] if excluded else actions_for(events),warnings,excluded))
             self.rows[-1].decisions={'structured':True,'mail':{},'resolution':'auto'}
+        from .rus_activity import attach
+        attach(self)
         return self
 
     def document_exception(self,reason):
@@ -207,6 +215,8 @@ class Work:
                 'tt_value':_review_value(row,'TT'),
                 'workload_value':_review_value(row,'CC'),
                 'resolution_value':_review_value(row,'RES'),
+                'activity_values':self.signed_activity.get(row.id,{}).get('valores',{}),
+                'activity_color':self.signed_activity.get(row.id,{}).get('color',''),
             })
         result=_export_preserved_payload(self.content,{'batch':batch,'records':records,'exceptions':[self.exception] if self.exception else []},destination,backend=backend,allow_reduced_fidelity=reduced_fidelity)
         self.output=str(result.path)
@@ -230,6 +240,8 @@ class Work:
         obj.sheet=data['sheet'];obj.header=data['header'];obj.mapping=data['mapping']
         obj.content=data['content'];obj.source_hash=data['digest'];obj.output_hash=data['digest'];obj.needs_cross=False;obj.cross_missing=False
         obj.external_input=True;obj.warnings=[];seen={}
+        from .sitfa import source_index
+        obj.sitfa_sources=source_index(data['content'])
         for number,values,review,rules in data['records']:
             identity='|'.join(historical_match(values.get(obj.mapping.get(k,''),'')) for k in ('rit','rut','nombre','tribunal','programa'))
             ordinal=seen.get(identity,0);seen[identity]=ordinal+1
@@ -246,6 +258,8 @@ class Work:
             row.sync_local=deepcopy(review)
             _sync_resolution_warning(row)
             obj.rows.append(row)
+        from .rus_activity import attach
+        attach(obj)
         return obj
 
     def save(self,directory):
@@ -285,4 +299,3 @@ class Work:
                 raise ValueError('La copia original archivada no coincide con su huella.')
         if sha256(obj.content).hexdigest()!=obj.source_hash:raise ValueError('La copia de origen guardada no coincide con el trabajo.')
         return obj
-

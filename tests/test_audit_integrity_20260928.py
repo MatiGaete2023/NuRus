@@ -168,4 +168,3 @@ def test_bulk_edit_and_undo_preserve_zero_and_empty_date(tmp_path):
     assert all(kind=='NOMENCL' for _,kind in automatic_project_selections(work))
     undo(work,previous)
     assert work.rows==snapshot
-

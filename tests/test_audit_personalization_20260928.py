@@ -24,4 +24,3 @@ def test_templates_have_independent_copy_archive_and_restore():
     assert archived['correos']['plantillas'][key]['archivada']
     restored=restore_template(archive_template(config,'espera'),'espera')
     assert not restored['correos']['plantillas']['espera']['archivada']
-

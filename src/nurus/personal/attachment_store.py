@@ -27,4 +27,3 @@ def workbook_bytes(book):
             info.compress_type = ZIP_DEFLATED
             target.writestr(info, content)
     return result.getvalue()
-

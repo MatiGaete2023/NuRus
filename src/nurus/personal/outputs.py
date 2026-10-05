@@ -239,6 +239,8 @@ def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=N
     groups=defaultdict(list)
     for row in work.rows:
         if row.excluded or (selected is not None and row.id not in selected) or not selected_row(work,row,modality_keys):continue
+        from nurus.rus.rules import tribunal
+        if tribunal(value(work,row,'tribunal')) is None:continue
         # Las comunicaciones automáticas respetan la regla por fila. Una entrada externa
         # sin trazabilidad solo conserva el uso histórico cuando el tipo se pidió de forma
         # explícita; si hay NURUS_REGLAS, no puede arrastrar filas fuera del umbral.

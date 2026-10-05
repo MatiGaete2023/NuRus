@@ -63,7 +63,13 @@ def _snapshot_file(path: Path, *, max_file_size_bytes: int | None = None) -> tup
         raise WorkbookReadError(f"No se pudo crear una copia estable del archivo: {exc}") from exc
 
 
-def _engine(path: Path) -> str:
+def _engine(path: Path,content: bytes | None = None) -> str:
+    if content is None:
+        with path.open('rb') as source:content=source.read(4096)
+    if content.startswith(b'PK\x03\x04'):return 'openpyxl'
+    if content.startswith(bytes.fromhex('d0cf11e0a1b11ae1')):return 'xlrd'
+    if b'<html' in content[:4096].lower() or b'<table' in content[:4096].lower() or b'urn:schemas-microsoft-com:office:spreadsheet' in content[:4096]:
+        raise WorkbookReadError('Este .xls contiene HTML/XML, no un libro Excel convencional. Usa Exportar para CSMP en Download para convertirlo a XLSX real.')
     return "xlrd" if path.suffix.lower() == ".xls" else "openpyxl"
 
 
@@ -366,7 +372,7 @@ def read_workbook(
             source_bytes = snapshot.read_bytes()
             if hashlib.sha256(source_bytes).hexdigest() != digest:
                 raise WorkbookReadError("La copia de origen no coincide con su hash.")
-            workbook = pd.ExcelFile(BytesIO(source_bytes), engine=_engine(source))
+            workbook = pd.ExcelFile(BytesIO(source_bytes), engine=_engine(source,source_bytes[:4096]))
         except ImportError as exc:
             dependency = "xlrd" if source.suffix.lower() == ".xls" else "openpyxl"
             raise WorkbookReadError(

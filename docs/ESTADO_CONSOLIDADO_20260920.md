@@ -1,4 +1,7 @@
 > Checkpoint histórico de dev11/dev12. Para el estado actual **0.4.0.dev14** y
+
+**Prototipo 0.4.0.dev15 · 2 de octubre de 2026.** Integra dev14, procedencia SITFA y el flujo conjunto con alertas de firmas por ingreso. La cobertura temporal de carga es parcial hasta comprobar su filtro. La lectura y el registro automático de bitácoras del plan integral siguen en desarrollo; esta versión todavía no escribe observaciones en RUS. Véase `docs/PLAN_INTEGRAL_20261002.md`.
+
 > su implementación del 30-09, consulta [CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md)
 > y el [README](../README.md). Las decisiones y verificaciones fechadas de este
 > documento siguen siendo antecedentes, no resultados de la versión nueva.

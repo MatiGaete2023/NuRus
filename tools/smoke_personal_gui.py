@@ -35,7 +35,7 @@ with TemporaryDirectory() as directory:
         app.update_idletasks();app.update()
         assert isinstance(app,ctk.CTk)
         assert ctk.get_appearance_mode()=='Dark'
-        assert len(app.tabs.tabs())==5
+        assert len(app.tabs.tabs())==6
         for tab in app.tabs.tabs():
             app.tabs.select(tab);app.update_idletasks();app.update()
             assert app.nametowidget(tab).winfo_ismapped()
@@ -119,4 +119,3 @@ with TemporaryDirectory() as directory:
         assert not app.busy and app.progress.cget('mode')=='determinate' and app.progress.get()==0
         print('Cinco áreas CTk oscuras; búsqueda y filtros; contexto persistente; revisión por excepción; tipos legibles; tarjetas y adjuntos; botones visibles a 1024x650; plantillas y resoluciones conservadas.')
     finally:app.destroy()
-

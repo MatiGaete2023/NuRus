@@ -60,4 +60,3 @@ def contact_actions(app,parent):
         app.status.set('Última modificación de contactos deshecha.')
     ui.Button(bar,text='Nuevo',width=80,command=new).pack(side='left',padx=4)
     ui.Button(bar,text='Deshacer',width=90,command=lambda:app._guard(undo)).pack(side='left')
-

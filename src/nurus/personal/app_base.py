@@ -46,11 +46,13 @@ class App(ctk.CTk):
         ctk.CTkLabel(sidebar,text='CSMP\nAssistant',font=('Segoe UI',22,'bold'),justify='left').pack(padx=16,pady=(24,18),anchor='w')
         self.tabs=ttk.PageStack(self,sidebar);self.tabs.grid(row=0,column=1,sticky='nsew',padx=12,pady=12)
         self.pages={}
-        for name in ('Trabajo','Correos','Resoluciones','Configuración','Enviados'):
+        for name in ('Trabajo','Correos','Resoluciones','Resultados','Configuración','Enviados'):
             frame=ttk.Frame(self.tabs,padding=10)
             self.tabs.add(frame,text='Historial' if name=='Enviados' else name);self.pages[name]=frame
         ctk.CTkLabel(sidebar,text='Uso personal\nSolo borradores',text_color=ttk.MUTED,justify='left').pack(side='bottom',padx=16,pady=18)
         self._work_page();self._mail_page();self._word_page();self._config_page();self._sent_page()
+        from .results_view import build as build_results
+        build_results(self)
         contextbar=ctk.CTkFrame(self,corner_radius=0,fg_color='#1a2028')
         contextbar.grid(row=1,column=0,columnspan=2,sticky='ew')
         ctk.CTkLabel(contextbar,textvariable=self.context,anchor='w',text_color=ttk.MUTED,font=('Segoe UI',11)).pack(fill='x',padx=14,pady=4)
@@ -264,6 +266,27 @@ class App(ctk.CTk):
     def _work_page(self):
         from .work_view import build
         build(self)
+
+    def _inspect_input(self):
+        from .sitfa import inspect_input
+        def done(report):
+            message=report['estado']+'\n'+'\n'.join(report['mensajes'])
+            self.status.set(message.replace('\n',' · '));messagebox.showinfo('Compatibilidad del libro',message,parent=self)
+        self._run('Comprobando el libro…',lambda:inspect_input(self.file.get(),self.mode.get(),self.sheet.get() or None),done)
+
+    def _open_sitfa_source(self):
+        from .sitfa import verified_source
+        work=self._require_work();selected=self.records.selection()
+        if len(selected)!=1:raise ValueError('Selecciona una fila para abrir su original.')
+        row=next(r for r in work.rows if r.id==selected[0]);self._open(verified_source(work,row))
+
+    def _open_signed_activity(self):
+        from .activity_view import show
+        return show(self)
+
+    def _download_joint(self):
+        from .download_link import start
+        start(self)
 
     def _select_folder(self,var):
         path=filedialog.askdirectory()

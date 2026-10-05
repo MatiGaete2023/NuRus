@@ -107,4 +107,3 @@ class Tooltip:
             try:self.tip.destroy()
             except tk.TclError:pass
             self.tip=None
-

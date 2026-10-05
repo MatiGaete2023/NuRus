@@ -39,4 +39,3 @@ def export_summary(work,path):
         for col in 'ABCDEFG':ws.column_dimensions[col].width=25
     write_new_file(Path(path),book.save)
     return str(path)
-

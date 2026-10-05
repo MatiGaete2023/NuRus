@@ -250,4 +250,3 @@ def test_prepare_required_drafts_creates_each_program_mail(tmp_path):
     assert len(drafts)==3
     assert any('AFT UNO' in subject for subject in program_subjects)
     assert any('AFT DOS' in subject for subject in program_subjects)
-

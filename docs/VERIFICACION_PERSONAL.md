@@ -1,5 +1,8 @@
 # Evidencia actual — 0.4.0.dev14
 
+**Prototipo 0.4.0.dev15 · 2 de octubre de 2026.** Integra dev14, procedencia SITFA y el flujo conjunto con alertas de firmas por ingreso. La cobertura temporal de carga es parcial hasta comprobar su filtro. La lectura y el registro automático de bitácoras del plan integral siguen en desarrollo; esta versión todavía no escribe observaciones en RUS. Véase `docs/PLAN_INTEGRAL_20261002.md`.
+
+
 La corrección del 30-09-2026 y sus resultados están en
 [CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md). Los resultados de CI y
 uso real fechados que siguen corresponden a sus respectivos commits y versiones.

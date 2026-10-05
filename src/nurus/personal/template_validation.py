@@ -21,4 +21,3 @@ def variables(text, allowed):
 def render(text, values):
     variables(text, set(values))
     return text.format_map(values)
-
