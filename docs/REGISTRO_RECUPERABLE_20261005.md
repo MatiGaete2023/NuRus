@@ -15,10 +15,13 @@ Antes de guardar, el adaptador debe proporcionar una lectura completa y reciente
 | INCIERTA | Envío sin comprobación por lectura. |
 | NO_HALLADA | La lectura no identifica una entrada nueva coincidente. No provoca reenvío automático. |
 | AMBIGUA | Varias entradas coinciden; requiere revisión. |
+| REVISAR_PREVIAS | Hay varias entradas idénticas del día antes de intentar guardar; no se envía. |
 | PENDIENTE_EXCEL | Entrada nueva releída y comprobada; falta devolver su fecha. |
 | COMPROBADA | Registro comprobado y copia de Excel releída. |
 
 Reabrir una operación incierta solamente consulta: nunca repite el guardado. Entradas antiguas con el mismo texto no prueban un registro nuevo. La misma intención del día se reutiliza aunque cambie el orden del Excel; otro intento del mismo ingreso queda bloqueado mientras exista uno sin resolver.
+
+Una entrada idéntica del día, del mismo autor y con tipo/estado/destino coincidentes, se reutiliza sin enviar. Su fecha puede devolverse al Excel, pero el informe de gestión la separa de las observaciones nuevas del asistente. Si varias entradas previas coinciden, se requiere revisión y no se registra otra. Una entrada de un día anterior no impide por sí sola una revisión nueva.
 
 El contrato pendiente debe obtener IDs de entrada, identidad del usuario, campos efectivos, paginación/cobertura y fecha del servidor. Si faltan, la aplicación no puede afirmar que registró una observación. El criterio CC sigue siendo tipo «Al Tribunal» → 1 y «Administrativa» → 0; no se deduce del contenido del texto.
 

@@ -31,6 +31,21 @@ def _source_id(value):
     return '' if value is None else str(value)
 
 
+def _matches(entry, intent):
+    return (entry.author_id == intent.author_id
+            and entry.text.replace('\r\n', '\n') == intent.text.replace('\r\n', '\n')
+            and entry.type == intent.type and entry.state == intent.state
+            and entry.send_to_tribunal is intent.send_to_tribunal)
+
+
+def _receipt(data, intent, entry, *, new):
+    data.update(state='PENDIENTE_EXCEL', verified=True, new_registration=new,
+                remote_entry_id=entry.entry_id, registered_at=entry.registered_at,
+                author=entry.author_id, type=intent.type, cc=cc_for_type(intent.type), text=intent.text,
+                remote_text=entry.text, tribunal=intent.tribunal, rit=intent.identity.rit,
+                ingreso_id=intent.identity.ingreso_id)
+
+
 @dataclass(frozen=True)
 class RemoteIdentity:
     tribunal_codigo: str
@@ -257,6 +272,38 @@ class Journal:
                 self._save(db, data, reason)
             return data
 
+    def check_existing(self, operation_id, snapshot):
+        """Una entrada idéntica del día se reutiliza; no constituye una gestión nueva."""
+        now = self.clock()
+        with self._transaction() as db:
+            data = self._get(db, operation_id)
+            if data['state'] not in ('PREPARADA', 'REVISAR_PREVIAS'):
+                raise ValueError('Esta operación ya salió de la preparación; no se vuelve a enviar.')
+            intent = restore_intent(data)
+            snapshot.validate(intent, now)
+            found = []
+            for entry in snapshot.entries:
+                if not _matches(entry, intent):
+                    continue
+                try:
+                    day = datetime.fromisoformat(entry.registered_at).date()
+                except (TypeError, ValueError) as exc:
+                    raise ValueError('Una observación coincidente tiene fecha ilegible; compruébala antes de guardar.') from exc
+                if day == now.date():
+                    found.append(entry)
+            if len(found) == 1:
+                _receipt(data, intent, found[0], new=False)
+                data['checked_at'] = snapshot.observed_at
+                data['check_sha256'] = snapshot.source_sha256
+                self._save(db, data, 'Entrada idéntica del día ya existente; no se envió una observación nueva.')
+            elif len(found) > 1:
+                data['state'] = 'REVISAR_PREVIAS'
+                self._save(db, data, 'Varias entradas previas coinciden; no se envió una observación nueva.')
+            elif data['state'] == 'REVISAR_PREVIAS':
+                data['state'] = 'PREPARADA'
+                self._save(db, data, 'La nueva lectura no contiene coincidencias previas del día; falta preparar el envío.')
+            return data
+
     def reconcile(self, operation_id, snapshot):
         now = self.clock()
         with self._transaction() as db:
@@ -269,12 +316,8 @@ class Journal:
             snapshot.validate(intent, now)
             if _moment(snapshot.observed_at) < _moment(data['started_at']):
                 raise ValueError('La lectura precede al intento de guardado.')
-            def matches(entry):
-                return (entry.entry_id not in data['baseline_ids'] and entry.author_id == intent.author_id
-                        and entry.text.replace('\r\n', '\n') == intent.text.replace('\r\n', '\n')
-                        and entry.type == intent.type and entry.state == intent.state
-                        and entry.send_to_tribunal is intent.send_to_tribunal)
-            found = [entry for entry in snapshot.entries if matches(entry)]
+            found = [entry for entry in snapshot.entries
+                     if entry.entry_id not in data['baseline_ids'] and _matches(entry, intent)]
             data['checked_at'] = snapshot.observed_at
             data['check_sha256'] = snapshot.source_sha256
             if len(found) == 1:
@@ -285,11 +328,7 @@ class Journal:
                     raise ValueError('El guardado leído no tiene una fecha interpretable.') from exc
                 if not _moment(data['started_at']).date() <= day <= now.date():
                     raise ValueError('La fecha leída no pertenece al período del intento de guardado.')
-                data.update(state='PENDIENTE_EXCEL', verified=True, remote_entry_id=entry.entry_id,
-                            registered_at=entry.registered_at, author=entry.author_id,
-                            type=intent.type, cc=cc_for_type(intent.type), text=intent.text,
-                            remote_text=entry.text, tribunal=intent.tribunal, rit=intent.identity.rit,
-                            ingreso_id=intent.identity.ingreso_id)
+                _receipt(data, intent, entry, new=True)
                 detail = 'Entrada nueva releída; falta devolver la fecha a Excel.'
             else:
                 data['state'] = 'AMBIGUA' if found else 'NO_HALLADA'
@@ -332,6 +371,9 @@ def submit(journal, operation_id, adapter):
     intent = restore_intent(data)
     baseline = adapter.read(intent.identity)
     baseline.validate(intent, journal.clock())
+    data = journal.check_existing(operation_id, baseline)
+    if data['state'] != 'PREPARADA':
+        return data
     form = adapter.prepare_form(intent)
     if form != intent:
         raise ValueError('Los campos efectivos del formulario no coinciden con la intención preparada.')
@@ -350,6 +392,8 @@ def recover(journal, operation_id, adapter):
     data = journal.get(operation_id)
     if data.get('verified') is True:
         return data
+    if data['state'] == 'REVISAR_PREVIAS':
+        return journal.check_existing(operation_id, adapter.read(restore_intent(data).identity))
     return journal.reconcile(operation_id, adapter.read(restore_intent(data).identity))
 
 
@@ -375,14 +419,16 @@ def export_journal(journal, destination):
                      data['state'], data.get('verified') is True, intent.type, intent.send_to_tribunal,
                      intent.text, data.get('remote_text', ''), data.get('registered_at', ''),
                      data.get('remote_entry_id', ''), data.get('excel_path', ''),
-                     intent.source_sheet, intent.source_row, intent.source_sha256])
+                     intent.source_sheet, intent.source_row, intent.source_sha256, data.get('new_registration')])
     return _book([
         ('Resumen', ('Categoría', 'Cantidad'), [
             ['Operaciones preparadas', len(records)],
             ['Registros RUS comprobados', sum(data.get('verified') is True for data in records)],
+            ['Gestiones nuevas comprobadas', sum(data.get('verified') is True and data.get('new_registration') is True for data in records)],
+            ['Entradas ya existentes comprobadas', sum(data.get('verified') is True and data.get('new_registration') is False for data in records)],
             ['Retornos a Excel pendientes', sum(data['state'] == 'PENDIENTE_EXCEL' for data in records)],
             ['Operaciones sin comprobación', sum(data.get('verified') is not True for data in records)]]),
         ('Operaciones', ('Operación', 'Tribunal', 'RIT', 'Ingreso RUS', 'Estado', 'Guardado RUS comprobado',
                         'Tipo', 'Enviar al tribunal', 'Texto del Excel', 'Texto releído', 'Fecha efectiva RUS',
-                        'Entrada RUS', 'Copia Excel', 'Hoja de origen', 'Fila de origen', 'Fuente SHA256'), rows)
+                        'Entrada RUS', 'Copia Excel', 'Hoja de origen', 'Fila de origen', 'Fuente SHA256', 'Gestión nueva'), rows)
     ], destination)

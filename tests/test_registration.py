@@ -184,3 +184,31 @@ def test_corrupt_or_unrelated_database_is_not_recreated(tmp_path):
     with pytest.raises(Exception):
         Journal(path)
     assert path.read_bytes() == b'no es una base SQLite'
+
+
+def test_identical_entry_already_saved_today_is_reused_without_a_post(tmp_path):
+    clock, data, journal, operation, adapter = setup(tmp_path)
+    adapter.entries = [RemoteEntry('existing', clock().isoformat(), data.author_id,
+                                   data.text, data.type, data.state, data.send_to_tribunal)]
+    receipt = submit(journal, operation, adapter)
+    assert receipt['verified'] is True and receipt['new_registration'] is False
+    assert receipt['remote_entry_id'] == 'existing' and adapter.saves == 0
+
+
+def test_same_text_from_a_previous_day_can_be_a_new_review(tmp_path):
+    clock, data, journal, operation, adapter = setup(tmp_path)
+    adapter.entries = [RemoteEntry('old', '2026-10-04T10:00:00-03:00', data.author_id,
+                                   data.text, data.type, data.state, data.send_to_tribunal)]
+    receipt = submit(journal, operation, adapter)
+    assert receipt['new_registration'] is True and adapter.saves == 1
+    assert receipt['remote_entry_id'] != 'old'
+
+
+def test_several_identical_entries_today_require_review_before_sending(tmp_path):
+    clock, data, journal, operation, adapter = setup(tmp_path)
+    adapter.entries = [RemoteEntry(str(n), clock().isoformat(), data.author_id,
+                                   data.text, data.type, data.state, data.send_to_tribunal) for n in (8, 9)]
+    result = submit(journal, operation, adapter)
+    assert result['state'] == 'REVISAR_PREVIAS' and result['verified'] is False
+    assert recover(journal, operation, adapter)['state'] == 'REVISAR_PREVIAS'
+    assert adapter.saves == 0

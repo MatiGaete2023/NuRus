@@ -72,7 +72,7 @@ def export_activity(works,destination):
 
 def export_management(works,destination,start,end):
     """Solo recibos de guardado releído cuentan como observaciones nuevas."""
-    period(start,end);historical=[];operations={};products={};seen_sources=set()
+    period(start,end);historical=[];operations={};existing={};products={};seen_sources=set()
     for work in works:
         source_key=(work.source_hash,work.sheet)
         if source_key not in seen_sources:
@@ -96,9 +96,12 @@ def export_management(works,destination,start,end):
                 if item.get('cc')!=charge:raise ValueError('El recibo contiene una carga incompatible con el tipo de observación.')
                 data=[operation,item.get('tribunal',''),item.get('rit',''),item.get('ingreso_id',''),
                       registered,item.get('author',''),item.get('type',''),item.get('cc'),item.get('text',''),item['remote_entry_id']]
-                if operation in operations and operations[operation]!=data:
+                category=operations if item.get('new_registration') is True else existing
+                if operation in category and category[operation]!=data:
                     raise ValueError('Los trabajos contienen recibos contradictorios para una misma operación.')
-                operations[operation]=data
+                if operation in (existing if category is operations else operations):
+                    raise ValueError('Un recibo no puede ser simultáneamente nuevo y anterior.')
+                category[operation]=data
             else:
                 try:day=datetime.fromisoformat(item.get('created_at','')).date()
                 except (TypeError,ValueError):continue
@@ -114,8 +117,10 @@ def export_management(works,destination,start,end):
             ['Causas con gestiones nuevas',len({(r[1],r[2]) for r in new})],
             ['Ingresos con gestiones nuevas',len({(r[1],r[3]) for r in new})],
             ['Nuevas con carga',sum(r[7]==1 for r in new)],['Nuevas sin carga',sum(r[7]==0 for r in new)],
-            ['Constancias históricas del Excel',len(historical)],['Productos locales',len(products)]]),
+            ['Constancias históricas del Excel',len(historical)],['Productos locales',len(products)],
+            ['Entradas RUS anteriores o sin atribución de gestión nueva',len(existing)]]),
         ('Nuevas comprobadas',('Operación','Tribunal','RIT','Ingreso RUS','Fecha efectiva','Autor','Tipo','CC','Texto','Entrada RUS'),new),
+        ('Entradas ya existentes',('Operación','Tribunal','RIT','Ingreso RUS','Fecha efectiva','Autor','Tipo','CC','Texto','Entrada RUS'),list(existing.values())),
         ('Historial del Excel',('Tribunal','RIT','Persona','Centro','Fecha','TT','CC','Texto','Interpretación','Fuente'),historical),
         ('Productos',('Tipo','Estado','Fecha','Archivo','Interpretación'),list(products.values()))],destination)
 

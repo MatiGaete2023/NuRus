@@ -13,7 +13,7 @@ def test_historical_excel_is_never_counted_as_new_registration(tmp_path):
     work.rows[0].review={'OBSERVACION':'Constancia histórica','FECHA_OBS':'2026-10-01','TT':1,'CC':1}
     work.receipts={'draft':dict(kind='draft',state='created',created_at='2026-10-02T09:00:00'),
         'uncertain':dict(kind='rus_observation',state='INCIERTA',verified=False,operation_id='u'),
-        'verified':dict(kind='rus_observation',state='PENDIENTE_EXCEL',verified=True,operation_id='op-1',
+        'verified':dict(kind='rus_observation',state='PENDIENTE_EXCEL',verified=True,new_registration=True,operation_id='op-1',
             registered_at='2026-10-02T10:00:00',remote_entry_id='12',type='Al Tribunal',cc=1,text='Texto guardado')}
     path=export_management([work,work],tmp_path/'gestion.xlsx',date(2026,10,1),date(2026,10,5))
     book=load_workbook(path);counts=dict(book['Resumen'].values)

@@ -6,7 +6,7 @@ from openpyxl.styles import Border, PatternFill, Side
 import pytest
 
 from nurus.personal.config import defaults
-from nurus.personal.registration import Journal, attach_receipts, export_journal, intent_from_excel, submit
+from nurus.personal.registration import Journal, RemoteEntry, attach_receipts, export_journal, intent_from_excel, submit
 from nurus.personal.registration_excel import reconcile_excel
 from nurus.personal.work import Work
 from test_registration import Adapter, Clock
@@ -240,3 +240,31 @@ def test_zero_antiguo_flag_is_not_lost_when_reading_numeric_cell(tmp_path):
     data = intent_from_excel(work, work.rows[0], type='Al Tribunal', state='Realizada',
                              send_to_tribunal=True, author_id='usuario-ficticio')
     assert data.antiguo == '0'
+
+
+def test_existing_observation_can_return_its_date_without_becoming_new_management(tmp_path):
+    from nurus.personal.reports import export_management
+    path = source(tmp_path)
+    work = Work.external(path, defaults(), sheet='Registros')
+    clock = Clock()
+    data = intent_from_excel(work, work.rows[0], type='Al Tribunal', state='Realizada',
+                             send_to_tribunal=True, author_id='usuario-ficticio')
+    adapter = Adapter(data, clock)
+    adapter.entries = [RemoteEntry('previa', clock().isoformat(), data.author_id,
+                                   data.text, data.type, data.state, data.send_to_tribunal)]
+    journal = Journal(tmp_path / 'registro.sqlite', clock=clock)
+    operation = journal.prepare(data)['operation_id']
+    submit(journal, operation, adapter)
+    portable(journal, path, tmp_path / 'fechas.xlsx')
+    attach_receipts(work, journal)
+    target = tmp_path / 'gestion.xlsx'
+    export_management([work], target, date(2026, 10, 1), date(2026, 10, 5))
+    book = load_workbook(target)
+    try:
+        counts = dict(book['Resumen'].values)
+        assert counts['Observaciones nuevas comprobadas'] == 0
+        assert counts['Entradas RUS anteriores o sin atribución de gestión nueva'] == 1
+        assert book['Entradas ya existentes'].max_row == 2
+    finally:
+        book.close()
+    assert adapter.saves == 0
