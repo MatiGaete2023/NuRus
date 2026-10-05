@@ -96,7 +96,9 @@ jobs:
         if: matrix.python == '3.12'
         run: |
           python -m pip install pyinstaller
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la instalación del empaquetador' }
           python -m PyInstaller --noconfirm CSMP_Experimental.spec
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la construcción del ejecutable CSMP' }
           $check = Start-Process -FilePath (Resolve-Path dist/CSMP_Integral/CSMP_Integral.exe).Path -ArgumentList '--verificar-paquete','artifacts/package-check.json' -PassThru -Wait -WindowStyle Hidden
           if ($check.ExitCode -ne 0) { throw 'Falló la comprobación del paquete CSMP' }
           $proof = Get-Content artifacts/package-check.json -Raw | ConvertFrom-Json

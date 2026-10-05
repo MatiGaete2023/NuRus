@@ -5,16 +5,16 @@ Versiones: CSMP **0.4.0.dev15** y descargador/extensión **2.4.0**. Estos paquet
 ## Preparación
 
 1. Extraer los dos ZIP en carpetas permanentes. Cada ejecutable necesita su carpeta `_internal` completa.
-2. Abrir `SITFA_Descargador.exe`. Actualizar la extensión desde la carpeta de esta versión: `_internal/extension`. En Chrome, cargarla o recargar la copia que apunta a esa carpeta. Confirmar versión **2.4.0**.
-3. Entrar personalmente en RUS, abrir Seguimiento y conectar la extensión con el código del descargador. Conservar la pestaña de RUS y la pestaña de conexión.
-4. Abrir `CSMP_Integral.exe`. En Trabajo → Archivo/opciones → Descargar y analizar, seleccionar una vez el `SITFA_Descargador.exe` de esta entrega.
+2. Actualizar la extensión desde la carpeta del descargador de esta versión: `_internal/extension`. En Chrome, cargarla o recargar la copia que apunta a esa carpeta. Confirmar versión **2.4.0**.
+3. Entrar personalmente en RUS y abrir Seguimiento.
+4. Abrir `CSMP_Integral.exe`. En Trabajo → Archivo/opciones → Descargar y analizar, seleccionar una vez el `SITFA_Descargador.exe` de esta entrega. CSMP abre una ventana del descargador para recibir su resultado.
 
 ## Flujo conjunto
 
 1. En CSMP elegir Espera o Cumplimiento y pulsar **Descargar y analizar**.
-2. En el descargador seleccionar los tribunales y modalidades. Cargar las opciones actuales de RUS y pulsar **Descarga conjunta CSMP**.
+2. Conectar la extensión al código de esa ventana del descargador. Conservar las pestañas de RUS y conexión. Cargar las opciones actuales, seleccionar tribunales/modalidades y pulsar **Descarga conjunta CSMP**.
 3. Se consulta la principal completa, informes por vencer del mes actual y siguiente y carga del período elegido —60 días como mínimo— en bloques de hasta 30 días.
-4. Al terminar, el libro vuelve a CSMP para el análisis. Revisar observaciones, alertas y campos, y pulsar **Exportar copia actual** para obtener el producto final mediante Excel de escritorio.
+4. Al terminar, el libro vuelve a CSMP para el análisis y la copia inicial. Revisar observaciones, alertas y campos, y pulsar **Exportar copia actual** para obtener el producto final mediante Excel de escritorio.
 5. Una fila seleccionada permite Detalle → **Resoluciones firmadas · revisar**. Marcar una firma revisada solo para el ingreso elegido; la revisión se conserva entre descargas cuando el vínculo remoto está comprobado.
 6. **Resultados** permite informes de firmas/revisiones o de gestión del período, del trabajo actual y de otras sesiones guardadas.
 
