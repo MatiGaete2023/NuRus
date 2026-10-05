@@ -218,6 +218,10 @@ class App(_BaseApp):
         if not self.work:return
         from .review_store import bind
         bind(self.work,self.cfg.directory/'revisiones_firmas.json')
+        journal_path=self.cfg.directory/'registro_observaciones.sqlite'
+        if journal_path.is_file():
+            from .registration import Journal,attach_receipts
+            attach_receipts(self.work,Journal(journal_path))
         self.mode.set(self.work.mode);self.file.set(self.work.path);self.observation_id=None
         self.work_primary_button.configure(text='Exportar copia actual')
         self.observation_editor.delete('1.0','end')

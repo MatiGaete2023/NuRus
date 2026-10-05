@@ -4,7 +4,7 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 
 ## Versiones y ramas
 
-- CSMP 0.4.0.dev15: `experimento/plan-integral-csmp-20261002`, sobre la base corregida dev14. Configuración de prueba separada en `CSMP_Personal_Prototipo_Integral`.
+- CSMP: paquete probado 0.4.0.dev15 y avance de fuente 0.4.0.dev16: `experimento/plan-integral-csmp-20261002`, sobre la base corregida dev14. Configuración de prueba separada en `CSMP_Personal_Prototipo_Integral`.
 - Descargador 2.4.0: `experimento/plan-integral-descargador-20261002`, sobre la línea experimental 2.3.1. Configuración separada en `SITFA_Descargador_Integral`.
 - El asistente histórico mantiene reglas, correos y proyectos limitados a Laja, Mulchén y Tomé. Las fuentes y alertas admiten todos los tribunales disponibles en la pantalla correspondiente.
 
@@ -30,12 +30,12 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 | C06 | Pendiente de lector del calendario individual. | Contrato real, todos los informes, estados y contradicciones. |
 | C07 | Servicio común probado: máximo cuatro meses, última entrada del centro de cualquier autor, fechas empatadas y sin retroceso a entradas antiguas. | Conectar y verificar el lector real de bitácoras. |
 | C08 | Servicio probado: CC por tipo, respuestas desconocidas separadas, reiteraciones y deduplicación por ID remoto. | Lectura de textos completos, respuestas y paginación reales. |
-| C09 | Pendiente de adaptador de registro real. | Localizar ingreso, texto exacto del Excel, destino/estado por operación, guardar y releer. |
-| C10 | Pendiente de recibos de registro y conciliación. | Recuperación del envío incierto y devolución segura de fecha a Excel. |
+| C09 | Intención del texto efectivo del Excel, identidad/contexto y guardado único probados con adaptador ficticio. | Completar el adaptador real, campos y contrato de guardar/releer en RUS. |
+| C10 | Diario SQLite, recuperación sin reenvío y devolución por ingreso a una copia; conflictos y cortes probados con datos ficticios. | Prueba nativa de la devolución específica, prueba real RUS y aceptación del paquete dev16. |
 | C11 | Pendiente de bandeja de seguimiento conjunta. | Integrar firmas, bitácoras, respuestas y siguientes comprobaciones. |
 | C12 | Edición, contactos, matrices y configuración de la base preservadas. | Auditar y completar presets, columnas y preferencias avanzadas aún ausentes. |
 | C13 | Historial y búsqueda existentes preservados; revisión de firma persistente por ingreso real entre descargas. | Separar texto consultado/guardado y ampliar búsqueda de gestiones nuevas. |
-| C14 | Versiones visibles, configuración aislada, recuperación y ejecutables construidos. Se detectó y corrigió un fallo de recursos Word al empaquetar. | Verificar el paquete corregido, distribución final y recuperación conjunta. |
+| C14 | dev15: ambos ZIP Windows comprobados después de extraerlos, con seis matrices Word y extensión 2.4.0. dev16 añade recibos y conciliación en desarrollo. | Paquete dev16, recuperación conjunta y aceptación completa. |
 | F01 | Exportador común de auditoría con resumen, historial, incidencias, textos y bordes; pruebas con consultas fallidas. | Conexión real, selección de tribunales/pestañas y acceso de usuario independiente. |
 | F02 | Consolidación, conversión y comparación de la línea experimental conservadas. | Validación de los nuevos esquemas de fuentes y prueba de usuario. |
 | F03 | Informe por período y varios trabajos en Resultados; separa historial del Excel, productos locales y observaciones nuevas comprobadas. | Alimentarlo con recibos reales de C10 y completar alcance/autores. |
@@ -45,7 +45,7 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 | B02 | IDs remotos vinculados por identidad completa; revisión persistente solo cuando el vínculo está comprobado. | Revalidación al abrir y escribir en RUS. |
 | B03 | Puente/extensión existentes y contratos de carga ampliados. | Servicios compartidos de lectura y registro de ventanas. |
 | B04 | Fuentes y cobertura explícita; no se afirma ausencia de movimientos a partir de carga parcial. | Criterio temporal de carga y cobertura/paginación de bitácoras. |
-| B05 | Pendiente de registro recuperable por operación. | Intención, comprobación, recibo, consulta antes de repetir y retorno a Excel. |
+| B05 | Intención persistida antes de enviar; estados y transiciones atómicas; recuperación consulta sin volver a guardar. | Completar y validar evidencia real de RUS y recuperación del flujo completo. |
 
 ## Pruebas verificadas
 
@@ -64,3 +64,9 @@ Estas comprobaciones no equivalen a un registro real en RUS. La conexión de Chr
 2. Comprobar bitácora/calendario/historia de la sesión RUS y completar el lector común, la ficha y la auditoría independiente.
 3. Implementar recibos, registro exacto y devolución a Excel; validar un caso que el usuario elija expresamente antes del lote.
 4. Completar bandeja, configuración avanzada y variantes; ejecutar la aceptación de los 32 elementos y de los paquetes finales.
+
+## Avance posterior: recibos y conciliación dev16
+
+La primera revisión del nuevo diario y escritor aprobó 30 pruebas locales con datos ficticios. Los ajustes posteriores incluyen etapa/modalidad, texto actual del archivo, fórmulas y acceso a Resultados en ventana pequeña; su prueba local quedó sin ejecutar porque la revisión automática alcanzó su límite de uso. Las pruebas Windows publicadas de dev15 ya finalizaron correctamente en las tres versiones de Python, y las del descargador en ambas.
+
+El adaptador real sigue pendiente. Estos módulos no acreditan aún escritura judicial ni la prueba nativa del nuevo retorno; véase REGISTRO_RECUPERABLE_20261005.md. Los ZIP dev15 entregados permanecen sin cambios.

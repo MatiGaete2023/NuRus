@@ -16,3 +16,16 @@ def test_firmas_window_can_review_one_ingreso_at_small_size(tmp_path):
         window.destroy()
         assert all(not r.review for r in app.work.rows)
     finally:app.destroy()
+
+
+def test_results_return_is_reachable_at_small_windows_size(tmp_path):
+    app=App(Configuration(tmp_path/'config'));app.geometry('1024x650')
+    try:
+        app.tabs.select(app.pages['Resultados']);app.update()
+        canvas=app.results_scrollpane.body._parent_canvas
+        canvas.yview_moveto(1);app.update()
+        button=app.results_return_button
+        assert button.winfo_ismapped()
+        assert button.winfo_rooty()>=app.winfo_rooty()
+        assert button.winfo_rooty()+button.winfo_height()<=app.winfo_rooty()+app.winfo_height()
+    finally:app.destroy()
