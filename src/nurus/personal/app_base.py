@@ -718,70 +718,12 @@ class App(ctk.CTk):
     def _save_tpl(self,notify=True):
         key=getattr(self,'_editing_tpl_key',None)
         if not key:return
-        cfg=deepcopy(self.cfg.data);tpl=cfg['correos']['plantillas'][key]
-        tpl.update(nombre=self.tpl_name.get().strip(),asunto=self.tpl_subject.get(),cuerpo=self.tpl_body.get('1.0','end-1c'),adjunto='obligatorio' if self.tpl_req.get() else 'opcional',usa_modalidades=self.tpl_modes.get())
-        if hasattr(self,'tpl_category') and ('categoria' in tpl or self.tpl_category.get()!=key):
-            tpl['categoria']=self.tpl_category.get()
-        if not tpl['nombre']:raise ValueError('La plantilla necesita un nombre.')
-        if cfg!=self.cfg.data:
-            cfg.setdefault('template_backups',{})[key]=deepcopy(self.cfg.data['correos']['plantillas'][key])
-            self.cfg.save(cfg)
-        keys=list(cfg['correos']['plantillas'])
-        self.tpl_box.configure(values=keys);self.kind_box.configure(values=[k for k in keys if not cfg['correos']['plantillas'][k].get('archivada',False)])
-        if notify:self.status.set('Plantilla guardada; se aplica al preparar correos nuevos.')
-
-    def _new_tpl(self):
-        from copy import deepcopy
-        from uuid import uuid4
-        self._save_tpl(notify=False)
-        name=simpledialog.askstring('Nueva plantilla','Nombre de la comunicación:')
-        if not name:return
-        cfg=deepcopy(self.cfg.data);key='particular_'+uuid4().hex[:6]
-        cfg['correos']['plantillas'][key]={'nombre':name,'asunto':name+' — {TRIBUNAL}','cuerpo':'Buen día:\n\n\nAtentamente,','adjunto':'opcional','usa_modalidades':False}
-        self.cfg.save(cfg);keys=list(cfg['correos']['plantillas']);self.tpl_box.configure(values=keys);self.kind_box.configure(values=keys);self.tpl_key.set(key);self._load_tpl()
-
-    def _list_contacts(self):
-        self.contact_list.delete(0,'end')
-        query=normalize(self.contact_search.get()) if hasattr(self,'contact_search') else ''
-        names=['Tribunal: '+key for key in self.cfg.data['correos']['tribunales']]+sorted(self.cfg.data['contactos'])
-        for name in names:
-            aliases=' '.join(key for key,target in self.cfg.data['aliases'].items() if target==name)
-            if not query or query in normalize(name+' '+aliases):self.contact_list.insert('end',name)
-
-    def _select_contact(self,event=None):
-        if self.contact_list.curselection():
-            name=self.contact_list.get(self.contact_list.curselection()[0])
-            self._editing_contact_name=name;self.contact_name.set(name)
-            self.contact_alias.set('; '.join(key for key,target in self.cfg.data['aliases'].items() if target==name))
-            self.contact_mail.set('; '.join(self.cfg.data['correos']['tribunales'][name.split(': ',1)[1]]['para']) if name.startswith('Tribunal: ') else self.cfg.data['contactos'][name])
-
-    def _save_contact(self):
-        from .personalization import save_contact
-        previous=deepcopy(self.cfg.data)
-        cfg=save_contact(previous,self.contact_name.get(),self.contact_mail.get(),self.contact_alias.get().split(';'),previous=getattr(self,'_editing_contact_name',None))
-        self.cfg.save(cfg);self._contact_undo=previous
-        self._editing_contact_name=self.contact_name.get().strip()
-        self._list_contacts()
-        self.status.set('Contacto y alias guardados. Deshacer está disponible.')
-
-    def _delete_contact(self):
-        from copy import deepcopy
-        name=self.contact_name.get();cfg=deepcopy(self.cfg.data)
-        self._contact_undo=deepcopy(cfg)
-        if name.startswith('Tribunal: '):cfg['correos']['tribunales'][name.split(': ',1)[1]]['para']=[]
-        else:
-            cfg['contactos'].pop(name,None);cfg['aliases']={k:v for k,v in cfg['aliases'].items() if v!=name}
+        cfg=deepcopy(self.cfg.data);e,None);cfg['aliases']={k:v for k,v in cfg['aliases'].items() if v!=name}
         self.cfg.save(cfg);self._list_contacts()
         self._editing_contact_name=None
         self.status.set('Contacto eliminado. Puedes deshacer esta acción.')
 
-    def _import_contacts(self):
-        path=filedialog.askopenfilename(filetypes=[('Excel','*.xlsx *.xls')])
-        if not path:return
-        from copy import deepcopy
-        cfg=deepcopy(self.cfg.data);contacts,conflicts=import_contacts(cfg,path);cfg['contactos']=contacts;self.cfg.save(cfg);self._list_contacts()
-        self.status.set(f'✓ Catastro incorporado · {len(contacts)} contactos disponibles.')
-        if conflicts:messagebox.showwarning('Contactos con conflicto','No se sustituyeron coincidencias conflictivas:\n'+'\n'.join(conflicts))
+    def _imnflictivas:\n'+'\n'.join(conflicts))
 
     def _save_office(self):
         from copy import deepcopy
@@ -808,10 +750,7 @@ class App(ctk.CTk):
 
     def _sent_page(self):
         page=self.pages['Enviados'];top=ttk.Frame(page);top.pack(fill='x')
-        self.start=tk.StringVar(value=date.today().replace(day=1).isoformat());self.end=tk.StringVar(value=date.today().isoformat());self.search=tk.StringVar();self.sent_court=tk.StringVar();self.sent_type=tk.StringVar()
-        self._field(top,'Desde (AAAA-MM-DD)',self.start,0);self._field(top,'Hasta',self.end,1);self._field(top,'Tribunal / texto',self.sent_court,2);self._field(top,'Tipo / asunto',self.sent_type,3);self._field(top,'Buscar',self.search,4)
-        ttk.Button(top,text='Consultar Outlook',command=lambda:self._guard(self._sent_query)).grid(row=5,column=0)
-        ttk.Button(top,text='Filtrar resultado',command=self._filter_sent).grid(row=5,column=1,sticky='w')
+        self.start=tk.StringVar(value=date.today().replace(day=1).is      ttk.Button(top,text='Filtrar resultado',command=self._filter_sent).grid(row=5,column=1,sticky='w')
         ttk.Button(top,text='Exportar Excel',command=lambda:self._guard(self._export_sent)).grid(row=5,column=1,sticky='e')
         history=ttk.Notebook(page);history.pack(fill='both',expand=True)
         outlook=ttk.Frame(history);local=ttk.Frame(history)
