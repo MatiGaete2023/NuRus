@@ -42,6 +42,12 @@ def build(app):
         app._run('Generando informe…',action,lambda p:app.status.set('Informe creado: '+p))
     ui.Button(page,text='Informe de firmas y revisiones',width=280,command=lambda:app._guard(lambda:generate('firmas'))).pack(anchor='w',pady=8)
     ui.Button(page,text='Informe de gestión del período',width=280,command=lambda:app._guard(lambda:generate('gestion'))).pack(anchor='w',pady=8)
+    def recover_download():
+        from .download_link import resume
+        resume(app)
+    app.results_download_button=ui.Button(page,text='Recuperar descarga',width=280,
+                                         command=lambda:app._guard(recover_download))
+    app.results_download_button.pack(anchor='w',pady=8)
     def journal():
         from .registration import Journal
         path=app.cfg.directory/'registro_observaciones.sqlite'

@@ -1,12 +1,13 @@
 # CSMP Assistant personal — Windows
 
-**Prototipo 0.4.0.dev16 · 5 de octubre de 2026.** Integra dev14, procedencia SITFA, el flujo conjunto con alertas de firmas por ingreso y los informes independientes. Añade el diario recuperable de operaciones y la conciliación de fechas con Excel. La cobertura temporal de carga es parcial hasta comprobar su filtro. El adaptador real de lectura y guardado de bitácoras sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse la [guía de pruebas](docs/GUIA_PRUEBAS_INTEGRALES.md), el [diario y la conciliación](docs/REGISTRO_RECUPERABLE_20261005.md) y el [estado de los 32 elementos](docs/ESTADO_PLAN_INTEGRAL_20261005.md).
+**Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Integra dev14, procedencia SITFA, el flujo conjunto con alertas de firmas por ingreso y los informes independientes. Añade el diario recuperable de operaciones y la conciliación de fechas con Excel. La cobertura temporal de carga es parcial hasta comprobar su filtro. El adaptador real de lectura y guardado de bitácoras sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse la [guía de pruebas](docs/GUIA_PRUEBAS_INTEGRALES.md), el [diario y la conciliación](docs/REGISTRO_RECUPERABLE_20261005.md) y el [estado de los 32 elementos](docs/ESTADO_PLAN_INTEGRAL_20261005.md).
 
 
 Base conservada: **0.4.0.dev14**, actualizada el 30 de septiembre de 2026 en `codex/auditoria-ux-20260925-final`. Aplicación de uso personal en Windows con Python 3.12–3.14. Prepara copias de Excel, proyectos Word y borradores editables de Outlook; el registro oficial se realiza en RUS. La [corrección de adjuntos](docs/CORRECCION_ADJUNTOS_20260930.md) documenta este parche sobre el [informe de revisión y ejecución dev13](docs/REVISION_Y_PLAN_20260929.md).
 
 ## Cambios actuales
 
+- La devolución del descargador se puede recuperar desde Resultados después de reiniciar CSMP. Conserva las ediciones incluso al empezar otro trabajo y solicita el EXE correcto si la configuración apunta a un script Python. Véase [devolución recuperable](docs/DEVOLUCION_DESCARGAS_20261005.md).
 - Las nóminas tienen bordes negros en cada celda y una columna específica de vencimiento, espera o egreso. Reconocen `F. VENCIMIENTO`; un dato ausente se identifica como «Sin dato».
 - Mulchén acepta nombres completos, abreviados, mayúsculas, tildes y diéresis. Residencial incluye RTA, RTT y RVA.
 - Los filtros de correo tienen una pestaña propia y un resumen visible; un resultado vacío explica qué revisar.

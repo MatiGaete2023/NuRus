@@ -51,6 +51,10 @@ with TemporaryDirectory() as directory:
         capture_window(app,'resultados-1024x650')
         button=app.results_return_button
         assert button.winfo_rooty()+button.winfo_height()<=app.winfo_rooty()+app.winfo_height()
+        button=app.results_download_button
+        assert button.winfo_ismapped()
+        assert button.winfo_rooty()>=app.winfo_rooty()
+        assert button.winfo_rooty()+button.winfo_height()<=app.winfo_rooty()+app.winfo_height()
         # Las acciones deben estar dentro de la ventana a tamaño de PC institucional.
         app.tabs.select(app.pages['Correos']);app.update_idletasks();app.update()
         app._display_prepared_drafts([Draft('Informes por vencer','Buen día:\n\nTexto de prueba editable.',program='PROGRAMA DE PRUEBA',court='Jgdo. L. y G. de Laja',due='2026-10-15',record_ids=['a']),Draft('Otro borrador','Segundo cuerpo',program='SEGUNDO PROGRAMA')],'{count} borradores de prueba')

@@ -4,7 +4,7 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 
 ## Versiones y ramas
 
-- CSMP: paquete Windows probado 0.4.0.dev16: `experimento/plan-integral-csmp-20261002`, sobre la base corregida dev14. Configuración de prueba separada en `CSMP_Personal_Prototipo_Integral`.
+- CSMP: paquete Windows probado 0.4.0.dev16 y avance 0.4.0.dev17: `experimento/plan-integral-csmp-20261002`, sobre la base corregida dev14. Configuración de prueba separada en `CSMP_Personal_Prototipo_Integral`.
 - Descargador 2.4.0: `experimento/plan-integral-descargador-20261002`, sobre la línea experimental 2.3.1. Configuración separada en `SITFA_Descargador_Integral`.
 - El asistente histórico mantiene reglas, correos y proyectos limitados a Laja, Mulchén y Tomé. Las fuentes y alertas admiten todos los tribunales disponibles en la pantalla correspondiente.
 
@@ -21,8 +21,8 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 | D05 | Originales, huellas, cantidades, procedencia y cobertura explícita. | Verificar las fuentes nuevas de bitácoras y documentos. |
 | D06 | Descarga antes de la siguiente consulta; recuperación por consulta sin repetir las completadas; pruebas de cortes y modificación de archivos. | Prueba de recuperación real con Chrome. |
 | D07 | Egresados reconocido con su pestaña observada `tdEgreso`; se mantiene contrato específico. | Consulta/exportación real de Egresados y otras variantes. |
-| D08 | Inicio desde CSMP, retorno con huella, originales verificables y resultados existentes. | Prueba entre ambos ejecutables y nueva validación de documentos/PDF vinculados. |
-| C01 | Botón Descargar y analizar, fases y devolución al trabajo. | Prueba completa con RUS y ambos paquetes Windows. |
+| D08 | Inicio desde CSMP, retorno con huella/modo, solicitudes persistidas, recuperación tras reinicio y ediciones archivadas por solicitud. | Prueba entre ambos ejecutables y RUS; nueva validación de documentos/PDF vinculados. |
+| C01 | Botón Descargar y analizar, fases y devolución al trabajo; Recuperar descarga en Resultados evita repetir consulta/análisis tras los cortes probados. | Prueba completa con RUS y ambos paquetes Windows. |
 | C02 | Hoja auxiliar de dos meses con orden de fuentes, fechas e identidad completa; RUT solo se completa mediante coincidencia inequívoca. | Validación real del calendario y cobertura; reforzar aceptación de auxiliares externos. |
 | C03 | Firmas por código de tribunal–RIT, informes por identidad completa y guardas de productos para tres tribunales. | Contraste real y calendario individual de estado. |
 | C04 | Cuatro columnas, detalle y colores; probado con Excel de escritorio. | Completar criterio de cobertura y comparación con última revisión del centro. |
@@ -35,7 +35,7 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 | C11 | Pendiente de bandeja de seguimiento conjunta. | Integrar firmas, bitácoras, respuestas y siguientes comprobaciones. |
 | C12 | Edición, contactos, matrices y configuración de la base preservadas. | Auditar y completar presets, columnas y preferencias avanzadas aún ausentes. |
 | C13 | Historial y búsqueda existentes preservados; revisión de firma persistente por ingreso real entre descargas. | Separar texto consultado/guardado y ampliar búsqueda de gestiones nuevas. |
-| C14 | dev15: ambos ZIP Windows comprobados después de extraerlos, con seis matrices Word y extensión 2.4.0. dev16 añade recibos y conciliación en desarrollo. | Paquete dev16, recuperación conjunta y aceptación completa. |
+| C14 | Paquete dev16 comprobado después de extraerlo, con seis matrices Word; descargador/extensión 2.4.0 comprobados. dev17 añade devolución recuperable. | Paquete dev17, recuperación conjunta real y aceptación completa. |
 | F01 | Exportador común de auditoría con resumen, historial, incidencias, textos y bordes; pruebas con consultas fallidas. | Conexión real, selección de tribunales/pestañas y acceso de usuario independiente. |
 | F02 | Consolidación, conversión y comparación de la línea experimental conservadas. | Validación de los nuevos esquemas de fuentes y prueba de usuario. |
 | F03 | Informe por período y varios trabajos en Resultados; separa historial del Excel, productos locales y observaciones nuevas comprobadas. | Alimentarlo con recibos reales de C10 y completar alcance/autores. |
@@ -50,6 +50,7 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 ## Pruebas verificadas
 
 - CSMP dev16: 443 pruebas aprobadas y una omitida en Windows, con Python 3.12, 3.13 y 3.14. La omitida corresponde a una condición de plataforma; no es prueba pendiente de registro RUS. CI del código: https://github.com/MatiGaete2023/NuRus/actions/runs/37348807233.
+- CSMP dev17: regresión local de 459 aprobadas y una omitida; recuperación de descarga, fallos de disco/Excel y preservación de ediciones al cambiar de trabajo. Pendiente contraste del nuevo CI y del paquete final.
 - Descargador: 111 pruebas aprobadas antes de añadir la comprobación de arranque del paquete; ésta se ejecuta además sobre el ejecutable real.
 - Excel de escritorio: original intacto, tres ingresos conservados, cuatro columnas de actividad, colores azul/ámbar, bordes y formato original, TT/CC/FECHA_OBS vacíos.
 - Captura real de carga: 169 filas, comparación completa de sus 23 celdas y multiplicidad; 168 firmas válidas, 13 posteriores a la fecha consultada.

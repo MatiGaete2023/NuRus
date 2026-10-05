@@ -1,6 +1,6 @@
 # Índice y vigencia de documentación
 
-**Prototipo 0.4.0.dev16 · 5 de octubre de 2026.** Conserva la base corregida dev14, el flujo conjunto y las alertas. Añade diario recuperable y conciliación de fechas con Excel. El adaptador real de bitácoras y registro sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse REGISTRO_RECUPERABLE_20261005.md y ESTADO_PLAN_INTEGRAL_20261005.md. Las secciones anteriores a este avance se conservan como antecedentes, no como aceptación de las funciones nuevas.
+**Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Conserva la base corregida dev14, el flujo conjunto y las alertas. Añade diario recuperable y conciliación de fechas con Excel. El adaptador real de bitácoras y registro sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse REGISTRO_RECUPERABLE_20261005.md y ESTADO_PLAN_INTEGRAL_20261005.md. Las secciones anteriores a este avance se conservan como antecedentes, no como aceptación de las funciones nuevas.
 
 
 Actualizado: 30 de septiembre de 2026. Versión de trabajo: **0.4.0.dev14** en `codex/auditoria-ux-20260925-final`. `main` conserva la candidata anterior hasta su integración.

@@ -1,6 +1,6 @@
-# Evidencia de la línea integral — 0.4.0.dev16
+# Evidencia de la línea integral — 0.4.0.dev17
 
-**Prototipo 0.4.0.dev16 · 5 de octubre de 2026.** Conserva la base corregida dev14, el flujo conjunto y las alertas. Añade diario recuperable y conciliación de fechas con Excel. El adaptador real de bitácoras y registro sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse REGISTRO_RECUPERABLE_20261005.md y ESTADO_PLAN_INTEGRAL_20261005.md. Las secciones anteriores a este avance se conservan como antecedentes, no como aceptación de las funciones nuevas.
+**Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Conserva la base corregida dev14, el flujo conjunto y las alertas. Añade diario recuperable y conciliación de fechas con Excel. El adaptador real de bitácoras y registro sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse REGISTRO_RECUPERABLE_20261005.md y ESTADO_PLAN_INTEGRAL_20261005.md. Las secciones anteriores a este avance se conservan como antecedentes, no como aceptación de las funciones nuevas.
 
 
 La corrección del 30-09-2026 y sus resultados están en

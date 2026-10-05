@@ -136,6 +136,8 @@ class App(ctk.CTk):
                 from .session import capture
                 capture(self)
                 self.work.save(self.cfg.directory/'sesion')
+                from .download_transfer import archive_current
+                archive_current(self.work,self.cfg.directory)
                 self._update_local_activity()
             except OSError as exc:
                 self.status.set('No se pudo guardar la recuperación: '+str(exc))

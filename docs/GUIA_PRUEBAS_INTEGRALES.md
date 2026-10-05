@@ -1,6 +1,6 @@
 # Cómo probar CSMP y el descargador integrales
 
-Versiones: CSMP **0.4.0.dev16** y descargador/extensión **2.4.0**. Estos paquetes usan configuración propia de prototipo. Conservar las carpetas anteriores permite volver a la versión de uso.
+Versiones: CSMP **0.4.0.dev17** y descargador/extensión **2.4.0**. Estos paquetes usan configuración propia de prototipo. Conservar las carpetas anteriores permite volver a la versión de uso.
 
 ## Preparación
 
@@ -17,6 +17,7 @@ Versiones: CSMP **0.4.0.dev16** y descargador/extensión **2.4.0**. Estos paquet
 4. Al terminar, el libro vuelve a CSMP para el análisis y la copia inicial. Revisar observaciones, alertas y campos, y pulsar **Exportar copia actual** para obtener el producto final mediante Excel de escritorio.
 5. Una fila seleccionada permite Detalle → **Resoluciones firmadas · revisar**. Marcar una firma revisada solo para el ingreso elegido; la revisión se conserva entre descargas cuando el vínculo remoto está comprobado.
 6. **Resultados** permite informes de firmas/revisiones o de gestión del período, del trabajo actual y de otras sesiones guardadas.
+7. Si CSMP se cerró antes de recibir la descarga, **Resultados → Recuperar descarga** incorpora el resultado conservado. Si falló la exportación de Excel, recupera el trabajo analizado y sus ediciones; **Exportar copia actual** permite continuar. Con varias solicitudes, elegir por fecha y modo. Véase DEVOLUCION_DESCARGAS_20261005.md.
 
 ## Qué contrastar
 
