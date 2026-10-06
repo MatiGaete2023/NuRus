@@ -1,6 +1,6 @@
 # CSMP Assistant · Windows
 
-**Versión 0.5.0.dev1 · 6 de octubre de 2026.**
+**Versión 0.5.0.dev2 · 6 de octubre de 2026.**
 
 Programa de escritorio para revisar el trabajo actual y preparar archivos y borradores. Tiene cinco páginas: Trabajo, Correos, Resoluciones, Resultados y Configuración.
 
@@ -11,7 +11,7 @@ Requiere Windows, Python 3.12 y Microsoft Excel de escritorio para la exportaci�
 Ejecuta `Instalar_CSMP.bat` y después `Abrir_CSMP.bat`. Para instalar el wheel desde PowerShell:
 
 ```powershell
-py -3.12 -m pip install "./nurus-0.5.0.dev1-py3-none-any.whl[excel-legacy,excel-native,outlook]"
+py -3.12 -m pip install "./nurus-0.5.0.dev2-py3-none-any.whl[excel-legacy,excel-native,outlook]"
 py -3.12 -m nurus.personal.app
 ```
 
@@ -45,5 +45,7 @@ La fuente disponible era `b95f0db`, del prototipo dev17. Las versiones locales d
 Las pruebas locales incluyen interfaz con pantalla virtual y datos ficticios. La construcción del ejecutable y la aceptación con Excel y Outlook reales deben completarse en Windows. El flujo de Actions está configurado para Windows y la rama `feat/**`.
 
 El registro real en RUS sigue pendiente del formulario y la sesión operables. Preparar una observación no acredita que haya sido guardada en RUS.
+
+La herramienta separada **RUS · Inspector del registro actual** y su extensión de Chrome permiten capturar la estructura del formulario. Consulta [el avance de integración y las instrucciones](docs/REGISTRO_RUS_AVANCE_20261006.md).
 
 Consulta [el informe de ejecución](docs/EJECUCION_WINDOWS_20261006.md).

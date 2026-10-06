@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from nurus.personal.registration import (
-    Intent, Journal, RemoteEntry, RemoteIdentity, Snapshot, recover, submit,
+    FormEvidence, Intent, Journal, RemoteEntry, RemoteIdentity, Snapshot, recover, submit,
 )
 
 
@@ -41,7 +41,7 @@ class Adapter:
                         self.intent.stage, self.intent.antiguo, self.intent.modality)
 
     def prepare_form(self, data):
-        return self.effective_form
+        return FormEvidence(self.effective_form, 2000, self.clock().isoformat(), 'd' * 64)
 
     def save(self, data):
         self.saves += 1
@@ -160,7 +160,9 @@ def test_row_order_and_source_edits_do_not_duplicate_same_intent(tmp_path):
 
 def test_form_limit_counts_utf16_and_unknown_types_are_not_guessed():
     with pytest.raises(ValueError, match='2000'):
-        intent(text='😀' * 1001).validate()
+        data = intent(text='😀' * 1001)
+        FormEvidence(data, 2000, Clock()().isoformat(), 'd' * 64).validate(data, Clock()())
+    intent(text='😀' * 1001).validate()  # Preparar no presupone el límite institucional.
     with pytest.raises(ValueError, match='tipo y estado'):
         intent(type='Con carga').validate()
     with pytest.raises(ValueError, match='identidad real'):

@@ -93,8 +93,6 @@ class Intent:
         self.identity.validate()
         if not isinstance(self.text, str) or not self.text.strip():
             raise ValueError('La observación del Excel está vacía.')
-        if len(self.text.encode('utf-16-le')) // 2 > 2000:
-            raise ValueError('La observación excede el límite del formulario de 2000 caracteres.')
         if cc_for_type(self.type) is None or not self.state.strip():
             raise ValueError('Selecciona tipo y estado explícitos para esta operación.')
         if type(self.send_to_tribunal) is not bool or not self.author_id.strip():
@@ -139,6 +137,30 @@ class RemoteEntry:
     type: str
     state: str
     send_to_tribunal: bool
+
+
+@dataclass(frozen=True)
+class FormEvidence:
+    """Campos releídos y límite observado; None significa ausencia comprobada de maxlength."""
+    intent: Intent
+    max_text_units: int | None
+    observed_at: str
+    source_sha256: str
+
+    def validate(self, intent, now):
+        if self.intent != intent:
+            raise ValueError('Los campos efectivos del formulario no coinciden con la intención preparada.')
+        self.intent.validate()
+        observed = _moment(self.observed_at)
+        if observed > now or (now - observed).total_seconds() > 120:
+            raise ValueError('El formulario requiere una lectura reciente antes del guardado.')
+        if not re.fullmatch('[0-9a-f]{64}', self.source_sha256):
+            raise ValueError('Falta evidencia del formulario y su límite efectivo.')
+        limit = self.max_text_units
+        if limit is not None and (type(limit) is not int or limit < 0):
+            raise ValueError('El límite observado del formulario es inválido.')
+        if limit is not None and len(intent.text.encode('utf-16-le')) // 2 > limit:
+            raise ValueError(f'La observación excede el límite observado de {limit} unidades UTF-16.')
 
 
 @dataclass(frozen=True)
@@ -250,7 +272,7 @@ class Journal:
             self._save(db, data, 'Intención conservada; todavía no enviada a RUS.')
             return data
 
-    def begin(self, operation_id, baseline):
+    def begin(self, operation_id, baseline, form_evidence=None):
         now = self.clock()
         with self._transaction() as db:
             data = self._get(db, operation_id)
@@ -258,6 +280,11 @@ class Journal:
                 raise ValueError('La operación ya intentó enviarse; solo puede consultarse para recuperación.')
             intent = restore_intent(data)
             baseline.validate(intent, now)
+            if form_evidence is not None:
+                form_evidence.validate(intent, now)
+                data['form_sha256'] = form_evidence.source_sha256
+                data['form_observed_at'] = form_evidence.observed_at
+                data['form_max_text_units'] = form_evidence.max_text_units
             data.update(state='ENVIANDO', started_at=now.isoformat(),
                         baseline_ids=[entry.entry_id for entry in baseline.entries],
                         baseline_sha256=baseline.source_sha256)
@@ -375,11 +402,12 @@ def submit(journal, operation_id, adapter):
     if data['state'] != 'PREPARADA':
         return data
     form = adapter.prepare_form(intent)
-    if form != intent:
-        raise ValueError('Los campos efectivos del formulario no coinciden con la intención preparada.')
-    journal.begin(operation_id, baseline)
+    if not isinstance(form, FormEvidence):
+        raise ValueError('El adaptador debe aportar campos releídos y el límite observado del formulario.')
+    form.validate(intent, journal.clock())
+    journal.begin(operation_id, baseline, form)
     try:
-        adapter.save(form)
+        adapter.save(form.intent)
     except Exception:
         journal.uncertain(operation_id, 'No se confirmó el envío; consultar antes de continuar.')
     else:
