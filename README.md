@@ -11,7 +11,7 @@ Requiere Windows, Python 3.12 y Microsoft Excel de escritorio para la exportaci√
 Ejecuta `Instalar_CSMP.bat` y despu√©s `Abrir_CSMP.bat`. Para instalar el wheel desde PowerShell:
 
 ```powershell
-py -3.12 -m pip install "nurus[excel-legacy,excel-native,outlook] @ ./nurus-0.5.0.dev1-py3-none-any.whl"
+py -3.12 -m pip install "./nurus-0.5.0.dev1-py3-none-any.whl[excel-legacy,excel-native,outlook]"
 py -3.12 -m nurus.personal.app
 ```
 
