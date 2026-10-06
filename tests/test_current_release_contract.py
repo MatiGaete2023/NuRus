@@ -17,20 +17,10 @@ def test_release_version_and_current_docs_are_aligned():
     for path in current_docs:
         text=path.read_text(encoding='utf-8')
         assert nurus.__version__ in text[:1000], path
-    historical=(ROOT/'docs/CAMBIOS_USO_20260914.md').read_text(encoding='utf-8')
-    assert '0.4.0.dev5' in historical
-    assert nurus.__version__ not in historical
-    index=(ROOT/'docs/INDICE_DOCUMENTACION.md').read_text(encoding='utf-8')
-    assert 'CAMBIOS_USO_20260916.md' in index
-    assert 'ESTADO_CONSOLIDADO_20260920.md' in index
-    assert 'CAMBIOS_USO_20260914.md' in index and 'histórico' in index.lower()
     readme=current_docs[0].read_text(encoding='utf-8')
-    assert 'Windows/Linux' not in readme
-    assert '30 de septiembre de 2026' in readme
-    assert 'codex/auditoria-ux-20260925-final' in readme
-    personal=(ROOT/'docs/IMPLEMENTACION_PERSONAL.md').read_text(encoding='utf-8')
-    assert 'excepción documentada' not in personal.lower()
-    assert 'Pendientes externos: PC_INFO de Laja' not in personal
+    assert 'Windows' in readme and 'Correo libre' in readme and 'Word manual' in readme
+    for obsolete in ('nurus/adapters/sent_mail.py','nurus/personal/activity_view.py','nurus/personal/review_store.py'):
+        assert not (ROOT/'src'/obsolete).exists()
 
 
 def test_repository_has_no_transitional_runtime_patch_layer():

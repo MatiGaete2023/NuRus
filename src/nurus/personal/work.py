@@ -105,8 +105,8 @@ class Work:
         self.signed_activity={}
         self.activity_reviewed={}
 
-    def analyze(self,path,mode,*,sheet=None,cross_sheet=None,as_of=None):
-        batch=read_workbook(path,mode,sheet_name=sheet,cross_sheet_name=cross_sheet)
+    def analyze(self,path,mode,*,sheet=None,cross_sheet=None,as_of=None,batch=None):
+        batch=batch if batch is not None else read_workbook(path,mode,sheet_name=sheet,cross_sheet_name=cross_sheet)
         self.path=batch.source_path
         self.mode=str(batch.mode)
         self.as_of=(as_of or date.today()).isoformat()
@@ -157,7 +157,7 @@ class Work:
                         warnings.append('Días negativos y egreso futuro: verifica la contradicción; no se afirma que la medida esté vencida.')
                         ctx['invalid'].append('CUMPLIMIENTO.C04_VENCIDA')
                 court=tribunal(values.get(cols.get('tribunal',''),'')) or ''
-                if not court:warnings.append('Tribunal fuera de Laja, Mulchén y Tomé: consulta y registro disponibles; sin reglas históricas.')
+                if not court:warnings.append('Tribunal fuera de Laja, Mulchén y Tomé: sin reglas configuradas; requiere revisión manual.')
                 key=tuple(historical_match(values.get(cols.get(k,''),'')) for k in key_fields)
                 args={'incidencias':inc,'fila_excel':record.source.row_number}
                 if self.mode=='CUMPLIMIENTO':args['fecha_hoja2']=index.get(key)
@@ -173,8 +173,6 @@ class Work:
             self.cross_dates[record.record_id]=index.get(identity_key)
             self.rows.append(Row(record.record_id,record.source.row_number,dict(record.values),observation,list(dict.fromkeys(events)),[] if excluded else actions_for(events),warnings,excluded))
             self.rows[-1].decisions={'structured':True,'mail':{},'resolution':'auto'}
-        from .rus_activity import attach
-        attach(self)
         return self
 
     def document_exception(self,reason):
@@ -215,8 +213,6 @@ class Work:
                 'tt_value':_review_value(row,'TT'),
                 'workload_value':_review_value(row,'CC'),
                 'resolution_value':_review_value(row,'RES'),
-                'activity_values':self.signed_activity.get(row.id,{}).get('valores',{}),
-                'activity_color':self.signed_activity.get(row.id,{}).get('color',''),
             })
         result=_export_preserved_payload(self.content,{'batch':batch,'records':records,'exceptions':[self.exception] if self.exception else []},destination,backend=backend,allow_reduced_fidelity=reduced_fidelity)
         self.output=str(result.path)
@@ -239,14 +235,15 @@ class Work:
         obj.path=data['path'];obj.output=obj.path;obj.mode=data['mode'];obj.as_of=date.today().isoformat()
         obj.sheet=data['sheet'];obj.header=data['header'];obj.mapping=data['mapping']
         obj.content=data['content'];obj.source_hash=data['digest'];obj.output_hash=data['digest'];obj.needs_cross=False;obj.cross_missing=False
-        obj.external_input=True;obj.warnings=[];seen={}
+        obj.external_input=True;obj.warnings=[];seen={};used_ids=set()
         from .sitfa import source_index
         obj.sitfa_sources=source_index(data['content'])
         for number,values,review,rules in data['records']:
             identity='|'.join(historical_match(values.get(obj.mapping.get(k,''),'')) for k in ('rit','rut','nombre','tribunal','programa'))
             ordinal=seen.get(identity,0);seen[identity]=ordinal+1
             rid=str(values.get('NURUS_ID_REGISTRO','')).strip() or sha256((obj.sheet+'|'+identity+'|'+str(ordinal)).encode()).hexdigest()
-            if any(r.id==rid for r in obj.rows):raise ValueError('El identificador de registro está duplicado en la planilla.')
+            if rid in used_ids:raise ValueError('El identificador de registro está duplicado en la planilla.')
+            used_ids.add(rid)
             excluded=es_derivacion_sin_seg(str(values.get(obj.mapping.get('programa',''),'')))
             events=list(dict.fromkeys(rules))
             actions=[] if excluded else actions_for(events)
@@ -258,8 +255,6 @@ class Work:
             row.sync_local=deepcopy(review)
             _sync_resolution_warning(row)
             obj.rows.append(row)
-        from .rus_activity import attach
-        attach(obj)
         return obj
 
     def save(self,directory):
@@ -271,9 +266,16 @@ class Work:
         if self.original_hash and self.original_content:
             original=directory/(self.original_hash+'.bin')
             archive_bytes(original,self.original_content,self.original_hash)
-        data={k:v for k,v in self.__dict__.items() if k not in ('rows','content','original_content')}
+        data={k:v for k,v in self.__dict__.items() if k not in ('rows','content','original_content') and not k.startswith('_save_')}
         data['rows']=[asdict(r) for r in self.rows]
         previous=directory/'trabajo.json'
+        digest=sha256(json.dumps(data,sort_keys=True,default=str,ensure_ascii=False).encode()).hexdigest()
+        saved=getattr(self,'_save_digests',{})
+        stats=getattr(self,'_save_stats',{})
+        key=str(directory.resolve())
+        if previous.is_file():
+            info=previous.stat()
+            if saved.get(key)==digest and stats.get(key)==(info.st_mtime_ns,info.st_size):return
         if previous.exists():
             try:
                 old=json.loads(previous.read_text(encoding='utf-8'))
@@ -281,6 +283,9 @@ class Work:
                 pass
             else:atomic_json(directory/'trabajo.json.bak',old)
         atomic_json(previous,data)
+        saved[str(directory.resolve())]=digest
+        self._save_digests=saved
+        info=previous.stat();stats[key]=(info.st_mtime_ns,info.st_size);self._save_stats=stats
 
     @classmethod
     def load(cls,directory):

@@ -1,101 +1,50 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Manual de usuario · CSMP Assistant y SITFA</title>
-  <style>
-    :root{--bg:#0d1117;--panel:#161d26;--panel2:#202a36;--text:#edf4fb;--muted:#a9b8c8;--accent:#4ca3ff;--ok:#54d18a;--warn:#ffd166;--line:#344454;--max:1180px}
-    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 15% 0,#1b3552 0,transparent 34rem),var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
-    a{color:#8bc7ff}header{padding:56px 24px 34px;border-bottom:1px solid var(--line)}.hero{max-width:var(--max);margin:auto}.eyebrow{color:var(--accent);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:.8rem}.hero h1{font-size:clamp(2rem,5vw,4rem);line-height:1.05;max-width:850px;margin:.4rem 0 1rem}.hero p{max-width:760px;color:var(--muted);font-size:1.1rem}.badges{display:flex;gap:8px;flex-wrap:wrap}.badge{padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:#172434;color:#cfe6fb;font-size:.86rem}
-    nav{position:sticky;top:0;z-index:5;background:rgba(13,17,23,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}.navin{max-width:var(--max);margin:auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}.navin a{font-size:.9rem;text-decoration:none}.search{margin-left:auto;min-width:230px;flex:1;max-width:340px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:9px 12px}
-    main{max-width:var(--max);margin:auto;padding:28px 24px 70px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}.card,details{background:linear-gradient(145deg,var(--panel),#111820);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 8px 24px #0003}.card h3{margin-top:0}.card p,li{color:#d7e2ed}.muted{color:var(--muted)}section{margin:42px 0;scroll-margin-top:70px}h2{font-size:1.8rem;margin:0 0 12px}h3{color:#dff0ff}.callout{border-left:4px solid var(--accent);padding:14px 18px;background:#162a3f;border-radius:8px;margin:16px 0}.warning{border-left-color:var(--warn);background:#3a2f16}.success{border-left-color:var(--ok);background:#163828}.steps{counter-reset:step;list-style:none;padding:0}.steps li{counter-increment:step;display:grid;grid-template-columns:38px 1fr;gap:12px;margin:14px 0}.steps li:before{content:counter(step);width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:var(--accent);color:#06111d;font-weight:800}.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;align-items:center;margin:20px 0}.flow div{padding:12px 8px;text-align:center;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:.9rem}.flow b{color:var(--accent);text-align:center}.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}.shot{margin:0;background:#0a0f14;border:1px solid var(--line);border-radius:12px;overflow:hidden}.shot img{display:block;width:100%;height:auto}.shot figcaption{padding:10px 12px;color:var(--muted);font-size:.9rem}.tablewrap{overflow:auto}table{border-collapse:collapse;width:100%;min-width:640px;background:var(--panel)}th,td{padding:10px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#253447;color:#e7f3ff}code,kbd{background:#0a1016;border:1px solid var(--line);border-radius:5px;padding:2px 5px;color:#d4ecff}kbd{font-family:inherit}.hidden{display:none}footer{border-top:1px solid var(--line);padding:24px;color:var(--muted);text-align:center}
-    @media(max-width:700px){.flow{grid-template-columns:1fr}.flow b{transform:rotate(90deg)}header{padding:38px 18px 24px}main{padding:20px 18px 50px}.navin{padding:9px 18px}.search{order:2;max-width:none;flex-basis:100%}}
-  </style>
-</head>
-<body>
-<header id="inicio"><div class="hero">
-  <div class="eyebrow">CSMP Assistant · SITFA · Windows</div>
-  <h1>Manual de usuario para revisar, preparar y recuperar tu trabajo</h1>
-  <p>Guía visual para descargar registros, analizar Espera/Cumplimiento/Informes, editar observaciones, preparar correos y proyectos Word, y recuperar un lote interrumpido.</p>
-  <div class="badges"><span class="badge">CSMP 0.4.0.dev17</span><span class="badge">Descargador 2.4.0</span><span class="badge">Uso local</span><span class="badge">Solo borradores</span></div>
-</div></header>
-<nav><div class="navin"><a href="#inicio">Inicio</a><a href="#instalacion">Instalación</a><a href="#flujo">Flujo</a><a href="#trabajo">Trabajo</a><a href="#correos">Correos</a><a href="#resoluciones">Resoluciones</a><a href="#recuperacion">Recuperación</a><a href="#faq">FAQ</a><input class="search" id="buscador" type="search" placeholder="Buscar en el manual…" aria-label="Buscar en el manual"></div></nav>
-<main id="contenido">
-  <section data-search="resumen inicio qué hace csmp">
-    <div class="grid">
-      <article class="card"><h3>Qué resuelve</h3><p>Lee copias de Excel, conserva el original, aplica reglas conocidas para Laja, Mulchén y Tomé, y deja productos editables para revisión humana.</p></article>
-      <article class="card"><h3>Qué requiere revisión</h3><p>La lectura y escritura real de bitácoras RUS y la creación efectiva del borrador en una cuenta Outlook deben comprobarse con tu sesión autenticada.</p></article>
-      <article class="card"><h3>Regla de seguridad</h3><p>El texto propuesto no prueba que la gestión se haya hecho. Solo una confirmación verificable en RUS debe marcar una observación como registrada.</p></article>
-    </div>
-  </section>
+<!doctype html><html lang="es"><meta charset="utf-8"><title>CSMP Windows 0.5.0.dev1</title><style>body{max-width:980px;margin:40px auto;padding:20px;font:17px Segoe UI;background:#f4f6fa;color:#233}pre{white-space:pre-wrap}</style><body><pre># CSMP Assistant · Windows
 
-  <section id="instalacion" data-search="instalación requisitos windows chrome excel outlook paquete">
-    <h2>Instalación y preparación</h2>
-    <div class="callout success"><strong>Prueba recomendada:</strong> extrae el ZIP completo en una carpeta nueva. El ejecutable necesita toda la carpeta <code>_internal</code>.</div>
-    <ol class="steps"><li><span>Descarga el paquete Windows y extráelo en una carpeta permanente.</span></li><li><span>Para el descargador, abre <code>Iniciar.cmd</code> y carga la carpeta <code>extension</code> en <code>chrome://extensions</code> con modo desarrollador.</span></li><li><span>Abre Chrome, entra personalmente a SITFA y deja abierta la pantalla <strong>Seguimiento</strong>.</span></li><li><span>Abre <code>CSMP_Integral.exe</code>. La configuración de prueba se guarda en <code>LOCALAPPDATA/CSMP_Personal</code>.</span></li><li><span>En CSMP selecciona el ejecutable del descargador solo la primera vez y conserva ambas carpetas.</span></li></ol>
-    <p class="muted">No compartas credenciales, códigos de conexión, HAR ni Excel con información personal. El manual describe el flujo local y usa capturas ficticias.</p>
-  </section>
+**Versión 0.5.0.dev1 · 6 de octubre de 2026.**
 
-  <section id="flujo" data-search="flujo conjunto descargador csmp seguimiento tribunal modalidad informes actividad 60 días">
-    <h2>Flujo conjunto</h2>
-    <div class="flow"><div>1 · Elegir modo<br><small>Espera / Cumplimiento / Informes</small></div><b>→</b><div>2 · Descargar<br><small>Tribunal + modalidad</small></div><b>→</b><div>3 · Analizar<br><small>Reglas y alertas</small></div><b>→</b><div>4 · Revisar<br><small>Excel, correo, Word</small></div><b>→</b><div>5 · Guardar<br><small>Productos locales</small></div></div>
-    <ol class="steps"><li><span>En CSMP pulsa <strong>Descargar y analizar</strong> y elige el modo.</span></li><li><span>En el descargador selecciona tribunales, modalidades, pestaña y período. La carga mínima de actividad es de 60 días en bloques de hasta 30.</span></li><li><span>Espera la verificación de cada Excel. No cierres Chrome ni hagas otra exportación con la misma sesión.</span></li><li><span>Cuando vuelva el resultado, revisa las alertas de resoluciones firmadas y los datos faltantes.</span></li><li><span>Exporta la copia actual. La copia lleva bordes, campos editables y mantiene el archivo original intacto.</span></li></ol>
-    <div class="callout warning"><strong>Cobertura:</strong> si SITFA incluye firmas posteriores al día consultado, el resultado se marca como cobertura parcial. «Sin coincidencias» no demuestra ausencia de movimientos si el portal no permite una cobertura completa.</div>
-  </section>
+Programa de escritorio para revisar el trabajo actual y preparar archivos y borradores. Tiene cinco páginas: Trabajo, Correos, Resoluciones, Resultados y Configuración.
 
-  <section id="trabajo" data-search="trabajo excel espera cumplimiento informes buscar filtros incidencia bordes fechas">
-    <h2>Pantalla Trabajo</h2>
-    <p>Selecciona el modo, el Excel y la hoja. El asistente conserva la procedencia, muestra el RIT, tribunal, programa, estado y observación, y prioriza las incidencias.</p>
-    <div class="shots"><figure class="shot"><img src="manual/trabajo-1024.png" alt="Pantalla Trabajo con una fila procesada"><figcaption>Trabajo: modo, archivo, filtros, incidencias y detalle por fila.</figcaption></figure></div>
-    <details open><summary><strong>Editar una observación</strong></summary><ol class="steps"><li><span>Selecciona una fila y revisa el detalle de la causa.</span></li><li><span>Edita la observación y, cuando corresponda, <code>FECHA_OBS</code>, <code>TT</code>, <code>CC</code> y <code>RES</code>.</span></li><li><span>Exporta la copia actual. El contenido visible se captura aunque no hayas pulsado antes Aplicar edición.</span></li><li><span>Comprueba la fecha o tiempo de espera. Si el origen está vacío, el producto muestra <strong>Sin dato</strong> para evitar inventar valores.</span></li></ol></details>
-    <details><summary><strong>Buscar y filtrar</strong></summary><p>Usa el buscador para RIT, nombre, tribunal o programa. «Con aviso» muestra solo incidencias; «Con resolución» muestra filas con resolución; «Excluidos» conserva la trazabilidad sin incluir la fila en correos.</p></details>
-  </section>
+## Instalación
 
-  <section id="correos" data-search="correos outlook borradores para cc asunto cuerpo adjuntos programas tribunales filtros">
-    <h2>Correos: preparación de borradores</h2>
-    <p>La pantalla prepara borradores editables. No envía correos automáticamente. Puedes elegir Solo programas, Solo tribunales o Ambos, y aplicar modalidades y tribunales como filtros independientes.</p>
-    <div class="shots"><figure class="shot"><img src="manual/correos-1024-edited.png" alt="Pantalla Correos con tarjeta y editor editable"><figcaption>Correo editable: destinatarios, CC, asunto, cuerpo y adjunto visible.</figcaption></figure></div>
-    <ol class="steps"><li><span>Pulsa <strong>Preparar tipo</strong> o <strong>Preparar todos</strong>. Si el resultado es vacío, lee el mensaje: indica modalidad, tribunal, exclusión o falta de reglas.</span></li><li><span>Selecciona una tarjeta. Revisa Para, CC institucional, asunto, cuerpo y adjuntos.</span></li><li><span>Corrige el texto o retira un adjunto con la “x”. Una dirección inválida queda visible para corregirla, pero bloquea el guardado de ese borrador.</span></li><li><span>Pulsa <strong>Guardar borradores</strong>. Verifica en Outlook que el borrador corresponda al RIT y a la nómina que revisaste.</span></li></ol>
-    <div class="callout"><strong>Mulchén:</strong> RTA, RTT y RVA se agrupan como Residencial; la normalización acepta mayúsculas, tildes, diéresis y abreviaturas. Si no aparece una tarjeta, revisa primero la modalidad y el tribunal seleccionado.</div>
-  </section>
+Requiere Windows, Python 3.12 y Microsoft Excel de escritorio para la exportación preservada. La creación de borradores requiere Outlook clásico; Outlook nuevo no ofrece la automatización COM utilizada.
 
-  <section id="resoluciones" data-search="resoluciones word proyectos pc ie pc info nomencl tribunal rit matriz">
-    <h2>Resoluciones y Word</h2>
-    <p>Los proyectos se agrupan por tribunal + RIT + tipo. <code>RES</code> puede indicar <code>PC_IE</code>, <code>PC_INFO</code> o <code>NOMENCL</code>; vacío significa que no corresponde proyecto.</p>
-    <div class="shots"><figure class="shot"><img src="manual/resoluciones-1180.png" alt="Pantalla Resoluciones con tipo y detalle de causa"><figcaption>Resoluciones: tipo explícito, origen, detalle de causa y generación de Word.</figcaption></figure></div>
-    <ol class="steps"><li><span>Selecciona el tipo y pulsa <strong>Preparar / actualizar proyectos</strong>.</span></li><li><span>Revisa el origen: definido en RES, ajustado manualmente o sugerencia automática.</span></li><li><span>Abre la matriz si necesitas inspeccionarla. Para Tomé, no se inventa una matriz: debes incorporarla o dejar el proyecto pendiente.</span></li><li><span>Genera un Word individual o conjunto. Los datos faltantes aparecen como <code>[COMPLETAR …]</code>.</span></li></ol>
-  </section>
+Ejecuta `Instalar_CSMP.bat` y después `Abrir_CSMP.bat`. Para instalar el wheel desde PowerShell:
 
-  <section id="recuperacion" data-search="recuperar descarga reinicio error excel resultado sesión historial recuperación">
-    <h2>Recuperación después de un corte</h2>
-    <div class="callout success"><strong>La recuperación evita repetir trabajo:</strong> cada solicitud conserva modo, huella, tribunal, Excel y estado.</div>
-    <ol class="steps"><li><span>Abre CSMP otra vez y entra a <strong>Resultados</strong>.</span></li><li><span>Pulsa <strong>Recuperar descarga</strong> y elige la solicitud que coincide con el modo y la fecha.</span></li><li><span>Espera la comprobación de huella y columnas. Solo se incorpora una descarga que coincide con la solicitud.</span></li><li><span>Revisa las ediciones archivadas y continúa desde Correos, Resoluciones o Exportar copia actual.</span></li></ol>
-    <p>Si Excel se cerró durante una exportación, el original permanece separado. Corrige el archivo de salida o elige otra carpeta y vuelve a exportar.</p>
-  </section>
+```powershell
+py -3.12 -m pip install &quot;nurus[excel-legacy,excel-native,outlook] @ ./nurus-0.5.0.dev1-py3-none-any.whl&quot;
+py -3.12 -m nurus.personal.app
+```
 
-  <section id="faq" data-search="preguntas frecuentes faq error sin datos outlook rus bitacora">
-    <h2>Preguntas frecuentes</h2>
-    <details><summary><strong>¿Por qué no aparece un borrador?</strong></summary><p>Comprueba el modo de la hoja, el filtro Solo programas/tribunales, la modalidad, el nombre del tribunal y las exclusiones. Para Mulchén, usa Residencial para RTA/RTT/RVA.</p></details>
-    <details><summary><strong>¿Qué significa “Sin dato”?</strong></summary><p>Que el Excel no entregó una fecha de vencimiento, espera o egreso utilizable. Es una alerta para revisar la fuente, no una fecha calculada por el asistente.</p></details>
-    <details><summary><strong>¿El asistente escribe en RUS?</strong></summary><p>El prototipo actual prepara el texto, clasifica bitácoras con datos de prueba y conserva recibos locales. La lectura y escritura autenticada deben validarse con el adaptador real antes de usar esa función.</p></details>
-    <details><summary><strong>¿Qué hago si el ejecutable no abre?</strong></summary><p>Extrae el ZIP completo en una carpeta nueva y no mezcles el ejecutable con otra carpeta <code>_internal</code>. Si usas código fuente, recrea el entorno virtual desde la rama corregida.</p></details>
-    <details><summary><strong>¿Puedo usar otro tribunal?</strong></summary><p>La selección y la auditoría admiten tribunales disponibles en SITFA. Las reglas históricas de correos y las matrices Word están configuradas para Laja, Mulchén y Tomé; un tribunal nuevo requiere configuración explícita.</p></details>
-    <details><summary><strong>¿Qué datos se guardan?</strong></summary><p>Los productos y diarios se guardan localmente. El descargador no guarda cookies ni contraseñas y los resúmenes no incluyen filtros privados. Trata los Excel y borradores como información reservada.</p></details>
-  </section>
+## Flujo
 
-  <section data-search="soporte diagnóstico evidencia auditoría">
-    <h2>Cuando necesites soporte</h2>
-    <p>Conserva el modo, tribunal, nombre de la hoja, hora aproximada, mensaje mostrado y los archivos <code>resumen.json</code> o recibos locales. No incluyas credenciales, códigos de conexión, nombres de niños, RUT ni capturas de una causa real.</p>
-    <p>La auditoría técnica está en <a href="AUDITORIA_COMPLETA_20261005.md">AUDITORIA_COMPLETA_20261005.md</a>. El flujo de pruebas está en <a href="GUIA_PRUEBAS_INTEGRALES.md">GUIA_PRUEBAS_INTEGRALES.md</a>.</p>
-  </section>
-</main>
-<footer>CSMP Assistant · Manual local · versión 0.4.0.dev17 · Los borradores requieren revisión humana antes de cualquier uso institucional.</footer>
-<script>
-  const input=document.getElementById('buscador'),sections=[...document.querySelectorAll('main section')];
-  input.addEventListener('input',()=>{const q=input.value.trim().toLocaleLowerCase();sections.forEach(s=>{const hit=!q||s.dataset.search.toLocaleLowerCase().includes(q)||s.textContent.toLocaleLowerCase().includes(q);s.classList.toggle('hidden',!hit)});});
-  document.querySelectorAll('details').forEach(d=>d.addEventListener('toggle',()=>{if(d.open)d.scrollIntoView({block:'nearest',behavior:'smooth'})}));
-</script>
-</body>
-</html>
+1. Carga el Excel en Trabajo, revisa avisos y observaciones, y exporta una copia actual. El original se conserva.
+2. Prepara correos. En **Revisar nómina**, edita las celdas y marca las filas que se incluirán; después acepta para generar los adjuntos.
+3. Revisa texto, destinatarios y adjuntos. El resumen final muestra el contenido efectivo antes de crear borradores en Outlook.
+4. Prepara proyectos en Resoluciones, revisa sus datos y genera Word.
+5. Consulta pendientes, fechas y entrega en Resultados. Un doble clic en un pendiente abre su registro o producto.
 
+**Correo libre** y **Word manual** funcionan sin cargar Excel. Word admite texto libre o una matriz DOCX con variables completadas. Sus ediciones se guardan como trabajo manual actual. Los bloques favoritos admiten `{NOMBRE}`, `{RIT}`, `{TRIBUNAL}`, `{PROGRAMA}` y `{FECHA}`; se completan antes de insertarlos.
+
+## Funciones adicionales
+
+- Informe de calidad por fila: campos vacíos, números/fechas ilegibles e identidades repetidas para revisión.
+- Explicación de sugerencias con reglas activadas, datos y umbrales configurados.
+- Selección conservada aunque una búsqueda o filtro oculte filas.
+- Preferencias de columnas visibles, recuperación de ediciones y productos actuales.
+- Búsqueda de contactos con elección explícita entre coincidencias.
+- Vencimiento de informe y egreso proyectado presentados por separado.
+- Diagnóstico de versión, dependencias, matrices y registro de Office.
+- ZIP de los productos que se seleccionen para la entrega.
+
+La sesión y los recibos críticos se conservan para recuperar el trabajo y evitar efectos duplicados. El guardado omite escrituras cuando el estado completo no cambió. Los productos basados en datos modificados deben prepararse y revisarse nuevamente.
+
+## Estado de entrega
+
+La fuente disponible era `b95f0db`, del prototipo dev17. Las versiones locales dev19 y Descargador 2.4.4 de la memoria no se encuentran publicadas; las mejoras se implementaron sobre la fuente disponible. Este paquete no se identifica como una recuperación exacta de esas versiones.
+
+Las pruebas locales incluyen interfaz con pantalla virtual y datos ficticios. La construcción del ejecutable y la aceptación con Excel y Outlook reales deben completarse en Windows. El flujo de Actions está configurado para Windows y la rama `feat/**`.
+
+El registro real en RUS sigue pendiente del formulario y la sesión operables. Preparar una observación no acredita que haya sido guardada en RUS.
+
+Consulta [el informe de ejecución](docs/EJECUCION_WINDOWS_20261006.md).
+</pre></body></html>

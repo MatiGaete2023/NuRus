@@ -28,12 +28,6 @@ def technical_value(row, key):
     return '' if raw is None else str(raw)
 
 
-def edited_pair(original, edited):
-    original='' if original is None else str(original)
-    edited='' if edited is None else str(edited)
-    return None if edited==original else (original,edited)
-
-
 def incident_ids(work):
     return [row.id for row in getattr(work,'rows',[]) if getattr(row,'warnings',None)]
 

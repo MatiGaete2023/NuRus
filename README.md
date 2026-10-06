@@ -1,87 +1,49 @@
-# CSMP Assistant personal — Windows
+# CSMP Assistant · Windows
 
-**Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Integra dev14, procedencia SITFA, el flujo conjunto con alertas de firmas por ingreso y los informes independientes. Añade el diario recuperable de operaciones y la conciliación de fechas con Excel. La cobertura temporal de carga es parcial hasta comprobar su filtro. El adaptador real de lectura y guardado de bitácoras sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Para probar la copia corregida y su manual usa la rama `experimento/plan-integral-csmp-20261005-dev17-manual`. Véanse la [guía de pruebas](docs/GUIA_PRUEBAS_INTEGRALES.md), el [manual interactivo](docs/manual_usuario_csmp.html), la [auditoría completa](docs/AUDITORIA_COMPLETA_20261005.md), el [diario y la conciliación](docs/REGISTRO_RECUPERABLE_20261005.md) y el [estado de los 32 elementos](docs/ESTADO_PLAN_INTEGRAL_20261005.md).
+**Versión 0.5.0.dev1 · 6 de octubre de 2026.**
 
+Programa de escritorio para revisar el trabajo actual y preparar archivos y borradores. Tiene cinco páginas: Trabajo, Correos, Resoluciones, Resultados y Configuración.
 
-Base conservada: **0.4.0.dev14**, actualizada el 30 de septiembre de 2026 en `codex/auditoria-ux-20260925-final`. Aplicación de uso personal en Windows con Python 3.12–3.14. Prepara copias de Excel, proyectos Word y borradores editables de Outlook; el registro oficial se realiza en RUS. La [corrección de adjuntos](docs/CORRECCION_ADJUNTOS_20260930.md) documenta este parche sobre el [informe de revisión y ejecución dev13](docs/REVISION_Y_PLAN_20260929.md).
+## Instalación
 
-## Cambios actuales
+Requiere Windows, Python 3.12 y Microsoft Excel de escritorio para la exportación preservada. La creación de borradores requiere Outlook clásico; Outlook nuevo no ofrece la automatización COM utilizada.
 
-- La devolución del descargador se puede recuperar desde Resultados después de reiniciar CSMP. Conserva las ediciones incluso al empezar otro trabajo y solicita el EXE correcto si la configuración apunta a un script Python. Véase [devolución recuperable](docs/DEVOLUCION_DESCARGAS_20261005.md).
-- Las nóminas tienen bordes negros en cada celda y una columna específica de vencimiento, espera o egreso. Reconocen `F. VENCIMIENTO`; un dato ausente se identifica como «Sin dato».
-- Mulchén acepta nombres completos, abreviados, mayúsculas, tildes y diéresis. Residencial incluye RTA, RTT y RVA.
-- Los filtros de correo tienen una pestaña propia y un resumen visible; un resultado vacío explica qué revisar.
-- Las plantillas duplicadas conservan su comportamiento. Configuración permite elegirlo también en copias antiguas.
-- Los productos usan las fechas corregidas, detectan cambios de su grupo y conservan los adjuntos retirados al actualizar.
-- La recuperación conserva filtros, selección y separadores. Un error al guardar mantiene la ventana abierta.
-- El historial del trabajo registra fechas reales; los recibos antiguos sin fecha se identifican como tales.
+Ejecuta `Instalar_CSMP.bat` y después `Abrir_CSMP.bat`. Para instalar el wheel desde PowerShell:
 
-## Evolución y antecedentes
+```powershell
+py -3.12 -m pip install "nurus[excel-legacy,excel-native,outlook] @ ./nurus-0.5.0.dev1-py3-none-any.whl"
+py -3.12 -m nurus.personal.app
+```
 
-Las pruebas reales del 22 de septiembre de 2026 corresponden a dev11. Los checkpoints dev11/dev12 se conservan como antecedentes en el [índice documental](docs/INDICE_DOCUMENTACION.md), sin atribuir su aceptación o CI a este código nuevo. La línea integral también produce un ejecutable Windows mediante `CSMP_Experimental.spec`.
+## Flujo
 
-## Implementación de la auditoría del 28-09-2026
+1. Carga el Excel en Trabajo, revisa avisos y observaciones, y exporta una copia actual. El original se conserva.
+2. Prepara correos. En **Revisar nómina**, edita las celdas y marca las filas que se incluirán; después acepta para generar los adjuntos.
+3. Revisa texto, destinatarios y adjuntos. El resumen final muestra el contenido efectivo antes de crear borradores en Outlook.
+4. Prepara proyectos en Resoluciones, revisa sus datos y genera Word.
+5. Consulta pendientes, fechas y entrega en Resultados. Un doble clic en un pendiente abre su registro o producto.
 
-La rama de trabajo incorpora conciliación segura de Excel, recuperación completa de sesiones, decisiones explícitas por registro, control de productos obsoletos, edición contextual de `FECHA_OBS`/`TT`/`CC`/`RES`, diseño adaptable a ventanas pequeñas, gestión de contactos y plantillas, y separación entre actividad local y Enviados de Outlook. La documentación técnica y los criterios de verificación están en [`docs/IMPLEMENTACION_AUDITORIA_20260928.md`](docs/IMPLEMENTACION_AUDITORIA_20260928.md).
+**Correo libre** y **Word manual** funcionan sin cargar Excel. Word admite texto libre o una matriz DOCX con variables completadas. Sus ediciones se guardan como trabajo manual actual. Los bloques favoritos admiten `{NOMBRE}`, `{RIT}`, `{TRIBUNAL}`, `{PROGRAMA}` y `{FECHA}`; se completan antes de insertarlos.
 
-## Cambios de esta actualización
+## Funciones adicionales
 
-El [pulido final dev11](docs/UX_FINAL_20260922.md) agrega búsqueda y filtros en Trabajo/Resoluciones, descripciones legibles de tipos de resolución, color por origen, barra de contexto, acceso a carpeta de salida y atajos mínimos. La visualización prioriza excepciones y mantiene los registros ocultos por filtro fuera de cualquier eliminación o cambio. No se agregan contadores laterales ni empaquetado `.exe`.
+- Informe de calidad por fila: campos vacíos, números/fechas ilegibles e identidades repetidas para revisión.
+- Explicación de sugerencias con reglas activadas, datos y umbrales configurados.
+- Selección conservada aunque una búsqueda o filtro oculte filas.
+- Preferencias de columnas visibles, recuperación de ediciones y productos actuales.
+- Búsqueda de contactos con elección explícita entre coincidencias.
+- Vencimiento de informe y egreso proyectado presentados por separado.
+- Diagnóstico de versión, dependencias, matrices y registro de Office.
+- ZIP de los productos que se seleccionen para la entrega.
 
-La [actualización dev10, vigente en dev11](docs/RES_CATEGORICO_20260922.md) convierte `RES` en una instrucción explícita: las copias nuevas ofrecen un desplegable `PC_IE / PC_INFO / NOMENCL`; vacío significa que no corresponde proyecto. Un valor desconocido se advierte y nunca se adivina. Las marcas antiguas (`1`, `X`, etc.) siguen siendo legibles para compatibilidad. Resoluciones muestra `Definido en RES` cuando el tipo proviene de esa columna y conserva el cambio manual como corrección final.
+La sesión y los recibos críticos se conservan para recuperar el trabajo y evitar efectos duplicados. El guardado omite escrituras cuando el estado completo no cambió. Los productos basados en datos modificados deben prepararse y revisarse nuevamente.
 
-La [actualización dev9](docs/PANEL_CORREOS_20260921.md) incorpora CustomTkinter en modo oscuro, navegación lateral, tarjetas de programas y adjuntos individuales. **Solo programas / Solo tribunales / Ambos** define los destinatarios al preparar; el tribunal de las causas es un filtro opcional independiente. Se recupera el texto del manual de Informes por vencer mediante migración que conserva ediciones personales.
+## Estado de entrega
 
-La [auditoría y limpieza dev8](docs/LIMPIEZA_ASISTENTE_20260921.md) retira la interfaz NuRus y las implementaciones duplicadas del Asistente. Corregimos pérdida de ajustes de resoluciones al actualizar/exportar, productos anteriores visibles después de cambiar de copia, selección de hoja arrastrada entre modos y desactivaciones de reglas perdidas al guardar umbrales. No se agregan aprobaciones ni recargas. La [revisión dev7](docs/REVISION_USABILIDAD_20260921.md) conserva la evidencia de las mejoras previas.
+La fuente disponible era `b95f0db`, del prototipo dev17. Las versiones locales dev19 y Descargador 2.4.4 de la memoria no se encuentran publicadas; las mejoras se implementaron sobre la fuente disponible. Este paquete no se identifica como una recuperación exacta de esas versiones.
 
-## Instalación y actualización
+Las pruebas locales incluyen interfaz con pantalla virtual y datos ficticios. La construcción del ejecutable y la aceptación con Excel y Outlook reales deben completarse en Windows. El flujo de Actions está configurado para Windows y la rama `feat/**`.
 
-1. Descarga el ZIP o el código de la rama **`experimento/plan-integral-csmp-20261005-dev17-manual`**, que contiene esta versión corregida y el manual interactivo, y extrae su contenido en una carpeta nueva. `main` conserva la candidata anterior hasta su integración.
-2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat` desde esa misma carpeta. Repite la instalación al actualizar: el lanzador usa el paquete instalado en `.venv-csmp`, no los archivos fuente recién descargados. Comprueba **0.4.0.dev17** en el título de la ventana.
-3. Se admite Python 3.12, 3.13 o 3.14. El entorno queda en `.venv-csmp` dentro de la carpeta de la aplicación. No requiere permisos de administrador ni Node. El instalador incorpora `customtkinter` 5.2.x dentro de ese entorno aislado.
-4. Excel de escritorio y Outlook clásico son necesarios para la ruta completa de uso institucional. La instalación normal puede descargar dependencias Python; si existe `paquetes/`, el instalador usa ese repositorio local.
+El registro real en RUS sigue pendiente del formulario y la sesión operables. Preparar una observación no acredita que haya sido guardada en RUS.
 
-La configuración del usuario se guarda en `LOCALAPPDATA/CSMP_Personal`. La actualización conserva la configuración y las matrices personalizadas. Las migraciones de textos y matrices dejan respaldo cuando corresponde.
-
-## Flujo de trabajo
-
-En Trabajo selecciona Espera, Cumplimiento o Informes, carga el Excel y pulsa **PROCESAR**. La copia generada se comparte con Correos y Resoluciones. Las observaciones de gestiones ejecutadas usan redacción apta para registrar posteriormente en RUS; que el motor genere ese texto no acredita por sí solo que la gestión haya sido realizada.
-
-Puedes editar la observación directamente en la ventana. Al exportar se captura automáticamente el contenido visible aunque no hayas pulsado antes **Aplicar edición**. Si existe revisión humana, las filas modificadas quedan `REVISADO`; las no modificadas quedan `PENDIENTE`. Se exportan `OBSERVACION`, `FECHA_OBS`, `TT`, `CC` y `RES` sin borrar valores existentes que no fueron editados. La neutralización de fórmulas de Excel se conserva.
-
-También puedes cargar una planilla modificada/externa. Se buscan encabezados en todas las hojas hasta la fila 60. Si falta un cruce utilizable en Cumplimiento, C-10 no se evalúa, se deja advertencia y el proceso continúa sin pedir una excepción ni bloquear la exportación.
-
-## Correos
-
-Las modalidades se seleccionan en **Filtros**: Residencial, Ambulatorio, Familia de acogida y DCE. RTA/RTT/RVA se clasifican como Residencial y FAS como Familia de acogida. Los campos Para, CC, asunto, cuerpo y adjuntos son editables antes de guardar.
-
-**Preparar todos** respeta el alcance elegido: **Solo programas** genera las gestiones a programas sin añadir el informativo al tribunal; **Solo tribunales** prepara sus comunicaciones; **Ambos** conserva el conjunto anterior. No seleccionar un tribunal en los filtros incluye todas las causas. Las tarjetas muestran programa, tribunal y vencimiento si están disponibles en los datos; seleccionar una tarjeta carga el editor. **Guardar todos** puede guardar un lote ya preparado o, si todavía no existe vista previa, preparar y guardar el conjunto necesario en una sola acción. No existe envío automático. Si no se conoce el destinatario, Para queda vacío. Siempre se incorpora la copia institucional configurada.
-
-La identidad de un borrador depende de destinatarios efectivos, CC, asunto, cuerpo y contenido de los adjuntos. La ruta temporal de una nómina no forma parte de esa identidad: volver a preparar el mismo correo en otra carpeta UUID no habilita un duplicado, pero una edición real sí genera una identidad distinta.
-
-Las copias nuevas incorporan una columna técnica oculta `NURUS_REGLAS`; al cargar una planilla modificada se recuperan esas reglas y, con ellas, los correos específicos que correspondan. Las copias anteriores intentan recuperar la misma información desde `NURUS_TRAZABILIDAD`.
-
-## Resoluciones
-
-Los proyectos se agrupan por **tribunal + RIT + tipo** y la lista muestra una sola fila por ese grupo. En las copias nuevas, `RES` tiene un desplegable con `PC_IE`, `PC_INFO` y `NOMENCL`; dejarlo vacío significa que no corresponde proyecto. El tipo explícito en `RES` prevalece. Las marcas antiguas `1/0/X` se siguen leyendo, pero su tipo debe inferirse como compatibilidad. Un texto RES desconocido genera una advertencia visible y no se corrige automáticamente.
-
-Una mención a informe/diagnóstico discrimina `PC_INFO`; ingreso efectivo/fecha estimada de ingreso discrimina `PC_IE`; nomenclatura discrimina `NOMENCL`. Si `RES` no fue utilizado, una observación por sí sola no crea un proyecto: debe existir una acción de resolución del motor. Para cambiar el tipo manualmente debes seleccionar de forma explícita la fila o filas concretas; no seleccionar nada ya no equivale a modificar todos los proyectos.
-
-Si hay varias personas en el mismo RIT y tipo, se genera un solo proyecto y cada NNA queda individualizado junto a su propia cédula. **Generar UN Word** produce un único archivo y cada proyecto comienza en página nueva. Los datos ausentes se marcan como `[COMPLETAR ...]`. Las fechas insertadas por el generador se escriben íntegramente en palabras.
-
-### Matrices vigentes
-
-Hay seis matrices base: `LAJA/NOMENCL`, `LAJA/PC_IE`, `LAJA/PC_INFO`, `MULCHEN/NOMENCL`, `MULCHEN/PC_IE` y `MULCHEN/PC_INFO`. Cinco cuerpos DOCX provienen de la revisión del paquete entregado el 14-09-2026 y se verifican por SHA-256; `LAJA/PC_INFO` fue convertida desde el Word antiguo entregado. No hay matrices de Tomé: la aplicación no inventa ni reutiliza una matriz de otro tribunal.
-
-## Arquitectura y mantenimiento
-
-Solo existe una interfaz operativa: `nurus.personal.app.App`. `app_base` contiene controles compartidos, sin versiones alternativas de los métodos del flujo. `nurus.app`, su acceso por consola y los BAT antiguos redirigen al Asistente; ya no contienen la interfaz NuRus ni los diálogos de aprobación/materialización. Se retira también el benchmark del flujo histórico. El historial Git conserva esas fuentes.
-
-El paquete Python sigue llamándose `nurus` para mantener instalaciones y archivos compatibles. Los componentes compartidos de lectura, exportación, Office, modelos y persistencia permanecen, con sus pruebas; esta limpieza no elimina datos ni migra sesiones. Las columnas técnicas de las planillas conservan sus nombres para poder releer las copias existentes.
-
-## Estado de verificación
-
-La CI está configurada para instalación, wheel, recursos, dependencias, compilación y pruebas en Windows con Python 3.12, 3.13 y 3.14, incluida la rama `codex/**`. Python 3.12 ejecuta además la ventana real y construye `CSMP-Windows-dev14`. La evidencia efectivamente obtenida está en [VERIFICACION_PERSONAL.md](docs/VERIFICACION_PERSONAL.md) y la [corrección actual](docs/CORRECCION_ADJUNTOS_20260930.md).
-
-La validación automática no reemplaza una prueba con la instalación concreta de Excel/Outlook. El [índice documental](docs/INDICE_DOCUMENTACION.md) distingue instrucciones actuales y evidencia histórica.
-
+Consulta [el informe de ejecución](docs/EJECUCION_WINDOWS_20261006.md).

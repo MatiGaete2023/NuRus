@@ -62,7 +62,7 @@ La hoja oculta de trazabilidad de la exportación incorpora la información de e
 
 [Actions 34369824759](https://github.com/MatiGaete2023/NuRus/actions/runs/34369824759) ejecutó:
 
-- Linux: **80 pruebas aprobadas**.
+- entorno de desarrollo: **80 pruebas aprobadas**.
 - Windows: **79 pruebas aprobadas y 1 omitida**, porque requiere Excel de escritorio real.
 
 Las pruebas cubren detección del instalador sin lanzador `py`, respaldo de migración v4→v5, rechazo de Cumplimiento sin excepción, validación de responsable y motivo, rechazo de hoja ambigua, persistencia de la excepción dentro del snapshot y preservación de los snapshots anteriores.

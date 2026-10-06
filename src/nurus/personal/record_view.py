@@ -1,4 +1,5 @@
 """Contextual form with explicit empty values and reversible bulk edits."""
+from .selection import selected_ids, remember, restore_visible
 import tkinter as tk
 import customtkinter as ctk
 
@@ -136,7 +137,7 @@ class RecordForm:
         self.app._save_session()
 
     def bulk(self):
-        selected=list(self.app.records.selection())
+        selected=list(selected_ids(self.app,'records'))
         if not selected:raise ValueError('Selecciona registros en Trabajo.')
         window=ctk.CTkToplevel(self.app);window.title(f'Editar {len(selected)} registros');window.geometry('600x380');window.transient(self.app)
         ui.Label(window,text=f'Solo se aplicarán los campos marcados a {len(selected)} registros.').pack(padx=12,pady=12)

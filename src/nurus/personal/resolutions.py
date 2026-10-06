@@ -101,10 +101,10 @@ def resolution_review_issue(value):
     return f"RES no reconocido: {shown!r}. Usa PC_IE, PC_INFO o NOMENCL, o deja la celda vacía."
 
 
-def resolution_selection_source(work,row,kind):
+def resolution_selection_source(work,row,kind,*,peers=None):
     """Explica si el tipo procede de RES, de compatibilidad antigua o del motor."""
     case=_case_key(work,row)
-    peers=[item for item in work.rows if not item.excluded and _case_key(work,item)==case]
+    if peers is None:peers=[item for item in work.rows if not item.excluded and _case_key(work,item)==case]
     if any(resolution_kind((item.review or {}).get('RES'))==kind for item in peers):return 'Definido en RES'
     if any(_has_explicit_value((item.review or {}).get('RES')) and resolution_marked((item.review or {}).get('RES')) for item in peers):return 'RES antiguo · tipo inferido'
     return 'Sugerencia automática revisable'
@@ -161,7 +161,8 @@ def automatic_project_selections(work,fallback_kind='PC_IE'):
             from copy import copy
             old=copy(work);old.rows=legacy
             selected.extend(automatic_project_selections(old,fallback_kind))
-        cases={(_case_key(work,row),kind) for rid,kind in selected for row in work.rows if row.id==rid}
+        by_id={row.id:row for row in work.rows}
+        cases={(_case_key(work,by_id[rid]),kind) for rid,kind in selected if rid in by_id}
         return [(row.id,kind) for row in work.rows if not row.excluded for kind in KINDS if (_case_key(work,row),kind) in cases]
     reviewed=reviewed_resolution_ids(work)
     result=[]

@@ -7,7 +7,6 @@ from unittest.mock import Mock
 import pytest
 from openpyxl import Workbook, load_workbook
 
-from nurus.personal.activity import activity_rows
 from nurus.personal.app_base import App as BaseApp
 from nurus.personal.config import defaults
 from nurus.personal.mail_controls import empty_preparation_message
@@ -109,9 +108,6 @@ def test_receipt_metadata_and_activity_date_survive_session_reload(tmp_path,monk
     assert receipt['created_at']
     recovered=Work.load(tmp_path/'session')
     assert recovered.receipts==work.receipts
-    rows=list(activity_rows({'legacy':{'kind':'word','path':'antiguo.docx'},**recovered.receipts}))
-    assert rows[-1][1][0]=='Fecha no registrada'
-    assert rows[0][1][3]==draft.subject
 
 
 def test_uncertain_outlook_save_preserves_activity_metadata(tmp_path,monkeypatch):

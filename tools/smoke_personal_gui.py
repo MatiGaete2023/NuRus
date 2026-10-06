@@ -35,7 +35,7 @@ with TemporaryDirectory() as directory:
         app.update_idletasks();app.update()
         assert isinstance(app,ctk.CTk)
         assert ctk.get_appearance_mode()=='Dark'
-        assert len(app.tabs.tabs())==6
+        assert len(app.tabs.tabs())==5
         for tab in app.tabs.tabs():
             app.tabs.select(tab);app.update_idletasks();app.update()
             assert app.nametowidget(tab).winfo_ismapped()
@@ -49,7 +49,7 @@ with TemporaryDirectory() as directory:
         app.tabs.select(app.pages['Resultados']);app.update_idletasks();app.update()
         app.results_scrollpane.body._parent_canvas.yview_moveto(1);app.update()
         capture_window(app,'resultados-1024x650')
-        button=app.results_return_button
+        button=app.results_download_button
         assert button.winfo_rooty()+button.winfo_height()<=app.winfo_rooty()+app.winfo_height()
         button=app.results_download_button
         assert button.winfo_ismapped()
@@ -100,7 +100,7 @@ with TemporaryDirectory() as directory:
         assert '2 registros' in app.context.get()
         assert 'Pide cuenta ingreso efectivo' in app.words.item('a|PC_IE','values')[2]
         assert 'Definido en RES'==app.words.item('a|PC_IE','values')[3]
-        app.work_search.set('NNA UNO');app.update()
+        app.work_search.set('NNA UNO');time.sleep(.2);app.update()
         assert app.records.get_children()==('a',)
         app.work_search.set('');app.work_filter.set('Con aviso');app._apply_work_filter();app.update()
         assert app.records.get_children()==('b',)

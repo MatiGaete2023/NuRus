@@ -43,7 +43,7 @@ La salida no puede sobrescribir el archivo de origen ni un destino ya existente.
 
 GitHub Actions ejecutó la suite sobre el código indicado:
 
-- Linux: **77 pruebas aprobadas** en 5,28 segundos.
+- entorno de desarrollo: **77 pruebas aprobadas** en 5,28 segundos.
 - Windows: **76 pruebas aprobadas y 1 omitida** en 33,94 segundos. La omitida exige Excel de escritorio real.
 
 Evidencia: [Actions 34366711295](https://github.com/MatiGaete2023/NuRus/actions/runs/34366711295).

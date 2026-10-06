@@ -1,64 +1,7 @@
-# Evidencia de la línea integral — 0.4.0.dev17
+# CSMP Windows · 0.5.0.dev1
 
-**Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Conserva la base corregida dev14, el flujo conjunto y las alertas. Añade diario recuperable y conciliación de fechas con Excel. El adaptador real de bitácoras y registro sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse REGISTRO_RECUPERABLE_20261005.md y ESTADO_PLAN_INTEGRAL_20261005.md. Las secciones anteriores a este avance se conservan como antecedentes, no como aceptación de las funciones nuevas.
+Documento actualizado el 6 de octubre de 2026.
 
+La especificación y el estado vigentes se encuentran en [README](../README.md) y [Ejecución Windows](EJECUCION_WINDOWS_20261006.md).
 
-La corrección del 30-09-2026 y sus resultados están en
-[CORRECCION_ADJUNTOS_20260930.md](CORRECCION_ADJUNTOS_20260930.md). Los resultados de CI y
-uso real fechados que siguen corresponden a sus respectivos commits y versiones.
-No prueban por sí solos la versión actual. El workflow incluye ahora `codex/**`.
-
-# Verificación histórica — CSMP Assistant personal 0.4.0.dev12
-
-Estado de la rama dev12: **CANDIDATA DE EVOLUCIÓN CON CI VERDE; CORRECCIONES DE USO REAL EN VERIFICACIÓN**. Dev11 sigue siendo la última candidata con validación funcional amplia hasta que dev12 complete la nueva prueba operativa.
-
-## Verificación dev12
-
-Rama: `ux-observaciones-20260922`. Checkpoint de código verificado tras la corrección visual de Trabajo: `dfa7809505da47f13e2dbdf799ab820de05719a9`, GitHub Actions run `35867829076`, attempt 2: **success** en Windows con Python 3.12, 3.13 y 3.14; **273 passed, 1 skipped** por versión. Python 3.12 aprobó además el smoke CustomTkinter y la construcción de la distribución ZIP dev12. La primera ejecución 3.12 agotó el límite de 8 minutos sin fallo de aserción; la repetición aislada terminó correctamente. No se atribuye a dev12 la evidencia funcional amplia de dev11.
-
-## Evidencia automatizada
-
-Checkpoint UX dev11: `291c3929fbda63a336a1b04f6d402a7eb84236d0`, GitHub Actions run `35733322467`, Windows Python 3.12/3.13/3.14 en success.
-
-Hotfix Excel RES: `b6c9d84b79b416dd7fc5fb9911a9ffe521934ac9`, GitHub Actions run `35737408005`, Windows Python 3.12/3.13/3.14 en success, **260 passed, 1 skipped** por versión. Python 3.12 aprobó además smoke CustomTkinter y construcción de la distribución Windows dev11.
-
-El hotfix elimina la dependencia de `Application.International` al configurar la lista RES nativa de Excel; usa una hoja técnica oculta y el nombre `NURUS_RES_TIPOS`. La regresión cubre expresamente el escenario COM que produjo `'tuple' object is not callable` en Excel real.
-
-## Hotfix de regresión de identidad — 25 de septiembre de 2026
-
-Uso real detectó que Correos y Resoluciones podían bloquearse con `Falta la columna de identidad; no se pueden asociar las ediciones.` al refrescar una copia revisada sin `NURUS_ID_REGISTRO`.
-
-El origen exacto de la desaparición de esa columna en el archivo institucional no fue reproducido todavía. El bloqueo sí quedó reproducido y corregido: `Work.refresh()` usa `NURUS_ID_REGISTRO` cuando existe; si falta, admite un fallback mediante identidad compuesta RIT/RUT/NNA/tribunal/programa únicamente cuando la asociación es unívoca y coincide el conjunto completo de registros. No asocia por posición. Si hay duplicados, identidades nuevas/cambiadas o faltan casos, mantiene el bloqueo de integridad.
-
-Las regresiones cubren: refresco de observaciones sin la columna técnica; preparación de correo ESPERA y proyecto Word desde esa copia; y rechazo cuando se altera la identidad de la persona.
-
-Checkpoint funcional: `bd5cc62109170c44fc2e07bdae3622ce681bd3be`. GitHub Actions run `36164510154`: **success** en Windows/Python 3.12–3.14, con **281 passed, 1 skipped** por versión. Python 3.12 aprobó además smoke GUI y construcción ZIP.
-
-## Correcciones verificadas automáticamente — 24 de septiembre de 2026
-
-Incidencias reportadas: alcance incorrecto de correos/adjuntos de lista de espera, ausencia de bordes en el Excel adjunto, y problemas observados en proyectos Word respecto de tribunal/fuentes.
-
-Checkpoint de código: `31f2fefee70641c2e6f7311a2e2c8d01a6561f5c`. GitHub Actions run `36009322188`: **success** en Windows con Python 3.12, 3.13 y 3.14; **278 passed, 1 skipped** por versión. Python 3.12 aprobó además smoke CustomTkinter y construcción ZIP.
-
-Quedó automatizado que: los correos automáticos de ESPERA respeten la regla por fila y la observación humana final; su adjunto contenga exactamente esas filas y use bordes; Laja y Mulchén se agrupen por separado usando sus matrices respectivas; una matriz de otro tribunal se rechace; y el Word combinado preserve la fuente efectiva de matrices diferentes.
-
-La CI no reproduce las matrices personalizadas ni los archivos exactos del PC institucional. Por ello se requiere una nueva prueba real del flujo de ESPERA y de un lote mixto Laja/Mulchén antes de considerar cerradas las incidencias.
-
-## Evidencia de uso real — 23 de septiembre de 2026
-
-La revisión visual de Trabajo confirmó una fricción de dev12: el detalle de causa repetía la observación y reducía excesivamente el editor. Se corrigió en `dfa7809505da47f13e2dbdf799ab820de05719a9` compactando el detalle solo en Trabajo y priorizando el espacio del editor. Falta comprobar visualmente esta corrección en el PC del usuario.
-
-## Evidencia de uso real — 22 de septiembre de 2026
-
-El usuario confirmó funcionamiento satisfactorio de:
-- procesamiento y modificación del Excel;
-- desplegable y clasificación `RES`;
-- generación de proyectos de resolución;
-- creación y edición de borradores de correo;
-- modificación de parámetros/configuración.
-
-Esta prueba ocurrió después del hotfix RES. Por ello dev11 pasa de prototipo abierto a **candidata funcional congelada**.
-
-## Límites
-
-No se considera todavía versión 1.0 estable. Continúan pendientes los casos específicos no confirmados en la prueba real y registrados en `ACEPTACION_CSMP_PERSONAL.md`, la decisión DCE, matrices Tomé y una breve etapa de uso cotidiano para detectar fricciones. El producto no envía correos y no escribe en RUS/SATURNO.
+La entrega se centra en el trabajo actual, correo y Word manuales, revisión de nóminas, recuperación y controles de Office. El registro real en RUS requiere completar el formulario y la sesión operables.

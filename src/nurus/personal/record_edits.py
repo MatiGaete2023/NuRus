@@ -169,7 +169,8 @@ def recalculate(work, row):
             args['fecha_hoja2'] = as_date(getattr(work, 'cross_dates', {}).get(row.id))
         function = {'ESPERA': generar_observacion_espera, 'CUMPLIMIENTO': generar_observacion_cumplimiento,
                     'INFORMES': generar_observacion_informes}[work.mode]
-        row.observation = function(values, court, work.mapping, **args)
+        row.observation = function(values, court, work.mapping, **args) if court else ''
+        if not court:warnings.append('Tribunal sin reglas configuradas; requiere revisión manual.')
         warnings.extend(item['MOTIVO'] for item in incidences._items)
     finally:
         current.reset(token)

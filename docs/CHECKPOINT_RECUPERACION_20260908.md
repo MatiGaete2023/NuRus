@@ -17,7 +17,7 @@ Terminar la integración autorizada de Espera, Cumplimiento, Informes, generaci�
 ## [G-ESTADO]
 **Estado actual:** recuperación operativa mediante GitHub y GitHub Actions. A los cambios remotos de correo, contactos y selección de hojas se añaden aprobación transaccional, snapshots históricos, rechazo de vistas previas antiguas y respaldo de migración (bef83f7), además de protección del archivo original frente a exportación sobre la misma ruta o identidad (1b93196). Se incorpora conservación atómica de los bytes originales por SHA-256, lectura desde la captura y migración con respaldo a v4 (67a23b7). La exportación revisada desde esa copia quedó publicada en e1f7452: modo nativo de Excel para Windows, anotaciones de revisión, trazabilidad oculta y filas excluidas coloreadas. Cumplimiento ahora exige excepción documentada de hoja de cruce, persistida en el snapshot; el instalador detecta Python 3.12 sin depender solo de py (81769e). La implementación local anterior sigue sin recuperarse; no se presenta como publicada.
 
-**Verificación remota vigente:** 80 pruebas aprobadas en Linux y 79 aprobadas más 1 omitida en Windows, sobre 81769e. Evidencia: [Actions 34369824759](https://github.com/MatiGaete2023/NuRus/actions/runs/34369824759). La omisión exige Excel de escritorio real. Ver INSTALACION_Y_EXCEPCION_CUMPLIMIENTO_20260909.md para recuperación de instalación, excepción y aceptación. La aceptación con Excel 2010 y Outlook clásico continúa pendiente.
+**Verificación remota vigente:** 80 pruebas aprobadas en entorno de desarrollo y 79 aprobadas más 1 omitida en Windows, sobre 81769e. Evidencia: [Actions 34369824759](https://github.com/MatiGaete2023/NuRus/actions/runs/34369824759). La omisión exige Excel de escritorio real. Ver INSTALACION_Y_EXCEPCION_CUMPLIMIENTO_20260909.md para recuperación de instalación, excepción y aceptación. La aceptación con Excel 2010 y Outlook clásico continúa pendiente.
 
 **Base remota de la recuperación inicial:** ad5c7c4 y checkpoint abfa54a. Los avances remotos posteriores se documentan en RECUPERACION_EJECUTADA.md. Las pruebas de GitHub Actions corresponden a esos commits; no al código local inaccesible.
 
@@ -63,7 +63,7 @@ Esta secuencia es complementaria: no impide continuar cambios independientes y v
 1. Comprobar existencia y contenido actual del directorio anterior. No borrar ni sustituirlo.
 2. Recuperar el resultado pendiente o ejecutar desde ese directorio:
    PYTHONPATH=src:../testdeps NURUS_REFERENCE_DIR=../upload python -m pytest -q
-   Esta orden corresponde al entorno Linux de trabajo anterior, no a Windows.
+   Esta orden corresponde al entorno entorno de desarrollo de trabajo anterior, no a Windows.
 3. Corregir solo fallos reproducibles. Verificar en particular importación de contactos existentes con alias, transacción y respaldo; contador con fechas límite y consulta parcial.
 4. Compilar src y tests; comprobar dependencias/paquete. La instalación destinada al usuario sigue siendo Python 3.12 en un entorno virtual.
 5. Comparar con el HEAD remoto vigente antes de publicar. Conservar modificaciones ajenas y archivos remotos no descargados, incluidas matrices binarias. Publicar un commit de código en la rama de integración, sin forzar ni modificar main.

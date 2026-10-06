@@ -1,4 +1,5 @@
 """Interfaz personal CSMP: una carga, propuestas y preparación de salidas."""
+from .selection import selected_ids, remember, restore_visible
 from pathlib import Path
 from datetime import date, datetime
 from dataclasses import replace
@@ -15,14 +16,13 @@ from .ui import Textbox as ScrolledText
 
 from .config import Configuration, PARAMETER_LABELS, VARIABLES
 from .widgets import ScrollPane, NamedChoice, Tooltip
-from .ux_support import case_detail_text, compact_case_detail_text, grouped_draft_detail, edited_pair, incident_ids, resume_available, resume_description, RES_HELP
+from .ux_support import case_detail_text, compact_case_detail_text, grouped_draft_detail, incident_ids, resume_available, resume_description, RES_HELP
 from .work import Work
 from .outputs import create_draft, import_contacts
 from .resolutions import KINDS, kind_code, kind_label, prepare_projects, generate_projects, automatic_project_selections
 from .importing import SheetChoice
 from nurus.rus.reader import list_workbook_sheets
 from nurus.rus.columns import normalize
-from nurus.adapters.sent_mail import count_sent_mail, export_sent_report
 
 class App(ctk.CTk):
     def __init__(self,configuration=None):
@@ -46,11 +46,11 @@ class App(ctk.CTk):
         ctk.CTkLabel(sidebar,text='CSMP\nAssistant',font=('Segoe UI',22,'bold'),justify='left').pack(padx=16,pady=(24,18),anchor='w')
         self.tabs=ttk.PageStack(self,sidebar);self.tabs.grid(row=0,column=1,sticky='nsew',padx=12,pady=12)
         self.pages={}
-        for name in ('Trabajo','Correos','Resoluciones','Resultados','Configuración','Enviados'):
+        for name in ('Trabajo','Correos','Resoluciones','Resultados','Configuración'):
             frame=ttk.Frame(self.tabs,padding=10)
-            self.tabs.add(frame,text='Historial' if name=='Enviados' else name);self.pages[name]=frame
+            self.tabs.add(frame,text=name);self.pages[name]=frame
         ctk.CTkLabel(sidebar,text='Uso personal\nSolo borradores',text_color=ttk.MUTED,justify='left').pack(side='bottom',padx=16,pady=18)
-        self._work_page();self._mail_page();self._word_page();self._config_page();self._sent_page()
+        self._work_page();self._mail_page();self._word_page();self._config_page()
         from .results_view import build as build_results
         build_results(self)
         contextbar=ctk.CTkFrame(self,corner_radius=0,fg_color='#1a2028')
@@ -130,6 +130,9 @@ class App(ctk.CTk):
         self.after(15000,self._autosave)
 
     def _save_session(self):
+        if not self.busy:
+            for window,capture_manual in getattr(self,'_manual_captures',{}).values():
+                if window.winfo_exists():capture_manual()
         self._capture_observation()
         if self.work and not self.busy:
             try:
@@ -138,7 +141,6 @@ class App(ctk.CTk):
                 self.work.save(self.cfg.directory/'sesion')
                 from .download_transfer import archive_current
                 archive_current(self.work,self.cfg.directory)
-                self._update_local_activity()
             except OSError as exc:
                 self.status.set('No se pudo guardar la recuperación: '+str(exc))
                 raise
@@ -223,6 +225,7 @@ class App(ctk.CTk):
 
     def _apply_work_filter(self,*_):
         if not hasattr(self,'records'):return
+        remember(self,'records',selected_ids(self,'records'))
         search=normalize(self.work_search.get() if hasattr(self,'work_search') else '')
         mode=self.work_filter.get() if hasattr(self,'work_filter') else 'Todos'
         for iid in list(getattr(self,'_work_all_iids',[])):
@@ -236,8 +239,11 @@ class App(ctk.CTk):
             elif mode=='Sin incidencias':visible=visible and not ({'warning','excluded'} & tags)
             if not visible:self.records.detach(iid)
 
+        restore_visible(self,'records')
+
     def _apply_resolution_filter(self,*_):
         if not hasattr(self,'words'):return
+        remember(self,'words',selected_ids(self,'words'))
         search=normalize(self.resolution_search.get() if hasattr(self,'resolution_search') else '')
         mode=self.resolution_filter.get() if hasattr(self,'resolution_filter') else 'Todos'
         for iid in list(getattr(self,'_resolution_all_iids',[])):
@@ -248,6 +254,8 @@ class App(ctk.CTk):
             wanted={'Definido en RES':'res_explicit','Ajustado manualmente':'res_manual','Sugerencia automática':'res_auto','RES antiguo':'res_legacy'}.get(mode)
             if wanted:visible=visible and wanted in tags
             if not visible:self.words.detach(iid)
+
+        restore_visible(self,'words')
 
     @staticmethod
     def _field(parent,label,variable,row,width=65):
@@ -274,17 +282,14 @@ class App(ctk.CTk):
         def done(report):
             message=report['estado']+'\n'+'\n'.join(report['mensajes'])
             self.status.set(message.replace('\n',' · '));messagebox.showinfo('Compatibilidad del libro',message,parent=self)
-        self._run('Comprobando el libro…',lambda:inspect_input(self.file.get(),self.mode.get(),self.sheet.get() or None),done)
+        path,mode,sheet=self.file.get(),self.mode.get(),self.sheet.get() or None
+        self._run('Comprobando el libro…',lambda:inspect_input(path,mode,sheet),done)
 
     def _open_sitfa_source(self):
         from .sitfa import verified_source
-        work=self._require_work();selected=self.records.selection()
+        work=self._require_work();selected=selected_ids(self,'records')
         if len(selected)!=1:raise ValueError('Selecciona una fila para abrir su original.')
         row=next(r for r in work.rows if r.id==selected[0]);self._open(verified_source(work,row))
-
-    def _open_signed_activity(self):
-        from .activity_view import show
-        return show(self)
 
     def _download_joint(self):
         from .download_link import start
@@ -318,7 +323,7 @@ class App(ctk.CTk):
         ids=incident_ids(work)
         self.incident_text.set(f'{len(ids)} incidencia'+('s' if len(ids)!=1 else ''))
         if not ids:return self.status.set('No hay incidencias reconocidas en los registros.')
-        current=self.records.selection()[0] if self.records.selection() else None
+        current=selected_ids(self,'records')[0] if selected_ids(self,'records') else None
         try:index=ids.index(current)
         except ValueError:index=-1 if direction>0 else 0
         target=ids[(index+direction)%len(ids)]
@@ -326,33 +331,15 @@ class App(ctk.CTk):
         self.records.selection_set(target);self.records.focus(target);self.records.see(target);self._detail()
         self.status.set(f'Incidencia {ids.index(target)+1} de {len(ids)}.')
 
-    def _set_work_comparison(self,row):
-        pair=edited_pair(getattr(row,'observation',''),(getattr(row,'review',{}) or {}).get('OBSERVACION',getattr(row,'observation','')))
-        if pair:
-            self.work_compare.set_pair(*pair)
-            if not self.work_compare.winfo_manager():self.work_compare.pack(fill='both',expand=True)
-        elif self.work_compare.winfo_manager():self.work_compare.pack_forget()
-
     def _update_work_case_detail(self,row):
         self.work_case_detail.set_text(compact_case_detail_text(self.work,row,getattr(self,'drafts',[])))
 
     def _resolution_detail(self,event=None):
         if self.busy:return
-        if not getattr(self,'work',None) or not self.words.selection():return
-        rid=self.words.selection()[0].split('|',1)[0]
+        if not getattr(self,'work',None) or not selected_ids(self,'words'):return
+        rid=selected_ids(self,'words')[0].split('|',1)[0]
         row=next((r for r in self.work.rows if r.id==rid),None)
         if row:self.resolution_case_detail.set_text(case_detail_text(self.work,row,getattr(self,'drafts',[])))
-
-    def _update_resolution_comparison(self):
-        if self.project_index is None or self.project_index>=len(self.projects):
-            if self.resolution_compare.winfo_manager():self.resolution_compare.pack_forget()
-            return
-        project=self.projects[self.project_index]
-        pair=edited_pair(project.original_text,project.text)
-        if pair:
-            self.resolution_compare.set_pair(*pair)
-            if not self.resolution_compare.winfo_manager():self.resolution_compare.pack(fill='both',expand=True)
-        elif self.resolution_compare.winfo_manager():self.resolution_compare.pack_forget()
 
     def _update_mail_case_detail(self):
         if not hasattr(self,'mail_case_detail'):return
@@ -360,19 +347,6 @@ class App(ctk.CTk):
             self.mail_case_detail.set_text('Selecciona un borrador.')
             return
         self.mail_case_detail.set_text(grouped_draft_detail(self.work,self.drafts[self.draft_index],self.drafts))
-
-    def _update_mail_comparison(self):
-        if not hasattr(self,'mail_compare'):return
-        if self.draft_index is None or self.draft_index>=len(self.drafts):
-            self.mail_compare.grid_remove();return
-        draft=self.drafts[self.draft_index]
-        original=draft.original
-        if not original:self.mail_compare.grid_remove();return
-        before='Para: '+original['to']+'\nCC: '+original['cc']+'\nAsunto: '+original['subject']+'\n\n'+original['body']
-        after='Para: '+draft.to+'\nCC: '+draft.cc+'\nAsunto: '+draft.subject+'\n\n'+draft.body
-        pair=edited_pair(before,after)
-        if pair:self.mail_compare.set_pair(*pair);self.mail_compare.grid()
-        else:self.mail_compare.grid_remove()
 
     def _mode_changed(self,event=None):
         # Una hoja seleccionada para otro modo no debe anular la detección automática.
@@ -395,7 +369,7 @@ class App(ctk.CTk):
                     row.review['OBSERVACION']=text
                     self.work.revision+=1
                     if self.records.exists(row.id):self.records.set(row.id,'Observación',text)
-                self._set_work_comparison(row);self._update_work_case_detail(row)
+                self._update_work_case_detail(row)
         if hasattr(self,'record_form') and self.work:self.record_form.capture()
     def _apply_observation(self):
         self._capture_observation();self._save_session()
@@ -404,14 +378,14 @@ class App(ctk.CTk):
     def _detail(self,event=None):
         if self.busy:return
         self._capture_observation()
-        if self.work and self.records.selection():
-            row=next(r for r in self.work.rows if r.id==self.records.selection()[0])
+        if self.work and selected_ids(self,'records'):
+            row=next(r for r in self.work.rows if r.id==selected_ids(self,'records')[0])
             self.observation_id=row.id
             self.detail.set('; '.join(row.warnings))
             self.observation_editor.delete('1.0','end');self.observation_editor.insert('1.0',row.review.get('OBSERVACION',row.observation))
             self.observation_editor._textbox.edit_reset()
             if hasattr(self,'record_form'):self.record_form.load(row)
-            self._update_work_case_detail(row);self._set_work_comparison(row)
+            self._update_work_case_detail(row);
     def _refresh(self):
         self._refresh_resolved()
 
@@ -487,7 +461,7 @@ class App(ctk.CTk):
     def _capture_mail(self):
         if self.draft_index is not None:
             d=self.drafts[self.draft_index];d.to=self.to.get();d.cc=self.cc.get();d.subject=self.subject.get();d.body=self.body.get('1.0','end-1c');d.attachments=[p for p in self.attach.get().split('\n') if p]
-            self._update_mail_case_detail();self._update_mail_comparison()
+            self._update_mail_case_detail();
     def _select_mail(self,event=None):
         if self.busy:return
         self._capture_mail()
@@ -495,7 +469,7 @@ class App(ctk.CTk):
         self.draft_index=self.mail_list.curselection()[0];d=self.drafts[self.draft_index]
         self.to.set(d.to);self.cc.set(d.cc);self.subject.set(d.subject);self.body.delete('1.0','end');self.body.insert('1.0',d.body);self.attach.set('\n'.join(d.attachments))
         self.body._textbox.edit_reset()
-        self._update_mail_case_detail();self._update_mail_comparison()
+        self._update_mail_case_detail();
     def _attachment(self):
         paths=filedialog.askopenfilenames()
         if paths:self.attach.set('\n'.join([p for p in self.attach.get().split('\n') if p]+list(paths)))
@@ -503,7 +477,9 @@ class App(ctk.CTk):
     def _send_draft(self):
         work=self._require_work();self._capture_mail()
         if self.draft_index is None:raise ValueError('Primero prepara una vista previa.')
-        draft=replace(self.drafts[self.draft_index])
+        from .current_tools import confirm_drafts
+        if not confirm_drafts(self,[self.drafts[self.draft_index]]):return
+        draft=deepcopy(self.drafts[self.draft_index])
         self._run('Guardando únicamente un borrador en Outlook…',lambda:create_draft(work,draft,confirmed=True),lambda r:(self._save_session(),self.status.set('Borrador guardado en Outlook. No se envió ningún correo.')))
 
     def _word_page(self):
@@ -513,7 +489,6 @@ class App(ctk.CTk):
     def _capture_project(self):
         if self.project_index is not None and self.project_index<len(self.projects):
             self.projects[self.project_index].text=self.project_editor.get('1.0','end-1c')
-            self._update_resolution_comparison()
     def _select_project(self,event=None):
         if self.busy:return
         self._capture_project()
@@ -525,7 +500,6 @@ class App(ctk.CTk):
             rid=project.record_ids[0] if project.record_ids else None
             row=next((r for r in self.work.rows if r.id==rid),None) if rid and self.work else None
             if row:self.resolution_case_detail.set_text(case_detail_text(self.work,row,getattr(self,'drafts',[])))
-            self._update_resolution_comparison()
             from .resolution_view import show_values
             show_values(self,project)
     def _prepare_words(self,then_generate=False):
@@ -534,7 +508,7 @@ class App(ctk.CTk):
         require_current_copy(work)
         self._capture_project()
         previous_projects=deepcopy(self.projects)
-        selected=list(self.words.selection()) or [iid for iid in getattr(self,'_resolution_all_iids',self.words.get_children()) if self.words.exists(iid)]
+        selected=list(selected_ids(self,'words')) or [iid for iid in getattr(self,'_resolution_all_iids',self.words.get_children()) if self.words.exists(iid)]
         if not selected:
             selections=automatic_project_selections(work,kind_code(self.manual_word.get()) or 'PC_IE')
             if not selections:
@@ -560,7 +534,7 @@ class App(ctk.CTk):
         from .product_state import stale
         if any(stale(work,p) for p in self.projects):
             self._prepare_words(then_generate=True);return
-        selected=tuple(self.words.selection() or tuple(iid for iid in getattr(self,'_resolution_all_iids',self.words.get_children()) if self.words.exists(iid)))
+        selected=tuple(selected_ids(self,'words') or tuple(iid for iid in getattr(self,'_resolution_all_iids',self.words.get_children()) if self.words.exists(iid)))
         if not self.projects or selected!=getattr(self,'_prepared_selection',None):self._prepare_words(then_generate=True);return
         self._capture_project()
         path=Path(work.output).parent/('Resoluciones_'+datetime.now().strftime('%Y%m%d_%H%M%S_%f')+'.docx')
@@ -806,60 +780,10 @@ class App(ctk.CTk):
         if target.exists():shutil.copyfile(target,target.with_suffix('.bak.docx'))
         shutil.copyfile(path,target);self.status.set('Plantilla incorporada: '+str(target))
 
-    def _sent_page(self):
-        page=self.pages['Enviados'];top=ttk.Frame(page);top.pack(fill='x')
-        self.start=tk.StringVar(value=date.today().replace(day=1).isoformat());self.end=tk.StringVar(value=date.today().isoformat());self.search=tk.StringVar();self.sent_court=tk.StringVar();self.sent_type=tk.StringVar()
-        self._field(top,'Desde (AAAA-MM-DD)',self.start,0);self._field(top,'Hasta',self.end,1);self._field(top,'Tribunal / texto',self.sent_court,2);self._field(top,'Tipo / asunto',self.sent_type,3);self._field(top,'Buscar',self.search,4)
-        ttk.Button(top,text='Consultar Outlook',command=lambda:self._guard(self._sent_query)).grid(row=5,column=0)
-        ttk.Button(top,text='Filtrar resultado',command=self._filter_sent).grid(row=5,column=1,sticky='w')
-        ttk.Button(top,text='Exportar Excel',command=lambda:self._guard(self._export_sent)).grid(row=5,column=1,sticky='e')
-        history=ttk.Notebook(page);history.pack(fill='both',expand=True)
-        outlook=ttk.Frame(history);local=ttk.Frame(history)
-        history.add(local,text='Actividad del trabajo');history.add(outlook,text='Enviados de Outlook')
-        self.sent=self._tree(outlook,('Fecha','Destinatario','Asunto'))
-        self.activity=self._tree(local,('Fecha','Tipo','Estado','Archivo / detalle'))
-        self.activity.bind('<Double-1>',lambda event:self._open_activity())
-        ttk.Label(local,text='Productos y borradores del trabajo activo. Los borradores guardados no acreditan un envío.',text_color=ttk.MUTED,wraplength=900).pack(fill='x',pady=4)
 
-    def _update_local_activity(self):
-        if not hasattr(self,'activity'):return
-        self.activity.delete(*self.activity.get_children())
-        work=getattr(self,'work',None)
-        if not work:return
-        from .activity import activity_rows
-        for key,values in activity_rows(getattr(work,'receipts',{})):
-            self.activity.insert('', 'end', iid=key, values=values)
-
-    def _open_activity(self):
-        if not hasattr(self,'activity') or not self.activity.selection():return
-        key=self.activity.selection()[0]
-        receipt=getattr(getattr(self,'work',None),'receipts',{}).get(key,{})
-        path=receipt.get('path','')
-        if path and Path(path).exists():self._open(path)
-
-    def _sent_query(self):
-        start=date.fromisoformat(self.start.get());end=date.fromisoformat(self.end.get());account=self.cfg.data.get('cuenta_outlook') or None
-        def done(report):self.report=report;self._filter_sent()
-        self._run('Consultando Enviados (solo lectura)…',lambda:count_sent_mail(start,end,account_key=account),done)
-
-    def _filter_sent(self):
-        if not self.report:return
-        from nurus.rus.columns import normalize
-        terms=[normalize(s.get()) for s in (self.sent_court,self.sent_type,self.search) if s.get().strip()]
-        self.filtered=tuple(r for r in self.report.rows if all(t in normalize(r['Asunto']+' '+r['Destinatario']) for t in terms))
-        self.sent.delete(*self.sent.get_children())
-        for row in self.filtered:self.sent.insert('','end',values=(row['Fecha de envío'],row['Destinatario'],row['Asunto']))
-        self.status.set(f'{len(self.filtered)} correos coinciden · {self.report.errors} errores de lectura · Consulta limitada: {"sí" if self.report.truncated else "no"}. Filtros por texto, no clasificación acreditada.')
-
-    def _export_sent(self):
-        if not self.report:raise ValueError('Primero consulta Enviados.')
-        path=filedialog.asksaveasfilename(defaultextension='.xlsx',initialfile='Correos_enviados.xlsx')
-        if path:export_sent_report(replace(self.report,rows=self.filtered),path);self.status.set('Reporte de Enviados exportado: '+path)
 
 def main():
-    """Compatibilidad: el módulo base nunca inicia una variante del producto."""
     from .app import main as personal_main
     personal_main()
 
 if __name__=='__main__':main()
-

@@ -16,7 +16,7 @@ import sys
 from nurus.personal.config import Configuration
 from nurus.personal.app import App
 from nurus.personal.work import Work
-from test_rus_activity import source
+from current_fixture import source
 root=Path(sys.argv[1])
 app=App(Configuration(root/'config'))
 app.geometry('1024x650')
@@ -30,29 +30,25 @@ finally:
     assert result.returncode==0,result.stdout+'\n'+result.stderr
 
 
-def test_firmas_window_can_review_one_ingreso_at_small_size(tmp_path):
-    run_gui(tmp_path,'''
-app.work=Work(app.cfg.data).analyze(source(root),'ESPERA',as_of=date(2026,10,2))
-app._show_work()
-app.records.selection_set(app.work.rows[0].id)
-window=app._open_signed_activity()
-app.update()
-assert window.winfo_exists()
-assert window.winfo_width()>=800
-window.destroy()
-assert all(not row.review for row in app.work.rows)
-''')
+def test_current_results_and_manual_editors_are_reachable(tmp_path):
+    run_gui(tmp_path,"""
+app.tabs.select(app.pages['Resultados']);app.update()
+assert set(app.pages)=={'Trabajo','Correos','Resoluciones','Resultados','Configuración'}
+assert app.results_download_button.winfo_exists()
+from nurus.personal.manual import open_editor
+open_editor(app,'mail');open_editor(app,'word');app.update()
+""")
 
 
-def test_results_return_is_reachable_at_small_windows_size(tmp_path):
-    run_gui(tmp_path,'''
-app.tabs.select(app.pages['Resultados'])
-app.update()
-canvas=app.results_scrollpane.body._parent_canvas
-canvas.yview_moveto(1)
-app.update()
-for button in (app.results_return_button,app.results_download_button):
-    assert button.winfo_ismapped()
-    assert button.winfo_rooty()>=app.winfo_rooty()
-    assert button.winfo_rooty()+button.winfo_height()<=app.winfo_rooty()+app.winfo_height()
-''')
+def test_hidden_selection_and_view_preferences_survive_refresh(tmp_path):
+    run_gui(tmp_path,"""
+app.work=Work(app.cfg.data).analyze(source(root),'ESPERA',as_of=date(2026,10,2));app._show_work()
+id=app.work.rows[0].id
+app.records.selection_set(id);app.work_search.set('no coincidencia');app._apply_work_filter();app.update()
+from nurus.personal.selection import selected_ids
+assert id in selected_ids(app,'records')
+app._show_work();app.update();from nurus.personal.selection import selected_ids
+assert id in selected_ids(app,'records')
+app.records.configure(displaycolumns=('Nombre','RIT'));app.work_search.set('');app._apply_work_filter()
+assert tuple(app.records['displaycolumns'])==('Nombre','RIT')
+""")

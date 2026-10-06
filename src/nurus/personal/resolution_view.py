@@ -1,7 +1,8 @@
 """One case list and four focused project panels."""
+from .selection import selected_ids, remember, restore_visible
 import tkinter as tk
 from . import ui
-from .widgets import CaseDetailPanel, ComparisonPanel, ScrollPane
+from .widgets import CaseDetailPanel, ScrollPane
 from .resolutions import KINDS, KIND_LABELS, _case_key
 
 
@@ -24,7 +25,7 @@ def build(app):
     ui.Button(actions,text='Agregar desde Trabajo',width=145,command=lambda:app._guard(app._add_words)).pack(side='left')
     def set_decision(mode):
         work=app._require_work()
-        selected=app.words.selection()
+        selected=selected_ids(app,'words')
         if not selected:raise ValueError('Selecciona las causas que quieres cambiar.')
         by_id={row.id:row for row in work.rows}
         cases={_case_key(work,by_id[iid.split('|')[0]]) for iid in selected}
@@ -35,6 +36,8 @@ def build(app):
     ui.Button(actions,text='Quitar del lote',width=105,command=lambda:app._guard(lambda:set_decision('none'))).pack(side='right')
     bar=ui.Frame(page);bar.pack(fill='x',pady=4)
     ui.Button(bar,text='Preparar / actualizar proyectos',width=205,command=lambda:app._guard(app._prepare_words)).pack(side='left')
+    from .manual import open_editor
+    ui.Button(bar,text='Word manual',width=120,command=lambda:app._guard(lambda:open_editor(app,'word'))).pack(side='left',padx=4)
     ui.Button(bar,text='Restaurar automático',width=150,command=lambda:app._guard(lambda:set_decision('auto'))).pack(side='left',padx=5)
     app.generate_word_button=ui.Button(bar,text='Generar Word',width=135,command=lambda:app._guard(app._generate_words))
     app.generate_word_button.pack(side='right')
@@ -58,8 +61,8 @@ def build(app):
     def select(event=None):
         if app.busy:return
         app._resolution_detail()
-        if not app.words.selection():return
-        rid,kind=app.words.selection()[0].split('|')
+        if not selected_ids(app,'words'):return
+        rid,kind=selected_ids(app,'words')[0].split('|')
         index=next((i for i,p in enumerate(app.projects) if rid in p.record_ids and p.kind==kind),None)
         if index is not None:
             app.project_list.selection_set(index);app._select_project()
@@ -85,8 +88,6 @@ def build(app):
     app.project_matrix_text=tk.StringVar()
     ui.Label(matrix.body,textvariable=app.project_matrix_text,wraplength=420,justify='left').pack(fill='x',pady=8)
     ui.Button(matrix.body,text='Abrir matriz en Word',command=lambda:app._guard(lambda:app._open(app.projects[app.project_index].template) if app.project_index is not None else None)).pack(anchor='w')
-    changes=ui.Frame(tabs);tabs.add(changes,text='Cambios')
-    app.resolution_compare=ComparisonPanel(changes);app.resolution_compare.pack(fill='both',expand=True)
     def fit(event=None):
         width=split.winfo_width()
         if width>500:split.sashpos(0,max(240,int(width*getattr(app,'resolution_sash_ratio',.36))))
@@ -104,7 +105,7 @@ def show_values(app,project):
         variable=tk.StringVar(value=str(value));app.project_value_vars[key]=variable
         ui.Entry(app.project_data_fields,textvariable=variable).pack(fill='x',pady=(0,5))
     app.project_matrix_text.set(f'{project.court} · {project.kind}\n{project.template}\nVersión: {project.template_hash[:16]}')
-    app.project_review_status.set('Cambió la base: compara y confirma la revisión antes de generar.' if project.review_required else '')
+    app.project_review_status.set('Cambió la base: revisa y confirma la revisión antes de generar.' if project.review_required else '')
 
 
 def apply_values(app):

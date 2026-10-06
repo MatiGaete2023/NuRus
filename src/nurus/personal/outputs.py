@@ -69,6 +69,8 @@ class Draft:
     dependency_hash: str = ''
     original: dict = field(default_factory=dict)
     options: dict = field(default_factory=dict)
+    roster: list = field(default_factory=list)
+    roster_reviewed: bool = True
 
 
 _MONTHS = ('', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre')
@@ -224,7 +226,7 @@ def due_value(work,row,kind):
     return mail_metric_value(work,row,mail_metric_key(work,kind))
 
 
-def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto'):
+def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto',defer_attachments=False):
     if recipient_scope not in {'auto','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     from .sync import require_current_copy
     require_current_copy(work)
@@ -281,9 +283,14 @@ def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=N
             for row in rows:by_program[value(work,row,'programa')].append(row)
             draft.attachments=[]
             for name,subset in by_program.items():
-                target=folder/'adjuntos'/uuid4().hex
-                target.mkdir(parents=True,exist_ok=True)
-                draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx'),operational))
+                if defer_attachments:
+                    from .roster import snapshot
+                    draft.roster.append(snapshot(work,subset,name,operational))
+                    draft.roster_reviewed=False
+                else:
+                    target=folder/'adjuntos'/uuid4().hex
+                    target.mkdir(parents=True,exist_ok=True)
+                    draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx'),operational))
         from .product_state import stamp
         stamp(work,draft)
         draft.original={key:deepcopy(getattr(draft,key)) for key in ('to','cc','subject','body','attachments')}
@@ -293,7 +300,7 @@ def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=N
     return output
 
 
-def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None,recipient_scope='todos'):
+def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None,recipient_scope='todos',defer_attachments=False):
     """Prepara en una sola operación todas las comunicaciones que surgen del trabajo."""
     if recipient_scope not in {'todos','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     from .sync import require_current_copy
@@ -321,7 +328,7 @@ def prepare_required_drafts(work,*,modalities='',period='',selected=None,directo
         kinds.append(kind)
     drafts=[];seen=set()
     for kind in kinds:
-        for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys,recipient_scope='auto' if recipient_scope=='todos' else recipient_scope):
+        for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys,recipient_scope='auto' if recipient_scope=='todos' else recipient_scope,defer_attachments=defer_attachments):
             if draft.key not in seen:
                 drafts.append(draft);seen.add(draft.key)
     return drafts
@@ -361,6 +368,7 @@ def create_draft(work,draft,*,confirmed=False):
     if not confirmed:raise ValueError('Revisa destinatarios, texto y adjuntos antes de crear el borrador.')
     from .product_state import require_fresh
     require_fresh(work,draft)
+    if not draft.roster_reviewed:raise ValueError('Revisa la nómina antes de crear los adjuntos y guardar el correo.')
     draft.key=draft_fingerprint(draft)
     if draft.key in work.receipts:raise ValueError('Este borrador ya se creó o su guardado quedó incierto; revisa Outlook antes de repetir.')
     to='; '.join(emails(draft.to));cc='; '.join(emails(CC+';'+draft.cc))

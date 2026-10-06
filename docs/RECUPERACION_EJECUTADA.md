@@ -12,9 +12,9 @@ Se restableció una vía de desarrollo mediante el conector GitHub y las pruebas
 | dc3d08e898f496f884a1a6c6cf82e86f7e1d07af | Espera e Informes tomaban la primera hoja de libros con varias pestañas | Selección por nombre de modalidad; exige selección explícita si no se identifica en un libro de varias hojas; prohíbe OB y Medidas vencidas como entrada principal; conserva hoja única de nombre genérico |
 
 ## Evidencia
-- Correo: GitHub Actions 34287246724, Windows y Linux satisfactorios; log Windows: 36 pruebas aprobadas.
-- Contactos: GitHub Actions 34287359238, Windows y Linux satisfactorios; log Windows: 40 pruebas aprobadas.
-- Lector: GitHub Actions 34287468858. Windows y Linux satisfactorios; 47 pruebas aprobadas en cada entorno.
+- Correo: GitHub Actions 34287246724, Windows y entorno de desarrollo satisfactorios; log Windows: 36 pruebas aprobadas.
+- Contactos: GitHub Actions 34287359238, Windows y entorno de desarrollo satisfactorios; log Windows: 40 pruebas aprobadas.
+- Lector: GitHub Actions 34287468858. Windows y entorno de desarrollo satisfactorios; 47 pruebas aprobadas en cada entorno.
 - Se volvieron a leer los ocho archivos de código/pruebas afectados desde dc3d08e y coinciden exactamente con el contenido publicado.
 - Los tests de Outlook usan simulaciones. Los runners Windows de CI no acreditan uso real con Windows 10, Excel 2010 u Outlook institucional.
 - No se enviaron correos ni se publicaron planillas, bases de datos o productos con información de causas.

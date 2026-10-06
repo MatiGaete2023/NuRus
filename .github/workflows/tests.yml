@@ -9,6 +9,7 @@ on:
       - ux-observaciones-20260922
       - 'codex/**'
       - 'experimento/**'
+      - 'feat/**'
   pull_request:
   workflow_dispatch:
 
@@ -83,14 +84,14 @@ jobs:
       - name: Build Windows distribution
         if: matrix.python == '3.12'
         shell: pwsh
-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev17.zip HEAD
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.5.0-dev1.zip HEAD
 
       - name: Source distribution
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Windows-dev17
-          path: dist/CSMP_Assistant_personal_0.4.0-dev17.zip
+          name: CSMP-Windows-dev1
+          path: dist/CSMP_Assistant_personal_0.5.0-dev1.zip
 
       - name: Windows executable
         if: matrix.python == '3.12'
@@ -108,7 +109,7 @@ jobs:
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Integral-Windows-dev17
+          name: CSMP-Integral-Windows-dev1
           path: dist/CSMP_Integral/
           if-no-files-found: error
 

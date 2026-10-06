@@ -5,7 +5,7 @@ import tkinter as tk
 import customtkinter as ctk
 
 from . import ui
-from .widgets import NamedChoice, CaseDetailPanel, ComparisonPanel
+from .widgets import NamedChoice, CaseDetailPanel
 from .modalities import MODALITIES
 
 
@@ -113,6 +113,10 @@ def build_mail_page(app):
     toolbar=ctk.CTkFrame(page,fg_color='transparent');toolbar.grid(row=1,column=0,sticky='ew',padx=8,pady=(2,6))
     ui.Button(toolbar,text='Preparar todos',fg_color='transparent',border_width=1,command=lambda:app._guard(app._prepare_all_mail)).pack(side='left')
     ui.Button(toolbar,text='Cargar planilla',fg_color='transparent',border_width=1,command=lambda:app._guard(app._external)).pack(side='left',padx=7)
+    from .manual import open_editor
+    from .roster import review
+    ui.Button(toolbar,text='Correo libre',width=110,command=lambda:app._guard(lambda:open_editor(app,'mail'))).pack(side='left')
+    ui.Button(toolbar,text='Revisar nómina',width=120,command=lambda:app._guard(lambda:review(app))).pack(side='left',padx=4)
     app.mail_note=tk.StringVar();ui.Label(toolbar,textvariable=app.mail_note,wraplength=380,text_color=ui.MUTED).pack(side='left',padx=7)
 
     app.mail_scope=tk.StringVar()
@@ -147,9 +151,9 @@ def build_mail_page(app):
     from .widgets import ScrollPane
     details=ScrollPane(tabs);tabs.add(details,text='Registros incluidos')
     app.mail_case_detail=CaseDetailPanel(details.body);app.mail_case_detail.pack(fill='x',padx=8,pady=8)
+    from .work_tools import contact_search
+    ui.Button(details.body,text='Buscar destinatario',command=lambda:app._guard(lambda:contact_search(app))).pack(anchor='w')
     app.mail_records_panel=ui.Frame(details.body);app.mail_records_panel.pack(fill='x')
-    changes=ui.Frame(tabs);tabs.add(changes,text='Cambios');changes.grid_columnconfigure(0,weight=1);changes.grid_rowconfigure(0,weight=1)
-    app.mail_compare=ComparisonPanel(changes);app.mail_compare.grid(row=0,column=0,sticky='nsew',padx=8,pady=8)
     from .widgets import ScrollPane
     options=ScrollPane(tabs);tabs.add(options,text='Filtros')
     app.mail_options_tab=options

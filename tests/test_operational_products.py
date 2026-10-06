@@ -6,7 +6,6 @@ import pytest
 from openpyxl import Workbook, load_workbook
 
 from nurus.adapters.outlook import DraftReceipt, DraftSaveUncertain
-from nurus.adapters.sent_mail import SentMailReport, export_sent_report, scan_sent_items
 from nurus.domain.models import ProductStatus
 from nurus.rus import Mode
 from nurus.services.communications import attach_snapshot_table, prepare_communications
@@ -114,29 +113,6 @@ def test_draft_receipt_or_uncertainty_prevents_automatic_duplicate(tmp_path, mon
     with pytest.raises(ValueError):
         save_approved_draft(db, product, confirmed=True)
 
-
-def test_sent_mail_range_and_report_expose_limits(tmp_path):
-    class Items(list):
-        def Sort(self, *_args):
-            self.sort(key=lambda item: getattr(item, "SentOn", datetime.min), reverse=True)
-
-    class Mail:
-        Class = 43
-        To = "destino@example.test"
-        Subject = "Asunto"
-        EntryID = "id"
-        def __init__(self, day):
-            self.SentOn = datetime.combine(day, datetime.min.time())
-
-    items = Items([Mail(date(2026, 9, 8)), Mail(date(2026, 9, 7))])
-    rows, skipped, errors, truncated = scan_sent_items(
-        items, date(2026, 9, 8), date(2026, 9, 8), limit=10
-    )
-    assert len(rows) == 1 and not skipped and not errors and not truncated
-    report = SentMailReport(rows, 0, 1, True, "cuenta", "Enviados")
-    path = export_sent_report(report, tmp_path / "enviados.xlsx")
-    control = load_workbook(path)["Control"]
-    assert dict(control.values)["Consulta limitada"] is True
 
 
 def test_changed_constancy_blocks_materializing_old_email_and_word(tmp_path, monkeypatch):

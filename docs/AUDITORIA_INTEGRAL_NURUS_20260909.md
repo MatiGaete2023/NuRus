@@ -61,7 +61,7 @@ Los hashes de archivos y el entorno están en [fuentes_y_entorno.json](auditoria
 
 | Verificación | Resultado | Interpretación correcta |
 |---|---|---|
-| Suite de la rama publicada, Python 3.12.14/Linux | **81 aprobadas, 0 fallidas** | Los casos existentes pasan; la suite no detecta todos los defectos que siguen abajo |
+| Suite de la rama publicada, Python 3.12.14/entorno de desarrollo | **81 aprobadas, 0 fallidas** | Los casos existentes pasan; la suite no detecta todos los defectos que siguen abajo |
 | GitHub Actions del mismo commit, ejecución `34372680288` | **success** | CI declara éxito; su configuración usa `windows-latest` y Ubuntu, no acredita Excel 2010 |
 | Suite de la copia local candidata | **54 aprobadas, 4 omitidas** | Hay trabajo reutilizable; no prueba que pueda copiarse sobre la rama sin regresiones |
 | Cabecera sintética desplazada a fila 14 | Detectada; primera fila de datos 15 | Comprueba ese ejemplo, no el `.xls` de la captura |

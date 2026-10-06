@@ -41,5 +41,5 @@ de esta rama incluyen reconocimiento de formato, columnas, fecha antigua,
 procedencia, alteración del original, rutas y recuperación de sesión.
 
 La CI Windows conserva el smoke de interfaz y pruebas de dev11 y añade el
-ejecutable experimental como artefacto. La revisión Linux no sustituye la
+ejecutable experimental como artefacto. La revisión entorno de desarrollo no sustituye la
 comprobación del ejecutable ni del ciclo institucional con Excel/Outlook.

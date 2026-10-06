@@ -1,7 +1,7 @@
 """Work page: compact controls and an editor that always has usable space."""
 import tkinter as tk
 from . import ui
-from .widgets import CaseDetailPanel, ComparisonPanel, ScrollPane
+from .widgets import CaseDetailPanel, ScrollPane
 from .record_view import RecordForm
 
 
@@ -47,11 +47,16 @@ def build(app):
     app.work_search_entry=ui.Entry(filters,textvariable=app.work_search,width=22,placeholder_text='Buscar persona, RIT o programa');app.work_search_entry.pack(side='left',fill='x',expand=True,padx=(0,6))
     box=ui.Combobox(filters,textvariable=app.work_filter,values=['Todos','Con aviso','Con resolución','Excluidos','Sin incidencias'],state='readonly',width=17)
     box.pack(side='left',padx=4);box.bind('<<ComboboxSelected>>',app._apply_work_filter)
-    app.work_search.trace_add('write',app._apply_work_filter)
+    def schedule(*_):
+        if getattr(app,'_search_after',None):app.after_cancel(app._search_after)
+        app._search_after=app.after(180,app._apply_work_filter)
+    app.work_search.trace_add('write',schedule)
     ui.Button(filters,text='Aviso anterior',width=95,command=lambda:app._next_incident(-1)).pack(side='left',padx=3)
     ui.Button(filters,text='Siguiente aviso',width=110,command=lambda:app._next_incident(1)).pack(side='left')
     app.records=app._tree(table,('Estado','RIT','Nombre','Tribunal','Programa','Observación'))
     app.records.configure(height=5)
+    columns=app.cfg.data.get('vista',{}).get('columnas_trabajo')
+    if columns and all(c in app.records['columns'] for c in columns):app.records.configure(displaycolumns=columns)
     for name,width in [('Estado',110),('RIT',85),('Nombre',180),('Tribunal',95),('Programa',160),('Observación',220)]:
         app.records.column(name,width=width,minwidth=65)
     app.records.tag_configure('excluded',background='#665220',foreground='#fff2cc')
@@ -75,10 +80,10 @@ def build(app):
     app.observation_editor.bind('<Control-Return>',lambda event:(app._guard(app.record_form.save),'break')[1])
     app.record_form=RecordForm(app,tabs)
     detail=ScrollPane(tabs);tabs.add(detail,text='Detalle')
+    from .work_tools import show_quality,explain,preferences
+    for label,fn in [('Calidad del archivo',show_quality),('Explicar sugerencia',explain),('Preferencias de vista',preferences)]:
+        ui.Button(detail.body,text=label,command=lambda action=fn:app._guard(lambda:action(app))).pack(anchor='w',pady=3)
     app.work_case_detail=CaseDetailPanel(detail.body);app.work_case_detail.pack(fill='x',pady=4)
-    ui.Button(detail.body,text='Resoluciones firmadas · revisar',command=lambda:app._guard(app._open_signed_activity)).pack(anchor='w',pady=4)
-    changes=ui.Frame(tabs);tabs.add(changes,text='Cambios')
-    app.work_compare=ComparisonPanel(changes);app.work_compare.pack(fill='both',expand=True)
     def fit(event=None):
         height=split.winfo_height()
         if len(split.panes())<2 or height<250:return
