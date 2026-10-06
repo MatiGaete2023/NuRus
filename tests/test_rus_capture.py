@@ -42,10 +42,10 @@ def test_inspection_inventories_fields_without_claiming_a_real_registration(tmp_
     assert 'Texto' not in json.dumps(report)  # El informe de estructura no duplica el texto personal.
     destination = tmp_path / 'report.json'
     main([str(path), '--salida', str(destination)])
-    assert json.loads(destination.read_text()) == report
+    assert json.loads(destination.read_text(encoding='utf-8')) == report
     with pytest.raises(SystemExit):
         main([str(path), '--salida', str(destination)])
-    assert json.loads(destination.read_text()) == report
+    assert json.loads(destination.read_text(encoding='utf-8')) == report
 
 
 def test_changed_capture_is_rejected(tmp_path):
@@ -151,4 +151,4 @@ assert Path(sys.argv[2]).is_file()
     result = subprocess.run([sys.executable, '-c', script, str(path), str(destination)],
                             env=env, capture_output=True, text=True, timeout=15)
     assert result.returncode == 0, result.stderr
-    assert json.loads(destination.read_text()) == inspect_capture(path)
+    assert json.loads(destination.read_text(encoding='utf-8')) == inspect_capture(path)
