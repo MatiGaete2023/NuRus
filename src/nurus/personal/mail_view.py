@@ -138,15 +138,15 @@ def build_mail_page(app):
     compose=ctk.CTkFrame(tabs,fg_color=ui.PANEL)
     app.mail_compose_tab=compose
     tabs.add(compose,text='Correo')
-    compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1,minsize=80)
+    compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1,minsize=120)
     ui.Label(compose,text='Correo editable',font=('Segoe UI',16,'bold')).grid(row=0,column=0,columnspan=2,sticky='w',padx=12,pady=(8,4))
     ui.Button(compose,text='Vista previa',width=100,fg_color='transparent',border_width=1,command=lambda:app._guard(app._preview_mail)).grid(row=0,column=1,sticky='e',padx=12,pady=5)
     app.to=tk.StringVar();app.cc=tk.StringVar();app.subject=tk.StringVar();app.attach=tk.StringVar()
     for row,label,var in [(1,'Para',app.to),(2,'CC',app.cc),(3,'Asunto',app.subject)]:
         ui.Label(compose,text=label).grid(row=row,column=0,sticky='w',padx=(12,5))
-        ctk.CTkEntry(compose,textvariable=var,height=30).grid(row=row,column=1,sticky='ew',padx=(0,12),pady=3)
+        ctk.CTkEntry(compose,textvariable=var,height=30).grid(row=row,column=1,sticky='ew',padx=(0,12),pady=2)
     app.body=ui.Textbox(compose,height=200,wrap='word',font=('Segoe UI',14),undo=True)
-    app.body.grid(row=4,column=0,columnspan=2,sticky='nsew',padx=12,pady=7)
+    app.body.grid(row=4,column=0,columnspan=2,sticky='nsew',padx=12,pady=5)
     app.attachment_chips=AttachmentChips(compose,app.attach);app.attachment_chips.grid(row=5,column=0,columnspan=2,sticky='ew',padx=12,pady=(0,4))
     actions=ctk.CTkFrame(editor,fg_color='transparent');actions.grid(row=1,column=0,sticky='ew',padx=8,pady=(3,10))
     ui.Button(actions,text='Adjuntar…',width=82,fg_color='transparent',border_width=1,command=app._attachment).pack(side='left')

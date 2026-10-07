@@ -62,7 +62,7 @@ class App(ctk.CTk):
         self.status_label.grid(row=0,column=0,sticky='ew',padx=14,pady=6)
         self.progress=ctk.CTkProgressBar(statusbar,width=120,height=7,mode='determinate')
         self.progress.grid(row=0,column=1,padx=14);self.progress.set(0)
-        self.cancel_button=ttk.Button(statusbar,text='Detener',width=90,command=self._cancel_operation)
+        self.cancel_button=ttk.Button(statusbar,text='Detener',width=90,height=24,command=self._cancel_operation)
         self.cancel_button.grid(row=0,column=2,padx=(0,12));self.cancel_button.configure(state='disabled')
         self.operation_timings=[]
         self._theme_mode=ctk.get_appearance_mode()

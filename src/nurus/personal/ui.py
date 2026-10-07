@@ -69,7 +69,7 @@ class Label(ctk.CTkLabel):
 
 class Button(ctk.CTkButton):
     def __init__(self,parent,**kwargs):
-        kwargs.setdefault('height',32);kwargs.setdefault('width',110);kwargs.setdefault('fg_color',BLUE);kwargs.setdefault('hover_color',('#125974','#1f607e'))
+        kwargs.setdefault('height',30);kwargs.setdefault('width',110);kwargs.setdefault('fg_color',BLUE);kwargs.setdefault('hover_color',('#125974','#1f607e'))
         super().__init__(parent,**kwargs)
         self._canvas.configure(takefocus=1)
         border=self.cget('border_width')

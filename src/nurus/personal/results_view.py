@@ -3,7 +3,7 @@ import tkinter as tk
 from . import ui
 from .widgets import ScrollPane
 from .current_tools import deliver,export_diagnosis
-from .product_checks import check_products
+from .product_checks import check_products,current_drafts
 
 
 def build(app):
@@ -43,11 +43,11 @@ def build(app):
     def detail_selected(event=None):
         selected=tasks.selection();check=app.results_checks.get(selected[0]) if selected else None
         if not check:app.results_detail.set('Selecciona un producto.');return
-        app.results_detail.set(check.label+'\n\n'+check.state+'\n\n'+('\n'.join('• '+x for x in check.issues) if check.issues else 'Producto disponible para revisar.')+('\n\nArchivo: '+check.path if check.path else ''))
+        app.results_detail.set(check.label+'\n\n'+check.state+'\n\n'+('\n'.join('- '+x for x in check.issues) if check.issues else 'Producto disponible para revisar.')+('\n\nArchivo: '+check.path if check.path else ''))
         app.results_action.configure(text='Abrir archivo' if check.path else 'Revisar / corregir')
     def refresh(capture=True):
         if capture and app.work:app._capture_observation();app._capture_mail();app._capture_project()
-        checks=check_products(app.work,app.drafts,app.projects)
+        checks=check_products(app.work,current_drafts(app),app.projects)
         from .table_update import upsert,prune
         old=list(app.results_checks);app.results_checks={c.id:c for c in checks};prune(tasks,old,app.results_checks)
         for c in checks:upsert(tasks,c.id,(c.label,c.kind,c.state))
@@ -61,7 +61,10 @@ def build(app):
         if not check:return
         if check.path:app._open(check.path);return
         if check.kind=='Correo':
-            app.mail_list.selection_clear(0,'end');app.mail_list.selection_set(check.index);app._select_mail();app.tabs.select(app.pages['Correos'])
+            if not any(d.product_id==check.target.product_id for d in app.drafts):
+                app.mail_target.set('todos');app._mail_target_changed()
+            index=next(i for i,d in enumerate(app.drafts) if d.product_id==check.target.product_id)
+            app.mail_list.selection_clear(0,'end');app.mail_list.selection_set(index);app._select_mail();app.tabs.select(app.pages['Correos'])
         elif check.kind=='Word':
             app.project_list.selection_clear(0,'end');app.project_list.selection_set(check.index);app._select_project();app.tabs.select(app.pages['Resoluciones'])
         else:app.tabs.select(app.pages['Trabajo'])

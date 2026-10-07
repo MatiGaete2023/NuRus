@@ -96,8 +96,8 @@ from .delivery import selected_zip
 
 
 def deliver(app):
-    from .product_checks import check_products
-    checks=check_products(app.work,app.drafts,app.projects)
+    from .product_checks import check_products,current_drafts
+    checks=check_products(app.work,current_drafts(app),app.projects)
     files={c.path:c for c in checks if c.path and not c.issues}
     paths=filedialog.askopenfilenames(title='Selecciona los archivos de productos para entregar',parent=app,
                                       initialdir=Path(app.work.output).parent if app.work and app.work.output else app.cfg.directory,
@@ -113,5 +113,12 @@ def deliver(app):
     if not messagebox.askokcancel('Revisar entrega actual',preview,parent=app):return
     destination=filedialog.asksaveasfilename(defaultextension='.zip',initialfile='Entrega_CSMP.zip',parent=app)
     if destination:
-        metadata={str(Path(p).resolve()):{'producto':c.label,'registros':len(getattr(c.target,'record_ids',[]))} for p,c in files.items()}
+        metadata={}
+        for p,c in files.items():
+            info={'producto':c.label}
+            if c.record_count is not None:info['registros']=c.record_count
+            elif c.target is not None:
+                ids={rid for item in checks if item.path==p and not item.issues for rid in getattr(item.target,'record_ids',[])}
+                info['registros']=len(ids)
+            metadata[str(Path(p).resolve())]=info
         app._run('Preparando entrega…',lambda:selected_zip(paths,destination,metadata),lambda p:app.status.set('Entrega verificada: '+p))

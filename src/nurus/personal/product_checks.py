@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from hashlib import sha256
 import json
+from zipfile import BadZipFile
+from lxml.etree import XMLSyntaxError
 from .product_state import stale, dependency_scope
 from .outputs import emails,draft_fingerprint
 
@@ -17,6 +19,7 @@ class Check:
     index: int | None = None
     path: str = ''
     issues: list = field(default_factory=list)
+    record_count: int | None = None
 
 
 def project_hash(project):
@@ -58,18 +61,33 @@ def check_products(work,drafts,projects):
                     if r.get('kind')!='word' or r.get('state')!='generated':continue
                     if r.get('product_id')==project.key and r.get('product_hash')==project_hash(project):matching.append(r)
                     elif not r.get('product_id') and set(project.record_ids)==set(r.get('record_ids',[])) and r.get('type')==project.kind:matching.append(r)
+            outdated=[]
+            if work:
+                outdated=[r for r in work.receipts.values() if r.get('kind')=='word' and r.get('state')=='generated' and r.get('product_id')==project.key and r.get('product_hash')!=project_hash(project)]
+            if not matching and outdated:
+                matching=outdated;issues.append('Regenerar Word: cambió el contenido revisado')
             path=next((r['path'] for r in reversed(matching) if Path(r.get('path','')).is_file()),'')
-            if pending_fields(path) if path else unresolved_text(project.text):issues.append('Completar campos pendientes del documento')
+            try:
+                fields=pending_fields(path) if path else unresolved_text(project.text)
+                if fields:issues.append('Completar campos pendientes del documento')
+            except (OSError,ValueError,BadZipFile,XMLSyntaxError):issues.append('Comprobar archivo Word: no se pudo leer el documento')
             state='Por corregir' if issues else 'Generado' if path else 'Listo para generar'
             checks.append(Check('word:'+project.key,project.rit+' · '+project.kind,'Word',state,project,index,path,issues))
         if work:
-            paths={getattr(work,'output',''):('Copia Excel actual','Excel',[])}
+            paths={getattr(work,'output',''):('Copia Excel actual','Excel',[],len(work.rows))}
             for draft in drafts:
                 for group in draft.roster:
                     path=group.get('generated','')
-                    if path:paths[path]=(group['program'],'Nómina Excel',['Revisar y regenerar nómina'] if not draft.roster_reviewed or stale(work,draft) else [])
-            for path,(label,kind,issues) in paths.items():
+                    if path:paths[path]=(group['program'],'Nómina Excel',['Revisar y regenerar nómina'] if not draft.roster_reviewed or stale(work,draft) else [],sum(bool(row.get('include')) for row in group['rows']))
+            for path,(label,kind,issues,record_count) in paths.items():
                 if not path:continue
                 available=Path(path).is_file()
-                checks.append(Check('file:'+str(Path(path).resolve()),label,kind,'Por corregir' if issues else 'Generado' if available else 'No disponible',path=path,issues=issues if available else ['No se encuentra el archivo']))
+                checks.append(Check('file:'+str(Path(path).resolve()),label,kind,'Por corregir' if issues else 'Generado' if available else 'No disponible',path=path,issues=issues if available else ['No se encuentra el archivo'],record_count=record_count))
     return checks
+
+
+def current_drafts(app):
+    source=list(getattr(app,'_draft_scope_source',app.drafts))
+    for draft in app.drafts:
+        if not any(item is draft for item in source):source.append(draft)
+    return source

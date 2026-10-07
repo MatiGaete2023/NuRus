@@ -73,6 +73,10 @@ jobs:
         timeout-minutes: 8
         run: python -m pytest -q -o faulthandler_timeout=90
 
+      - name: Fictitious end-to-end products and interface
+        if: matrix.python == '3.12'
+        run: python tools/showcase_products.py
+
       - name: RUS capture in Chromium with a fictitious form
         if: matrix.python == '3.12'
         timeout-minutes: 4
@@ -166,12 +170,18 @@ jobs:
           $destination = Join-Path $env:RUNNER_TEMP 'CSMP instalado'
           $install = Start-Process $installer.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="'+$destination+'"') -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw 'Falló la instalación silenciosa' }
+          $dataFolder = Join-Path $env:LOCALAPPDATA 'CSMP_Personal_Prototipo_Integral'
+          New-Item -ItemType Directory -Force $dataFolder | Out-Null
+          $sentinel = Join-Path $dataFolder ('installer-test-'+[guid]::NewGuid().ToString()+'.txt')
+          Set-Content $sentinel 'conservar'
           $check = Start-Process (Join-Path $destination 'CSMP_Integral.exe') -ArgumentList '--verificar-paquete','artifacts/installed-package-check.json' -Wait -PassThru
           if ($check.ExitCode -ne 0) { throw 'Falló el arranque instalado' }
           $reinstall = Start-Process $installer.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="'+$destination+'"') -Wait -PassThru
           if ($reinstall.ExitCode -ne 0) { throw 'Falló la reinstalación' }
           $uninstall = Start-Process (Join-Path $destination 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw 'Falló la desinstalación' }
+          if (-not (Test-Path $sentinel) -or (Get-Content $sentinel) -ne 'conservar') { throw 'Se alteraron los datos de usuario' }
+          Remove-Item $sentinel
 
       - name: Installer and measurements
         if: matrix.python == '3.12'
@@ -182,3 +192,4 @@ jobs:
             dist/Instalar_CSMP_*_Windows.exe
             artifacts/performance.json
             artifacts/installed-package-check.json
+            artifacts/productos-ficticios/

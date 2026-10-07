@@ -45,19 +45,22 @@ def selected_zip(paths,destination,metadata=None):
     manifest={'version':1,'alcance':'Entrega del trabajo actual','estado':'VERIFICADO','archivos':entries}
     index_text=['ENTREGA DEL TRABAJO ACTUAL','Archivos incluidos: '+str(len(entries)),
                 'Cada archivo fue comprobado antes de incluirlo.','Los borradores permanecen en Outlook; este ZIP no acredita envío ni registro RUS.','']
-    for item in entries:index_text.append(f"{item['archivo']} | {item['bytes']} bytes | VERIFICADO")
+    for item in entries:index_text.append(f"{item['archivo']} | {item['bytes']} bytes | VERIFICADO"+(f" | Registros: {item['registros']}" if 'registros' in item else ''))
     def write(temporary):
         with ZipFile(temporary,'w',ZIP_DEFLATED) as archive:
             for index,(path,item) in enumerate(zip(sources,entries),1):
                 checkpoint();progress('Preparando entrega',index-1,len(entries))
                 archive.write(path,item['archivo'])
-                # Verify the actual archived bytes, not only the source before copy.
+            archive.writestr('INDICE.txt','\n'.join(index_text))
+            archive.writestr('MANIFIESTO.json',json.dumps(manifest,ensure_ascii=False,indent=2))
+        # Reopen after closing: Windows ZipInfo normalizes arcname separators only
+        # in the serialized directory, so reading while writing is not portable.
+        with ZipFile(temporary,'r') as archive:
+            for item in entries:
                 h=sha256()
                 with archive.open(item['archivo']) as f:
                     for block in iter(lambda:f.read(1024*1024),b''):h.update(block)
-                if h.hexdigest()!=item['sha256']:raise ValueError('El archivo cambió al preparar la entrega: '+path.name)
-            archive.writestr('INDICE.txt','\n'.join(index_text))
-            archive.writestr('MANIFIESTO.json',json.dumps(manifest,ensure_ascii=False,indent=2))
+                if h.hexdigest()!=item['sha256']:raise ValueError('El archivo cambió al preparar la entrega: '+item['nombre'])
     write_new_file(target,write)
     progress('Entrega preparada',len(entries),len(entries))
     return str(target)

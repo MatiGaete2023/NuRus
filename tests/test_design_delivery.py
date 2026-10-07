@@ -113,3 +113,18 @@ def test_cancel_only_stops_at_checkpoint_and_keeps_confirmed_units():
         checkpoint();completed.append('confirmed');op.cancelled.set();progress('Current unit finishes',1,2)
         with pytest.raises(OperationCancelled):checkpoint()
     assert completed==['confirmed'];assert events.get()==('progress','Current unit finishes',1,2)
+
+
+def test_changed_project_cannot_deliver_its_previous_file(tmp_path):
+    from nurus.personal.resolutions import Project
+    from nurus.personal.product_checks import project_hash
+    from nurus.personal.activity import receipt
+    work=Work(defaults()).analyze(source(tmp_path),'ESPERA')
+    path=tmp_path/'previous.docx';doc=Document();doc.add_paragraph('Original');doc.save(path)
+    project=Project('same-id','LAJA','X-1','PC_IE',[work.rows[0].id],str(path),{},'Original','Original')
+    work.receipts['word']=receipt('word','generated',path=str(path),product_id=project.key,product_hash=project_hash(project),type=project.kind)
+    before=check_products(work,[],[project])[0];assert before.state=='Generado'
+    project.text='Changed'
+    after=check_products(work,[],[project])[0]
+    assert after.state=='Por corregir' and after.path==str(path)
+    assert any('Regenerar' in i for i in after.issues)
