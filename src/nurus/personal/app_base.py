@@ -26,12 +26,12 @@ from nurus.rus.columns import normalize
 
 class App(ctk.CTk):
     def __init__(self,configuration=None):
-        ctk.set_appearance_mode('Dark');ctk.set_default_color_theme('blue')
+        self.cfg=configuration or Configuration()
+        ctk.set_appearance_mode(ttk.THEMES[self.cfg.data.get('vista',{}).get('tema','Sistema')]);ctk.set_default_color_theme('blue')
         super().__init__()
         self.configure(fg_color=ttk.BG);ttk.install_theme(self)
         from nurus import __version__
         self.title('CSMP Assistant personal · '+__version__);self.geometry('1120x720');self.minsize(820,560)
-        self.cfg=configuration or Configuration()
         self.work=None;self.drafts=[];self.draft_index=None;self.report=None;self.busy=False
         self.projects=[];self.project_index=None;self.last_word='';self.observation_id=None
         self.events=queue.Queue()
@@ -41,9 +41,9 @@ class App(ctk.CTk):
         self.status=tk.StringVar(value='Selecciona un Excel para comenzar.')
         self.context=tk.StringVar(value='Sin trabajo activo · Ctrl+O para elegir un Excel')
         self.grid_columnconfigure(1,weight=1);self.grid_rowconfigure(0,weight=1)
-        sidebar=ctk.CTkFrame(self,width=155,corner_radius=0,fg_color='#11161c')
+        sidebar=ctk.CTkFrame(self,width=155,corner_radius=0,fg_color=ttk.SIDEBAR)
         sidebar.grid(row=0,column=0,sticky='nsew');sidebar.grid_propagate(False);sidebar.pack_propagate(False)
-        ctk.CTkLabel(sidebar,text='CSMP\nAssistant',font=('Segoe UI',22,'bold'),justify='left').pack(padx=16,pady=(24,18),anchor='w')
+        ctk.CTkLabel(sidebar,text='CSMP\nAssistant',font=('Segoe UI',22,'bold'),justify='left',text_color=ttk.TEXT).pack(padx=16,pady=(24,18),anchor='w')
         self.tabs=ttk.PageStack(self,sidebar);self.tabs.grid(row=0,column=1,sticky='nsew',padx=12,pady=12)
         self.pages={}
         for name in ('Trabajo','Correos','Resoluciones','Resultados','Configuración'):
@@ -53,15 +53,20 @@ class App(ctk.CTk):
         self._work_page();self._mail_page();self._word_page();self._config_page()
         from .results_view import build as build_results
         build_results(self)
-        contextbar=ctk.CTkFrame(self,corner_radius=0,fg_color='#1a2028')
+        contextbar=ctk.CTkFrame(self,corner_radius=0,fg_color=ttk.PANEL)
         contextbar.grid(row=1,column=0,columnspan=2,sticky='ew')
         ctk.CTkLabel(contextbar,textvariable=self.context,anchor='w',text_color=ttk.MUTED,font=('Segoe UI',11)).pack(fill='x',padx=14,pady=4)
-        statusbar=ctk.CTkFrame(self,corner_radius=0,fg_color='#11161c')
+        statusbar=ctk.CTkFrame(self,corner_radius=0,fg_color=ttk.SIDEBAR)
         statusbar.grid(row=2,column=0,columnspan=2,sticky='ew');statusbar.grid_columnconfigure(0,weight=1)
         self.status_label=ctk.CTkLabel(statusbar,textvariable=self.status,anchor='w',wraplength=760)
         self.status_label.grid(row=0,column=0,sticky='ew',padx=14,pady=6)
         self.progress=ctk.CTkProgressBar(statusbar,width=120,height=7,mode='determinate')
         self.progress.grid(row=0,column=1,padx=14);self.progress.set(0)
+        self.cancel_button=ttk.Button(statusbar,text='Detener',width=90,command=self._cancel_operation)
+        self.cancel_button.grid(row=0,column=2,padx=(0,12));self.cancel_button.configure(state='disabled')
+        self.operation_timings=[]
+        self._theme_mode=ctk.get_appearance_mode()
+        self.after(700,self._watch_theme)
         self.protocol('WM_DELETE_WINDOW',self._close)
         self._bind_shortcuts()
         self.after(100,self._poll)
@@ -86,21 +91,54 @@ class App(ctk.CTk):
                 if not dst.exists():shutil.copyfile(path,dst)
 
     def _run(self,label,action,done=None):
-        if self.busy:self.status.set('Hay una operación en curso.');return
+        if self.busy or getattr(self,'rendering',False):self.status.set('Hay una operación en curso.');return
         from .interaction import lock
+        from .operations import Operation,operation_scope
+        from time import perf_counter
         lock(self)
         self.busy=True;self.status.set(label);self.progress.configure(mode='indeterminate');self.progress.start()
+        self.cancel_button.configure(state='normal')
+        self.operation=Operation(self.events.put)
         def worker():
-            try:self.events.put((True,action(),done))
+            started=perf_counter()
+            try:
+                with operation_scope(self.operation):result=action()
+                self.events.put((True,result,done))
             except Exception as exc:self.events.put((False,exc,None))
+            finally:self.events.put(('timing',label,perf_counter()-started,None))
         threading.Thread(target=worker,daemon=True).start()
+
+    def _cancel_operation(self):
+        if self.busy and getattr(self,'operation',None):
+            self.operation.cancelled.set()
+            self.status.set('Detención solicitada. Se completará la escritura actual antes de detener el resto.')
+            self.cancel_button.configure(state='disabled')
+
+    def _watch_theme(self):
+        mode=ctk.get_appearance_mode()
+        if mode!=self._theme_mode:
+            self._theme_mode=mode;ttk.install_theme(self)
+        self.after(700,self._watch_theme)
 
     def _poll(self):
         try:
             while True:
-                ok,result,done=self.events.get_nowait();self.busy=False
+                event=self.events.get_nowait()
+                if event[0]=='progress':
+                    _,label,completed,total=event
+                    self.status.set(label+(f' · {completed} de {total}' if total else ''))
+                    if total:
+                        self.progress.stop();self.progress.configure(mode='determinate');self.progress.set(completed/total)
+                    else:self.progress.configure(mode='indeterminate');self.progress.start()
+                    continue
+                if event[0]=='timing':
+                    self.operation_timings.append({'fase':event[1],'segundos':round(event[2],4)})
+                    self.operation_timings=self.operation_timings[-100:]
+                    continue
+                ok,result,done=event;self.busy=False
                 from .interaction import unlock
                 unlock(self)
+                if hasattr(self,'cancel_button'):self.cancel_button.configure(state='disabled')
                 self.progress.stop();self.progress.configure(mode='determinate');self.progress.set(0)
                 if ok:
                     self.status.set('Operación terminada.')
@@ -110,17 +148,17 @@ class App(ctk.CTk):
                             self.status.set(str(exc));messagebox.showerror('No se completó la operación',str(exc))
                 else:
                     from .sync import SyncConflict
-                    if isinstance(result,SyncConflict):
+                    from .operations import OperationCancelled
+                    if isinstance(result,OperationCancelled):self.status.set(str(result))
+                    elif isinstance(result,SyncConflict):
                         from .sync_view import resolve
                         resolve(self,result)
-                    elif isinstance(result,SheetChoice):
-                        self._choose_external_sheet(result.names)
-                    else:
-                        self.status.set(str(result));messagebox.showerror('No se completó la operación',str(result))
+                    elif isinstance(result,SheetChoice):self._choose_external_sheet(result.names)
+                    else:self.status.set(str(result));messagebox.showerror('No se completó la operación',str(result))
                     self._save_session()
+                if hasattr(self,'refresh_pending'):self.refresh_pending(capture=False)
         except queue.Empty:pass
-        except (ValueError,OSError) as exc:
-            self.status.set('No se pudo guardar la recuperación: '+str(exc))
+        except (ValueError,OSError) as exc:self.status.set('No se pudo guardar la recuperación: '+str(exc))
         finally:self.after(100,self._poll)
 
     def _autosave(self):
@@ -146,7 +184,7 @@ class App(ctk.CTk):
                 raise
 
     def _close(self):
-        if self.busy:messagebox.showinfo('Operación en curso','Espera a que termine antes de cerrar.');return
+        if self.busy or getattr(self,'rendering',False):messagebox.showinfo('Operación en curso','Espera a que termine antes de cerrar.');return
         try:
             self._save_text(notify=False);self._save_tpl(notify=False)
             self._save_session()
@@ -155,14 +193,14 @@ class App(ctk.CTk):
         self.destroy()
 
     def _require_work(self):
-        if self.busy:raise ValueError('Hay una operación en curso.')
+        if self.busy or getattr(self,'rendering',False):raise ValueError('Hay una operación en curso.')
         self._capture_observation()
         if not self.work or not self.work.output:raise ValueError('Procesa primero el Excel; se compartirá automáticamente con esta pestaña.')
         return self.work
 
     def _guard(self,action):
         try:
-            if self.busy:raise ValueError('Espera a que termine la operación actual.')
+            if self.busy or getattr(self,'rendering',False):raise ValueError('Espera a que termine la operación actual.')
             action()
         except Exception as exc:messagebox.showerror('Revisa los datos',str(exc))
 
@@ -193,6 +231,8 @@ class App(ctk.CTk):
         self.bind_all('<Control-o>',self._shortcut_open)
         self.bind_all('<Control-f>',self._shortcut_find)
         self.bind_all('<F5>',self._shortcut_refresh)
+        from .commands import show_palette
+        self.bind_all('<Control-k>',lambda event:(show_palette(self),'break')[1])
 
     def _shortcut_save(self,event=None):
         self._guard(self._save_session)
@@ -225,37 +265,40 @@ class App(ctk.CTk):
 
     def _apply_work_filter(self,*_):
         if not hasattr(self,'records'):return
+        from .table_update import apply_visibility
         remember(self,'records',selected_ids(self,'records'))
         search=normalize(self.work_search.get() if hasattr(self,'work_search') else '')
         mode=self.work_filter.get() if hasattr(self,'work_filter') else 'Todos'
-        for iid in list(getattr(self,'_work_all_iids',[])):
+        if not search and mode=='Todos':
+            apply_visibility(self.records,self._work_all_iids,set(self._work_all_iids));restore_visible(self,'records');return
+        visible=set()
+        for iid in getattr(self,'_work_all_iids',[]):
             if not self.records.exists(iid):continue
-            self._show_tree_item(self.records,iid)
             tags=set(self.records.item(iid,'tags'))
-            visible=(not search or search in self._tree_text(self.records,iid,getattr(self,'_work_search_text',{}).get(iid,'')))
-            if mode=='Con aviso':visible=visible and 'warning' in tags
-            elif mode=='Con resolución':visible=visible and 'resolution' in tags
-            elif mode=='Excluidos':visible=visible and 'excluded' in tags
-            elif mode=='Sin incidencias':visible=visible and not ({'warning','excluded'} & tags)
-            if not visible:self.records.detach(iid)
-
-        restore_visible(self,'records')
+            haystack=getattr(self,'_work_filter_text',{}).get(iid)
+            if haystack is None:haystack=self._tree_text(self.records,iid,getattr(self,'_work_search_text',{}).get(iid,''))
+            match=not search or search in haystack
+            if mode=='Con aviso':match=match and 'warning' in tags
+            elif mode=='Con resolución':match=match and 'resolution' in tags
+            elif mode=='Excluidos':match=match and 'excluded' in tags
+            elif mode=='Sin incidencias':match=match and not ({'warning','excluded'} & tags)
+            if match:visible.add(iid)
+        apply_visibility(self.records,self._work_all_iids,visible);restore_visible(self,'records')
 
     def _apply_resolution_filter(self,*_):
         if not hasattr(self,'words'):return
+        from .table_update import apply_visibility
         remember(self,'words',selected_ids(self,'words'))
         search=normalize(self.resolution_search.get() if hasattr(self,'resolution_search') else '')
         mode=self.resolution_filter.get() if hasattr(self,'resolution_filter') else 'Todos'
-        for iid in list(getattr(self,'_resolution_all_iids',[])):
+        visible=set()
+        for iid in getattr(self,'_resolution_all_iids',[]):
             if not self.words.exists(iid):continue
-            self._show_tree_item(self.words,iid)
             tags=set(self.words.item(iid,'tags'))
-            visible=(not search or search in self._tree_text(self.words,iid,getattr(self,'_resolution_search_text',{}).get(iid,'')))
+            match=not search or search in self._tree_text(self.words,iid,getattr(self,'_resolution_search_text',{}).get(iid,''))
             wanted={'Definido en RES':'res_explicit','Ajustado manualmente':'res_manual','Sugerencia automática':'res_auto','RES antiguo':'res_legacy'}.get(mode)
-            if wanted:visible=visible and wanted in tags
-            if not visible:self.words.detach(iid)
-
-        restore_visible(self,'words')
+            if match and (not wanted or wanted in tags):visible.add(iid)
+        apply_visibility(self.words,self._resolution_all_iids,visible);restore_visible(self,'words')
 
     @staticmethod
     def _field(parent,label,variable,row,width=65):
@@ -368,7 +411,9 @@ class App(ctk.CTk):
                 if text!=row.review.get('OBSERVACION',row.observation):
                     row.review['OBSERVACION']=text
                     self.work.revision+=1
-                    if self.records.exists(row.id):self.records.set(row.id,'Observación',text)
+                    if self.records.exists(row.id):
+                        self.records.set(row.id,'Observación',text)
+                        if hasattr(self,'_work_filter_text'):self._work_filter_text[row.id]=self._tree_text(self.records,row.id,getattr(self,'_work_search_text',{}).get(row.id,''))
                 self._update_work_case_detail(row)
         if hasattr(self,'record_form') and self.work:self.record_form.capture()
     def _apply_observation(self):
@@ -551,6 +596,8 @@ class App(ctk.CTk):
         basic_nb=ttk.Notebook(basic);basic_nb.pack(fill='both',expand=True)
         advanced_nb=ttk.Notebook(advanced);advanced_nb.pack(fill='both',expand=True)
 
+        from .appearance_view import build as build_appearance
+        build_appearance(self,basic_nb)
         params_scroll=ScrollPane(basic_nb);basic_nb.add(params_scroll,text='Parámetros');params=params_scroll.body
         self.config_search=tk.StringVar()
         ttk.Label(params,text='Buscar parámetro').grid(row=0,column=0,sticky='w',padx=8,pady=(2,5))

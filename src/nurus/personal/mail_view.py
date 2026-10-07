@@ -24,9 +24,13 @@ class DraftCards(ctk.CTkScrollableFrame):
 
     def curselection(self):return () if self._selected is None else (self._selected,)
 
+    def selection_clear(self,start=0,end=None):
+        self._selected=None
+        for card in self.cards:card.configure(border_color=ui.LINE)
+
     def selection_set(self,index):
         self._selected=int(index)
-        for i,card in enumerate(self.cards):card.configure(border_color='#5494d5' if i==self._selected else '#36414e')
+        for i,card in enumerate(self.cards):card.configure(border_color='#5494d5' if i==self._selected else ui.LINE)
 
     def _choose(self,index):
         self.selection_set(index)
@@ -38,7 +42,7 @@ class DraftCards(ctk.CTkScrollableFrame):
             ctk.CTkLabel(self,text=empty_message or 'Prepara correos para ver los borradores.',wraplength=205,
                          justify='left',text_color=ui.MUTED).pack(padx=10,pady=24)
         for i,draft in enumerate(drafts):
-            card=ctk.CTkFrame(self,fg_color=ui.PANEL,corner_radius=10,border_width=1,border_color='#36414e')
+            card=ctk.CTkFrame(self,fg_color=ui.PANEL,corner_radius=10,border_width=1,border_color=ui.LINE)
             card.pack(fill='x',padx=4,pady=6);self.cards.append(card)
             title=draft.program or draft.court or draft.subject
             ctk.CTkLabel(card,text=title,wraplength=205,anchor='w',justify='left',font=('Segoe UI',13,'bold')).pack(fill='x',padx=12,pady=(10,2))
@@ -61,7 +65,7 @@ class DraftCards(ctk.CTkScrollableFrame):
             if work:
                 from .product_state import stale
                 if not problem and stale(work,draft):text='Necesita actualizar'
-            ctk.CTkLabel(badges,text=text,fg_color='#245f54' if saved else ui.BLUE,corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w')
+            ctk.CTkLabel(badges,text=text,text_color='white',fg_color='#245f54' if saved else ui.BLUE,corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w')
             if draft.due:
                 ctk.CTkLabel(badges,text='Fecha vencida' if expired else 'Por vencer',fg_color='#813c32' if expired else '#665220',corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w',pady=(4,0))
             self._bind_card(card,i)

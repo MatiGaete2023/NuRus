@@ -117,9 +117,11 @@ def defaults():
     aliases={a['alias']:a['nombre_catastro'] for a in json.loads((BASE/'aliases_base.json').read_text(encoding='utf-8'))}
     return {'version':1,'revision_textos':TEXT_REVISION,'revision_correos':CORREO_REVISION,'perfil':'Asistente v9.1; prioridad confirmada por usuario',
             'umbrales':deepcopy(UMBRALES),'desactivadas':[], 'textos':text,
-            'correos':mail,'contactos':contacts,'aliases':aliases,'cuenta_outlook':'','firma':''}
+            'correos':mail,'contactos':contacts,'aliases':aliases,'cuenta_outlook':'','firma':'','vista':{'tema':'Sistema'},'correo_html':True}
 
 def validate(cfg):
+    if cfg.get('vista',{}).get('tema','Sistema') not in ('Claro','Oscuro','Sistema'):raise ValueError('Tema de interfaz inválido.')
+    if type(cfg.get('correo_html',True)) is not bool:raise ValueError('Formato de correo inválido.')
     if cfg.get('version')!=1:raise ValueError('Versión de configuración no admitida.')
     for key in UMBRALES:
         v=cfg['umbrales'].get(key)

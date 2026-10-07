@@ -34,8 +34,15 @@ with TemporaryDirectory() as directory:
     try:
         app.update_idletasks();app.update()
         assert isinstance(app,ctk.CTk)
-        assert ctk.get_appearance_mode()=='Dark'
+        assert ctk.get_appearance_mode() in ('Light','Dark')
+        for choice in ('Claro','Oscuro','Sistema'):
+            app.theme_choice.set(choice);app.apply_appearance();app.update()
         assert len(app.tabs.tabs())==5
+        from pywinauto import Application as NativeApplication
+        import win32gui
+        native=NativeApplication(backend='win32').connect(handle=win32gui.GetAncestor(app.winfo_id(),2))
+        assert native.top_window().is_visible()
+        assert native.top_window().rectangle().width()>500
         for tab in app.tabs.tabs():
             app.tabs.select(tab);app.update_idletasks();app.update()
             assert app.nametowidget(tab).winfo_ismapped()
@@ -47,6 +54,7 @@ with TemporaryDirectory() as directory:
         assert app.observation_editor.winfo_exists()
         app.geometry('1024x650');app.update_idletasks();app.update()
         app.tabs.select(app.pages['Resultados']);app.update_idletasks();app.update()
+        app.results_more();app.update()
         app.results_scrollpane.body._parent_canvas.yview_moveto(1);app.update()
         capture_window(app,'resultados-1024x650')
         button=app.results_download_button

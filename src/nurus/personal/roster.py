@@ -27,7 +27,9 @@ def generate(draft, folder):
     """Generar exclusivamente las filas aceptadas; escribir sin sobrescribir originales."""
     from .reports import _book
     paths=[]
-    for group in draft.roster:
+    from .operations import progress,checkpoint
+    for index,group in enumerate(draft.roster):
+        checkpoint();progress('Generando nóminas',index,len(draft.roster))
         rows=[r['cells'] for r in group['rows'] if r['include']]
         if not rows:continue
         if any(len(row)!=len(group['headers']) for row in rows):raise ValueError('La nómina contiene una fila con estructura incorrecta.')
@@ -50,6 +52,7 @@ def review(app):
     if not draft.roster:raise ValueError('Este correo no tiene una nómina automática pendiente.')
     groups=deepcopy(draft.roster)
     win=tk.Toplevel(app);win.title('Revisar nómina antes de generar adjuntos');win.geometry('950x570');win.transient(app)
+    editors=[]
     tabs=ttk.Notebook(win);tabs.pack(fill='both',expand=True,padx=10,pady=10)
     for group in groups:
         page=ttk.Frame(tabs);tabs.add(page,text=group['program'][:35] or 'Sin programa')
@@ -58,20 +61,13 @@ def review(app):
         for n,title in enumerate(group['headers']):tree.heading(str(n),text=title);tree.column(str(n),width=140)
         tree.pack(fill='both',expand=True)
         scroll=ttk.Scrollbar(page,orient='horizontal',command=tree.xview);scroll.pack(fill='x');tree.configure(xscrollcommand=scroll.set)
-        for n,row in enumerate(group['rows']):tree.insert('','end',iid=str(n),values=['Sí' if row['include'] else 'No',*row['cells']])
-        def edit(event,g=group,t=tree):
-            iid=t.identify_row(event.y);col=t.identify_column(event.x)
-            if not iid or not col:return
-            row=g['rows'][int(iid)];index=int(col[1:])-1
-            if index==0:row['include']=not row['include']
-            else:
-                answer=simpledialog.askstring('Editar celda',g['headers'][index-1],initialvalue=row['cells'][index-1],parent=win)
-                if answer is None:return
-                row['cells'][index-1]=answer
-            t.item(iid,values=['Sí' if row['include'] else 'No',*row['cells']])
-        tree.bind('<Double-1>',edit)
-    ttk.Label(win,text='Doble clic para editar una celda o incluir/excluir una fila. Estos cambios afectan sólo al adjunto.').pack(pady=4)
+        vertical=ttk.Scrollbar(page,orient='vertical',command=tree.yview);vertical.pack(side='right',fill='y');tree.configure(yscrollcommand=vertical.set)
+        for row in group['rows']:tree.insert('','end',iid=row['id'],values=['Sí' if row['include'] else 'No',*row['cells']])
+        from .grid_edit import GridEditor
+        editors.append(GridEditor(tree,group,win))
+    ttk.Label(win,text='Doble clic / F2: editar. Tab / Enter: siguiente celda. Esc: cancelar. Ctrl+V: revisar pegado. Ctrl+Espacio: incluir/excluir.').pack(pady=4)
     def accept():
+        for editor in editors:editor.commit()
         candidate=deepcopy(draft);candidate.roster=groups;candidate.roster_reviewed=False
         try:generate(candidate,Path(app.work.output).parent)
         except (ValueError,OSError) as exc:messagebox.showerror('Nómina',str(exc),parent=win);return

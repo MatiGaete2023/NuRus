@@ -98,6 +98,7 @@ def merge_draft_edits(old_drafts, new_drafts):
         old = previous.get(key(draft))
         if old is None:
             continue
+        draft.product_id=old.product_id
         for field in ('to', 'cc', 'subject', 'body'):
             if field in old.original and getattr(old, field) != old.original[field]:
                 setattr(draft, field, getattr(old, field))

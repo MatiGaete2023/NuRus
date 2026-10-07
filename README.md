@@ -1,6 +1,6 @@
 # CSMP Assistant · Windows
 
-**Versión 0.5.0.dev2 · 6 de octubre de 2026.**
+**Versión 0.5.0.dev3 · 7 de octubre de 2026.**
 
 Programa de escritorio para revisar el trabajo actual y preparar archivos y borradores. Tiene cinco páginas: Trabajo, Correos, Resoluciones, Resultados y Configuración.
 
@@ -11,7 +11,7 @@ Requiere Windows, Python 3.12 y Microsoft Excel de escritorio para la exportaci�
 Ejecuta `Instalar_CSMP.bat` y después `Abrir_CSMP.bat`. Para instalar el wheel desde PowerShell:
 
 ```powershell
-py -3.12 -m pip install "./nurus-0.5.0.dev2-py3-none-any.whl[excel-legacy,excel-native,outlook]"
+py -3.12 -m pip install "./nurus-0.5.0.dev3-py3-none-any.whl[excel-legacy,excel-native,outlook]"
 py -3.12 -m nurus.personal.app
 ```
 
@@ -49,3 +49,13 @@ El registro real en RUS sigue pendiente del formulario y la sesión operables. P
 La herramienta separada **RUS · Inspector del registro actual** y su extensión de Chrome permiten capturar la estructura del formulario. Consulta [el avance de integración y las instrucciones](docs/REGISTRO_RUS_AVANCE_20261006.md).
 
 Consulta [el informe de ejecución](docs/EJECUCION_WINDOWS_20261006.md).
+
+## Mejoras de diseño y entrega · dev3
+
+Configuración → Apariencia permite elegir Claro, Oscuro o Sistema. Ctrl+K abre la búsqueda de acciones. Resultados muestra productos, incidencias y acceso al elemento correcto. Las tablas se actualizan por ID y las cargas grandes ceden tiempo a la pantalla.
+
+En la revisión de nóminas: F2 o doble clic para editar, Tab/Enter para avanzar, Esc para cancelar, Ctrl+V para revisar un pegado rectangular y Ctrl+Espacio para incluir/excluir filas. El texto pegado se conserva como texto Excel.
+
+Los Excel nuevos tienen anchos por tipo de columna y encabezados repetidos al imprimir. Los Word conservan sus matrices; pueden generarse como proyectos por completar, pero la entrega final impide campos pendientes. La vista PDF requiere Word instalado. ZIP incorpora INDICE.txt y MANIFIESTO.json. Las operaciones por lote permiten detenerse entre productos.
+
+El instalador Windows de Inno Setup instala por usuario, crea accesos directos y permite reinstalar conservando configuración. Consulte [implementación y comprobación](docs/MEJORAS_DISENO_20261007.md).

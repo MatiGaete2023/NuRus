@@ -70,7 +70,10 @@ def test_manual_word_free_and_matrix_validate_before_writing(tmp_path):
 def test_selected_delivery_includes_only_chosen_files_with_duplicate_names(tmp_path):
     a=tmp_path/'one';b=tmp_path/'two';a.mkdir();b.mkdir();(a/'file.txt').write_text('one');(b/'file.txt').write_text('two')
     (a/'excluded.txt').write_text('exclude');target=tmp_path/'task.zip';selected_zip([a/'file.txt',b/'file.txt'],target)
-    with zipfile.ZipFile(target) as z:assert len(z.namelist())==2;assert {z.read(n) for n in z.namelist()}=={b'one',b'two'}
+    with zipfile.ZipFile(target) as z:
+        products=[n for n in z.namelist() if n not in ('INDICE.txt','MANIFIESTO.json')]
+        assert len(products)==2 and {z.read(n) for n in products}=={b'one',b'two'}
+        assert len(json.loads(z.read('MANIFIESTO.json'))['archivos'])==2
 
 
 def test_quality_and_dates_keep_duplicates_and_date_types_distinct(tmp_path):

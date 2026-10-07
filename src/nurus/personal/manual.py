@@ -33,6 +33,8 @@ def generate_word(destination,title,body,template='',values=None):
         doc=Document()
         if title.strip():doc.add_heading(title,0)
         for paragraph in body.split('\n'):doc.add_paragraph(paragraph)
+        from .word_quality import require_complete,improve_pagination
+        require_complete(doc);improve_pagination(doc)
         write_new_file(Path(destination),doc.save)
     return str(destination)
 

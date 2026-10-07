@@ -11,6 +11,7 @@ class ProjectSelection:
     def __init__(self,app):self.app=app;self.labels=[];self.index=None
     def delete(self,*args):self.labels=[];self.index=None
     def insert(self,position,label):self.labels.append(label)
+    def selection_clear(self,*args):self.index=None
     def selection_set(self,index):self.index=int(index)
     def curselection(self):return () if self.index is None else (self.index,)
 
@@ -69,6 +70,8 @@ def build(app):
     app.words.bind('<<TreeviewSelect>>',select)
     tabs=ui.Notebook(right);tabs.pack(fill='both',expand=True)
     text=ui.Frame(tabs);tabs.add(text,text='Texto')
+    from .word_preview import preview
+    ui.Button(text,text='Vista PDF del Word generado',command=lambda:app._guard(lambda:preview(app))).pack(anchor='w',pady=4)
     ui.Label(text,text='Texto editable · revisa el formato final en Word',text_color=ui.MUTED).pack(anchor='w')
     app.project_editor=ui.Textbox(text,wrap='word',height=18,font=('Segoe UI',11),undo=True);app.project_editor.pack(fill='both',expand=True)
     app.project_review_status=tk.StringVar()

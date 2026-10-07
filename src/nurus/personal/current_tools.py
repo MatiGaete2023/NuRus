@@ -52,7 +52,16 @@ def confirm_drafts(app,drafts):
     from tkinter import ttk
     content=summary(drafts);accepted=[]
     win=tk.Toplevel(app);win.title('Resumen antes de guardar en Outlook');win.geometry('850x650');win.transient(app)
-    text=tk.Text(win,wrap='word');text.pack(fill='both',expand=True,padx=12,pady=12);text.insert('1.0',content);text.configure(state='disabled')
+    tabs=ttk.Notebook(win);tabs.pack(fill='both',expand=True,padx=12,pady=12)
+    overview=ttk.Frame(tabs);tabs.add(overview,text='Destinatarios y adjuntos')
+    table=ttk.Treeview(overview,columns=('asunto','para','adjuntos'),show='headings')
+    for key,label in [('asunto','Asunto'),('para','Para'),('adjuntos','Adjuntos revisados')]:table.heading(key,text=label)
+    table.pack(fill='both',expand=True)
+    for i,draft in enumerate(drafts):table.insert('','end',iid=str(i),values=(draft.subject,draft.to,len(draft.attachments)))
+    detail=ttk.Frame(tabs);tabs.add(detail,text='Contenido completo')
+    text=tk.Text(detail,wrap='word',font=('Segoe UI',11));text.pack(fill='both',expand=True);text.insert('1.0',content);text.configure(state='disabled')
+    ttk.Label(overview,text='Los destinatarios, CC, cuerpo y nombres de adjuntos completos están en Contenido completo.',wraplength=780).pack(pady=10)
+
     ttk.Label(win,text='Se crearán borradores en Outlook. Revisa destinatarios, nómina, cuerpo y archivos.').pack()
     ttk.Button(win,text='Confirmar y guardar borradores',command=lambda:(accepted.append(True),win.destroy())).pack(pady=12)
     win.grab_set();app.wait_window(win)
@@ -64,7 +73,7 @@ def diagnosis(app):
     from importlib.metadata import version,PackageNotFoundError
     result={'producto':'CSMP Windows','version':__version__,'python':sys.version.split()[0],
             'rutas':{'ejecutable':sys.executable,'configuracion':str(app.cfg.directory),'matrices':str(app.template_dir)},
-            'plantillas':len(list(app.template_dir.rglob('*.docx'))),'dependencias':{},'office':{}}
+            'mediciones_operacion':list(getattr(app,'operation_timings',[])),'plantillas':len(list(app.template_dir.rglob('*.docx'))),'dependencias':{},'office':{}}
     for name in ('pandas','openpyxl','customtkinter','python-docx','pywin32'):
         try:result['dependencias'][name]=version(name)
         except PackageNotFoundError:result['dependencias'][name]='No instalado'
@@ -83,20 +92,26 @@ def export_diagnosis(app):
     if path:write_new_file(Path(path),lambda p:p.write_text(json.dumps(diagnosis(app),ensure_ascii=False,indent=2),encoding='utf-8'));app.status.set('Diagnóstico creado: '+path)
 
 
-def selected_zip(paths,destination):
-    sources=[Path(p).resolve() for p in paths]
-    if not sources:raise ValueError('Selecciona productos del trabajo actual.')
-    if any(not p.is_file() for p in sources):raise ValueError('Algún producto seleccionado no está disponible.')
-    if Path(destination).resolve() in sources:raise ValueError('El ZIP no puede reemplazar un producto seleccionado.')
-    def write(target):
-        with zipfile.ZipFile(target,'w',zipfile.ZIP_DEFLATED) as archive:
-            for index,path in enumerate(dict.fromkeys(sources),1):archive.write(path,f'{index:03d}_{path.name}')
-    write_new_file(Path(destination),write)
-    return str(destination)
+from .delivery import selected_zip
 
 
 def deliver(app):
-    paths=filedialog.askopenfilenames(title='Selecciona productos del trabajo actual',parent=app)
+    from .product_checks import check_products
+    checks=check_products(app.work,app.drafts,app.projects)
+    files={c.path:c for c in checks if c.path and not c.issues}
+    paths=filedialog.askopenfilenames(title='Selecciona los archivos de productos para entregar',parent=app,
+                                      initialdir=Path(app.work.output).parent if app.work and app.work.output else app.cfg.directory,
+                                      filetypes=[('Productos','*.xlsx *.docx *.pdf *.csv *.ics *.zip')])
     if not paths:return
+    blocked={str(Path(c.path).resolve()):c for c in checks if c.path and c.issues}
+    for path in paths:
+        if str(Path(path).resolve()) in blocked:raise ValueError('Revisa el producto antes de entregarlo: '+Path(path).name)
+    from .delivery import validate_product
+    for path in paths:validate_product(path)
+    preview='Archivos seleccionados: '+str(len(paths))+'\n\n'+'\n'.join(Path(p).name for p in paths)
+    preview+='\n\nSe incluirán un índice y un manifiesto de comprobación. Los borradores permanecen en Outlook.'
+    if not messagebox.askokcancel('Revisar entrega actual',preview,parent=app):return
     destination=filedialog.asksaveasfilename(defaultextension='.zip',initialfile='Entrega_CSMP.zip',parent=app)
-    if destination:app._run('Preparando entrega…',lambda:selected_zip(paths,destination),lambda p:app.status.set('Entrega creada: '+p))
+    if destination:
+        metadata={str(Path(p).resolve()):{'producto':c.label,'registros':len(getattr(c.target,'record_ids',[]))} for p,c in files.items()}
+        app._run('Preparando entrega…',lambda:selected_zip(paths,destination,metadata),lambda p:app.status.set('Entrega verificada: '+p))

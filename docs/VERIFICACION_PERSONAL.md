@@ -1,6 +1,6 @@
-# CSMP Windows · 0.5.0.dev2
+# CSMP Windows · 0.5.0.dev3
 
-Documento actualizado el 6 de octubre de 2026.
+Documento actualizado el 7 de octubre de 2026.
 
 La especificación y el estado vigentes se encuentran en [README](../README.md) y [Ejecución Windows](EJECUCION_WINDOWS_20261006.md).
 

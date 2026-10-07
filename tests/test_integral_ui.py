@@ -52,3 +52,42 @@ assert id in selected_ids(app,'records')
 app.records.configure(displaycolumns=('Nombre','RIT'));app.work_search.set('');app._apply_work_filter()
 assert tuple(app.records['displaycolumns'])==('Nombre','RIT')
 """)
+
+
+def test_themes_result_identity_and_command_palette(tmp_path):
+    run_gui(tmp_path,"""
+from nurus.personal.outputs import Draft
+from nurus.personal.commands import show_palette
+for theme in ('Claro','Oscuro','Sistema'):
+    app.theme_choice.set(theme);app.apply_appearance();app.update()
+assert app.cfg.data['vista']['tema']=='Sistema'
+app.mail_target.set('todos')
+app._display_prepared_drafts([Draft('Igual','Primero',to='a@example.test'),Draft('Igual','Segundo',to='b@example.test')],'{count} preparados')
+app.tabs.select(app.pages['Resultados']);app.update()
+second='draft:'+app.drafts[1].product_id
+app.results_tree.selection_set(second);app.open_result();app.update()
+assert app.body.get('1.0','end-1c')=='Segundo'
+show_palette(app);app.update();assert app.command_palette.winfo_exists()
+""")
+
+
+def test_large_table_yields_and_retains_hidden_selection(tmp_path):
+    run_gui(tmp_path,"""
+from copy import deepcopy
+import time
+app.work=Work(app.cfg.data).analyze(source(root),'ESPERA',as_of=date(2026,10,2))
+base=app.work.rows[0]
+app.work.rows=[]
+for n in range(1100):
+    row=deepcopy(base);row.id='row-'+str(n);row.values[app.work.mapping['rit']]='X-'+str(n);row.actions=[];app.work.rows.append(row)
+app._show_work();assert app.rendering
+heartbeat=[];app.after(0,lambda:heartbeat.append(True))
+limit=time.monotonic()+10
+while app.rendering and time.monotonic()<limit:app.update()
+assert not app.rendering and heartbeat
+assert len(app.records.get_children())==1100
+app.records.selection_set('row-1099');app.work_search.set('no-match');app._apply_work_filter()
+from nurus.personal.selection import selected_ids
+assert 'row-1099' in selected_ids(app,'records')
+app.work_search.set('');app._apply_work_filter();assert 'row-1099' in app.records.selection()
+""")

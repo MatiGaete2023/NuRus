@@ -95,14 +95,14 @@ jobs:
       - name: Build Windows distribution
         if: matrix.python == '3.12'
         shell: pwsh
-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.5.0-dev2.zip HEAD
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.5.0-dev3.zip HEAD
 
       - name: Source distribution
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Windows-dev2
-          path: dist/CSMP_Assistant_personal_0.5.0-dev2.zip
+          name: CSMP-Windows-dev3
+          path: dist/CSMP_Assistant_personal_0.5.0-dev3.zip
 
       - name: Windows executable
         if: matrix.python == '3.12'
@@ -134,7 +134,7 @@ jobs:
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Integral-Windows-dev2
+          name: CSMP-Integral-Windows-dev3
           path: dist/CSMP_Integral/
           if-no-files-found: error
 
@@ -144,3 +144,41 @@ jobs:
           name: nurus-wheel-${{ matrix.os }}-py${{ matrix.python }}
           path: |
             dist/*.whl
+
+      - name: Measure native table redraws
+        if: matrix.python == '3.12'
+        run: python tools/benchmark_interface.py --rows 1000 10000 --repeats 10
+
+      - name: Build and verify Windows installer
+        if: matrix.python == '3.12'
+        shell: pwsh
+        run: |
+          $compiler = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $compiler) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Falló la instalación de Inno Setup' }
+            $compiler = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe" | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $compiler) { throw 'No se encuentra Inno Setup' }
+          & $compiler installer/CSMP.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la construcción del instalador' }
+          $installer = Get-ChildItem dist/Instalar_CSMP_*_Windows.exe | Select-Object -First 1
+          $destination = Join-Path $env:RUNNER_TEMP 'CSMP instalado'
+          $install = Start-Process $installer.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="'+$destination+'"') -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw 'Falló la instalación silenciosa' }
+          $check = Start-Process (Join-Path $destination 'CSMP_Integral.exe') -ArgumentList '--verificar-paquete','artifacts/installed-package-check.json' -Wait -PassThru
+          if ($check.ExitCode -ne 0) { throw 'Falló el arranque instalado' }
+          $reinstall = Start-Process $installer.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="'+$destination+'"') -Wait -PassThru
+          if ($reinstall.ExitCode -ne 0) { throw 'Falló la reinstalación' }
+          $uninstall = Start-Process (Join-Path $destination 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw 'Falló la desinstalación' }
+
+      - name: Installer and measurements
+        if: matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSMP-Instalador-Windows-dev3
+          path: |
+            dist/Instalar_CSMP_*_Windows.exe
+            artifacts/performance.json
+            artifacts/installed-package-check.json

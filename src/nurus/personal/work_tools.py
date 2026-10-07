@@ -92,7 +92,7 @@ def preferences(app):
         selected=[col for col,var in variables.items() if var.get()]
         if not selected:messagebox.showinfo('Vista','Mantén al menos una columna visible.',parent=win);return
         app.records.configure(displaycolumns=selected)
-        cfg=dict(app.cfg.data);cfg['vista']={'columnas_trabajo':selected};app.cfg.save(cfg);win.destroy()
+        cfg=dict(app.cfg.data);cfg['vista']={**cfg.get('vista',{}),'columnas_trabajo':selected};app.cfg.save(cfg);win.destroy()
     ttk.Button(win,text='Guardar vista',command=save).pack(pady=12)
 
 

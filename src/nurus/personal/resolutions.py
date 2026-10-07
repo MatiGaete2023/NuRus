@@ -353,7 +353,10 @@ def generate_projects(work,projects,destination):
         if project.review_required:raise ValueError('Revisa los cambios del proyecto '+project.rit+' antes de generar Word.')
     with TemporaryDirectory() as directory:
         docs=[]
-        for project in projects:
+        from .operations import checkpoint,progress
+        from .word_quality import require_complete,improve_pagination
+        for index,project in enumerate(projects):
+            checkpoint();progress('Preparando documentos Word',index,len(projects))
             _validate_project_template(project)
             target=Path(directory)/(project.key+'.docx')
             doc=render_project(project,target)
@@ -361,6 +364,7 @@ def generate_projects(work,projects,destination):
                 existing=list(paragraphs(doc));lines=project.text.split('\n')
                 for i,p in enumerate(existing):replace_paragraph(p,lines[i] if i<len(lines) else '')
                 for line in lines[len(existing):]:doc.add_paragraph(line)
+            require_complete(doc,allow_review_markers=True);improve_pagination(doc)
             docs.append(doc)
         # Cada matriz judicial conserva sus estilos propios; la primera resolución no
         # debe convertir las matrices posteriores al estilo de su tribunal.
@@ -368,11 +372,16 @@ def generate_projects(work,projects,destination):
         for doc in docs[1:]:
             composer.doc.add_page_break()
             composer.append(doc)
-        write_new_file(Path(destination),composer.save)
+        checkpoint();progress('Guardando documento Word',len(projects),len(projects))
+        def save_checked(path):
+            composer.save(path)
+            require_complete(path,allow_review_markers=True)
+        write_new_file(Path(destination),save_checked)
+    from .product_checks import project_hash
     for project in projects:
         from .activity import receipt
         work.receipts[uuid4().hex]=receipt('word','generated',record_ids=project.record_ids,
                                          record_id=project.record_ids[0],path=str(destination),type=project.kind,
-                                         court=project.court,rit=project.rit)
+                                         court=project.court,rit=project.rit,product_id=project.key,product_hash=project_hash(project))
     if getattr(work,'storage_directory',None):work.save(work.storage_directory)
     return str(destination)

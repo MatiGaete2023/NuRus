@@ -29,8 +29,9 @@ class App(_BaseApp):
             from .config import Configuration
             configuration=Configuration(Path(os.environ.get('LOCALAPPDATA') or Path.home())/'CSMP_Personal_Prototipo_Integral')
         super().__init__(configuration=configuration)
-        width=min(1180,self.winfo_screenwidth()-60)
-        height=min(820,self.winfo_screenheight()-110)
+        scaling=self._get_window_scaling()
+        width=min(1180,max(600,int((self.winfo_screenwidth()-60)/scaling)))
+        height=min(820,max(400,int((self.winfo_screenheight()-110)/scaling)))
         self.geometry(f'{width}x{height}')
         self.minsize(min(940,width),min(580,height))
 
@@ -145,7 +146,7 @@ class App(_BaseApp):
         drafts=deepcopy(self.drafts)
         def done(result):
             self._save_session()
-            self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya procesados; {len(result['errors'])} incidencias.")
+            self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya procesados; {len(result['errors'])} incidencias."+(" Detenido entre productos." if result.get('cancelled') else ""))
             if result['errors']:messagebox.showwarning('Lote guardado con incidencias','\n'.join(result['errors']))
         self._run('Guardando borradores revisados en Outlook…',lambda:create_drafts(work,drafts),done)
 
@@ -214,11 +215,10 @@ class App(_BaseApp):
         self.mode.set(self.work.mode);self.file.set(self.work.path);self.observation_id=None
         self.work_primary_button.configure(text='Exportar copia actual')
         self.observation_editor.delete('1.0','end')
-        for iid in list(getattr(self,'_work_all_iids',self.records.get_children())):
-            if self.records.exists(iid):self.records.delete(iid)
-        if reset_projects:
-            for iid in list(getattr(self,'_resolution_all_iids',self.words.get_children())):
-                if self.words.exists(iid):self.words.delete(iid)
+        from .table_update import prune,render_rows
+        old_work=list(getattr(self,'_work_all_iids',self.records.get_children()))
+        old_words=list(getattr(self,'_resolution_all_iids',self.words.get_children()))
+        jobs=[]
         fallback_kind=(kind_code(self.manual_word.get()) if hasattr(self,'manual_word') else 'PC_IE') or 'PC_IE'
         selections=unique_case_selections(self.work,automatic_project_selections(self.work,fallback_kind))
         resolution_ids={rid for rid,_ in selections}
@@ -227,7 +227,7 @@ class App(_BaseApp):
         case_peers=defaultdict(list)
         for row in self.work.rows:
             if not row.excluded:case_peers[_case_key(self.work,row)].append(row)
-        self._work_all_iids=[];self._work_search_text={}
+        self._work_all_iids=[];self._work_search_text={};self._work_filter_text={}
         if reset_projects:
             self._resolution_all_iids=[];self._resolution_search_text={}
         for row in self.work.rows:
@@ -236,22 +236,30 @@ class App(_BaseApp):
             if row.excluded:tags.append('excluded')
             elif row.warnings:tags.append('warning')
             if row.id in resolution_ids:tags.append('resolution')
-            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'nombre'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=tuple(tags))
+            values=(state,value(self.work,row,'rit'),value(self.work,row,'nombre'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation))
+            jobs.append((self.records,row.id,values,tuple(tags)))
             self._work_all_iids.append(row.id)
             self._work_search_text[row.id]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa'))
+            self._work_filter_text[row.id]=normalize(' '.join(str(v or '') for v in values)+' '+self._work_search_text[row.id])
         for rid,kind in selections if reset_projects else []:
             row=by_id[rid]
             source=resolution_selection_source(self.work,row,kind,peers=case_peers[_case_key(self.work,row)])
             origin_tag={'Definido en RES':'res_explicit','RES antiguo · tipo inferido':'res_legacy','Sugerencia automática revisable':'res_auto'}.get(source,'res_auto')
             iid=rid+'|'+kind
-            self.words.insert('','end',iid=iid,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind_label(kind),source),tags=(origin_tag,))
+            jobs.append((self.words,iid,(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind_label(kind),source),(origin_tag,)))
             self._resolution_all_iids.append(iid)
             self._resolution_search_text[iid]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa'))
-        self.records.selection_set([rid for rid in previous_selection if self.records.exists(rid)])
-        self._apply_work_filter()
-        if reset_projects:
-            self.words.selection_set([iid for iid in previous_words if self.words.exists(iid)])
-            self._apply_resolution_filter()
+        prune(self.records,old_work,self._work_all_iids)
+        if reset_projects:prune(self.words,old_words,self._resolution_all_iids)
+        remember(self,'records',previous_selection)
+        if reset_projects:remember(self,'words',previous_words)
+        def finish_render():
+            self.records.selection_set([rid for rid in previous_selection if self.records.exists(rid)])
+            self._apply_work_filter()
+            if reset_projects:
+                self.words.selection_set([iid for iid in previous_words if self.words.exists(iid)])
+                self._apply_resolution_filter()
+        render_rows(self,jobs,finish_render)
         n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)
         invalid_res=sum(any(str(w).startswith('RES no reconocido:') for w in r.warnings) for r in self.work.rows)
         projects=len(getattr(self,'_resolution_all_iids',self.words.get_children()))
