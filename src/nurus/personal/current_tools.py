@@ -47,10 +47,12 @@ def summary(drafts):
     return '\n'.join(lines)
 
 
-def confirm_drafts(app,drafts):
+def confirm_drafts(app,drafts,excluded=()):
     import tkinter as tk
     from tkinter import ttk
-    content=summary(drafts);accepted=[]
+    content=summary(drafts)
+    if excluded:content+='\n\nPENDIENTES QUE NO SE GUARDARÁN EN ESTE LOTE:\n'+'\n'.join(excluded)
+    accepted=[]
     win=tk.Toplevel(app);win.title('Resumen antes de guardar en Outlook');win.geometry('850x650');win.transient(app)
     tabs=ttk.Notebook(win);tabs.pack(fill='both',expand=True,padx=12,pady=12)
     overview=ttk.Frame(tabs);tabs.add(overview,text='Destinatarios y adjuntos')

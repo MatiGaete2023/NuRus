@@ -10,23 +10,7 @@ from nurus.personal.config import Configuration
 from nurus.personal.app import App
 from nurus.personal.work import Work, Row
 
-def capture_window(app,name):
-    import win32gui,win32ui,win32con
-    folder=Path('artifacts');folder.mkdir(exist_ok=True)
-    hwnd=win32gui.GetAncestor(app.winfo_id(),2)
-    left,top,right,bottom=win32gui.GetWindowRect(hwnd)
-    handle=win32gui.GetWindowDC(hwnd)
-    source=win32ui.CreateDCFromHandle(handle);target=source.CreateCompatibleDC()
-    bitmap=win32ui.CreateBitmap();bitmap.CreateCompatibleBitmap(source,right-left,bottom-top)
-    target.SelectObject(bitmap)
-    try:
-        target.BitBlt((0,0),(right-left,bottom-top),source,(0,0),win32con.SRCCOPY)
-        bitmap.SaveBitmapFile(target,str(folder/(name+'.bmp')))
-        png=folder/(name+'.png')
-        Image.open(folder/(name+'.bmp')).save(png)
-        print('CSMP_CAPTURE:'+name+':'+base64.b64encode(png.read_bytes()).decode('ascii'))
-    finally:
-        target.DeleteDC();source.DeleteDC();win32gui.ReleaseDC(hwnd,handle);win32gui.DeleteObject(bitmap.GetHandle())
+from window_capture import capture_window
 
 
 with TemporaryDirectory() as directory:

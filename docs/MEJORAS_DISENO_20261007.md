@@ -23,7 +23,7 @@ Implementación de las 16 propuestas del informe GitHub del 7 de octubre de 2026
 
 ## Uso y medición
 
-Instalar la rueda o paquete antes de ejecutar herramientas. Para medir: `py -3.12 tools/benchmark_interface.py --rows 1000 10000 50000 --repeats 10`. Son medidas de dibujo; no equivalen al tiempo total de análisis ni a Office. Las tablas grandes ceden control a Tk; siguen representando todas las filas del modelo.
+Instalar la rueda o paquete antes de ejecutar herramientas. Para medir: `py -3.12 tools/benchmark_interface.py --rows 1000 10000 50000 --repeats 10`. Para perfilar lectura/análisis/nómina instala `.[performance]` y ejecuta `py -3.12 tools/profile_work.py --rows 1000`. El perfil usa sólo datos ficticios. Las medidas de benchmark son de dibujo; no equivalen al tiempo total de análisis ni a Office. Las tablas grandes ceden control a Tk; siguen representando todas las filas del modelo.
 
 El formato institucional mantiene los bordes negros originales. Los formatos nuevos se aplican sólo a salidas generadas; la copia preservada del Excel conserva fórmulas y estilos de origen. El editor de nómina mantiene las correcciones dentro del adjunto.
 

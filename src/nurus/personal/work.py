@@ -106,6 +106,8 @@ class Work:
         self.activity_reviewed={}
 
     def analyze(self,path,mode,*,sheet=None,cross_sheet=None,as_of=None,batch=None):
+        from .operations import progress,checkpoint
+        checkpoint();progress('Leyendo Excel y verificando su estructura')
         batch=batch if batch is not None else read_workbook(path,mode,sheet_name=sheet,cross_sheet_name=cross_sheet)
         self.path=batch.source_path
         self.mode=str(batch.mode)
@@ -139,7 +141,8 @@ class Work:
             self.warnings.append('Sin cruce utilizable: no se evalúa C-10. El resto del análisis y la exportación continúan sin bloqueo.')
         cols=dict(self.mapping)
         fn={'ESPERA':generar_observacion_espera,'CUMPLIMIENTO':generar_observacion_cumplimiento,'INFORMES':generar_observacion_informes}[self.mode]
-        for record in batch.records:
+        for number,record in enumerate(batch.records):
+            if number%100==0:checkpoint();progress('Analizando registros',number,len(batch.records))
             values=dict(record.values)
             for name in ('nacimiento','resolucion','ingreso','egreso_proy','oido','prox_aud','ficha_ind','ficha_fae','vencimiento'):
                 column=cols.get(name)
@@ -173,6 +176,7 @@ class Work:
             self.cross_dates[record.record_id]=index.get(identity_key)
             self.rows.append(Row(record.record_id,record.source.row_number,dict(record.values),observation,list(dict.fromkeys(events)),[] if excluded else actions_for(events),warnings,excluded))
             self.rows[-1].decisions={'structured':True,'mail':{},'resolution':'auto'}
+        progress('Análisis completo',len(batch.records),len(batch.records))
         return self
 
     def document_exception(self,reason):

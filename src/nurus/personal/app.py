@@ -142,8 +142,13 @@ class App(_BaseApp):
         work=self._require_work();self._capture_mail()
         if not self.drafts:raise ValueError('Prepara y revisa los borradores antes de guardarlos.')
         from .current_tools import confirm_drafts
-        if not confirm_drafts(self,self.drafts):return
-        drafts=deepcopy(self.drafts)
+        from .product_checks import check_products
+        checks=check_products(work,self.drafts,[])
+        ready=[c.target for c in checks if not c.issues]
+        excluded=[c.label+': '+'; '.join(c.issues) for c in checks if c.issues]
+        if not ready:raise ValueError('No hay borradores completos. Abre Resultados para corregir los pendientes.')
+        if not confirm_drafts(self,ready,excluded):return
+        drafts=deepcopy(ready)
         def done(result):
             self._save_session()
             self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya procesados; {len(result['errors'])} incidencias."+(" Detenido entre productos." if result.get('cancelled') else ""))

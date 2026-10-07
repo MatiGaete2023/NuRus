@@ -41,7 +41,7 @@ def showcase(destination):
                 app.theme_choice.set(theme);app.apply_appearance();app.geometry('1120x740');app.tabs.select(app.pages['Resultados']);app.update()
                 app.results_tree.selection_set('draft:'+second.product_id);app.update()
                 if os.name=='nt':
-                    from smoke_personal_gui import capture_window
+                    from window_capture import capture_window
                     capture_window(app,'resultados-'+theme.lower()+'-ficticio')
                 else:
                     from PIL import ImageGrab
