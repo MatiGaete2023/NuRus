@@ -23,7 +23,6 @@ Trabajo incorpora un formulario por registro para `FECHA_OBS`, `TT`, `CC`, `RES`
 
 Correos separa Correo, Registros incluidos y Cambios; sus tarjetas distinguen preparado, editado, desactualizado, guardado y guardado incierto. Resoluciones usa una sola lista de causas con paneles Texto, Datos, Matriz y Cambios; requiere confirmar una revisión cuando se conserva un texto editado sobre una base nueva.
 
-Las plantillas aceptan únicamente variables simples conocidas. El editor permite buscar parámetros, previsualizar datos ficticios, duplicar, archivar, restaurar y usar aliases de contactos con búsqueda y deshacer. Historial separa Actividad local de Enviados de Outlook y nunca interpreta un borrador como enviado.
 
 ## Verificación
 

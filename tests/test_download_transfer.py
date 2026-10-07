@@ -9,7 +9,7 @@ from nurus.personal import download_link as link
 from nurus.personal.download_transfer import Transfer, recovery_work, archive_current
 from nurus.personal.config import defaults
 from nurus.personal.work import Work
-from test_rus_activity import source
+from current_fixture import source
 
 
 class Variable:

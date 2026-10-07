@@ -2,6 +2,7 @@
 
 Único flujo operativo del producto; app_base contiene sus controles compartidos.
 """
+from .selection import selected_ids, remember, restore_visible
 from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime
@@ -14,7 +15,7 @@ from .app_base import App as _BaseApp
 from .mail_view import build_mail_page
 from .mail_controls import alcance_modalidades, selected_court_record_ids, empty_preparation_message
 from .outputs import prepare_drafts, prepare_required_drafts, create_drafts, drafts_for_scope, value
-from .resolutions import automatic_project_selections, unique_case_selections, resolution_selection_source, kind_code, kind_label
+from .resolutions import automatic_project_selections, unique_case_selections, resolution_selection_source, _case_key, kind_code, kind_label
 from .statistics import summarize
 from .ux_support import incident_ids
 from .work import Work
@@ -28,8 +29,9 @@ class App(_BaseApp):
             from .config import Configuration
             configuration=Configuration(Path(os.environ.get('LOCALAPPDATA') or Path.home())/'CSMP_Personal_Prototipo_Integral')
         super().__init__(configuration=configuration)
-        width=min(1180,self.winfo_screenwidth()-60)
-        height=min(820,self.winfo_screenheight()-110)
+        scaling=self._get_window_scaling()
+        width=min(1180,max(600,int((self.winfo_screenwidth()-60)/scaling)))
+        height=min(820,max(400,int((self.winfo_screenheight()-110)/scaling)))
         self.geometry(f'{width}x{height}')
         self.minsize(min(940,width),min(580,height))
 
@@ -77,7 +79,7 @@ class App(_BaseApp):
         courts=self._selected_mail_courts()
         ids=selected_court_record_ids(work,courts) if courts else [row.id for row in work.rows]
         if manual:
-            chosen=set(self.records.selection())
+            chosen=set(selected_ids(self,'records'))
             if not chosen:raise ValueError('Selecciona los registros de esta gestión en la pestaña Trabajo.')
             ids=[rid for rid in ids if rid in chosen]
         if not ids:raise ValueError('No hay registros del trabajo que coincidan con los tribunales seleccionados.')
@@ -125,7 +127,7 @@ class App(_BaseApp):
         period=self.period.get()
         def done(drafts):self._display_prepared_drafts(drafts,'{count} borradores preparados para revisión; todavía no se guardaron en Outlook.',
                                                     empty_message=empty_preparation_message(work,selected,modality_keys,kind) if not drafts else None)
-        self._run('Preparando textos y adjuntos…',lambda:prepare_drafts(work,kind,modalities=phrase,period=period,selected=selected,manual_selection=manual,modality_keys=modality_keys,recipient_scope='auto' if target=='todos' else target),done)
+        self._run('Preparando textos y adjuntos…',lambda:prepare_drafts(work,kind,modalities=phrase,period=period,selected=selected,manual_selection=manual,modality_keys=modality_keys,recipient_scope='auto' if target=='todos' else target,defer_attachments=True),done)
 
     def _prepare_all_mail(self):
         work=self._require_work();self._capture_mail();self._sync_mail_config(work)
@@ -134,33 +136,24 @@ class App(_BaseApp):
         phrase=alcance_modalidades(keys);selected=self._mail_selected_ids(work,manual=self.manual_mail.get());period=self.period.get();target=self.mail_target.get()
         def done(drafts):self._display_prepared_drafts(drafts,'{count} correos preparados para el alcance elegido. Todavía no se guardaron en Outlook.',
                                                     empty_message=empty_preparation_message(work,selected,keys) if not drafts else None)
-        self._run('Preparando todos los correos necesarios del trabajo…',lambda:prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys,recipient_scope=target),done)
+        self._run('Preparando todos los correos necesarios del trabajo…',lambda:prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys,recipient_scope=target,defer_attachments=True),done)
 
     def _send_all(self):
         work=self._require_work();self._capture_mail()
-        if self.drafts:
-            drafts=[replace(draft) for draft in self.drafts]
-            def done(result):
-                self._save_session()
-                self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya procesados; {len(result['errors'])} incidencias.")
-                if result['errors']:messagebox.showwarning('Lote guardado con incidencias','\n'.join(result['errors']))
-            self._run('Guardando el lote de borradores en Outlook…',lambda:create_drafts(work,drafts),done)
-            return
-        self._sync_mail_config(work)
-        keys=self._selected_mail_modalities()
-        if not keys:raise ValueError('Selecciona al menos una modalidad.')
-        selected=self._mail_selected_ids(work,manual=self.manual_mail.get())
-        period=self.period.get();phrase=alcance_modalidades(keys);target=self.mail_target.get()
-        def action():
-            drafts=prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys,recipient_scope=target)
-            return drafts,create_drafts(work,[replace(draft) for draft in drafts])
-        def done(payload):
-            drafts,result=payload
-            self._display_prepared_drafts(drafts,'{count} borradores preparados y procesados para Outlook.')
+        if not self.drafts:raise ValueError('Prepara y revisa los borradores antes de guardarlos.')
+        from .current_tools import confirm_drafts
+        from .product_checks import check_products
+        checks=check_products(work,self.drafts,[])
+        ready=[c.target for c in checks if not c.issues]
+        excluded=[c.label+': '+'; '.join(c.issues) for c in checks if c.issues]
+        if not ready:raise ValueError('No hay borradores completos. Abre Resultados para corregir los pendientes.')
+        if not confirm_drafts(self,ready,excluded):return
+        drafts=deepcopy(ready)
+        def done(result):
             self._save_session()
-            self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya existentes; {len(result['errors'])} incidencias.")
+            self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya procesados; {len(result['errors'])} incidencias."+(" Detenido entre productos." if result.get('cancelled') else ""))
             if result['errors']:messagebox.showwarning('Lote guardado con incidencias','\n'.join(result['errors']))
-        self._run('Preparando y guardando todos los borradores en Outlook…',action,done)
+        self._run('Guardando borradores revisados en Outlook…',lambda:create_drafts(work,drafts),done)
 
     def _attachment_all(self):
         self._capture_mail()
@@ -194,10 +187,12 @@ class App(_BaseApp):
         def done(work):
             self.work=work;self._clear_drafts();self.observation_id=None;self._show_work();self._export_current()
         def analyze():
-            from .sitfa import inspect_input
-            report=inspect_input(path,mode,sheet)
+            from .sitfa import inspect_batch
+            from nurus.rus.reader import read_workbook
+            batch=read_workbook(path,mode,sheet_name=sheet)
+            report=inspect_batch(batch)
             if report['faltan']:raise ValueError('Faltan columnas para analizar: '+', '.join(report['faltan'])+'. Revisa el libro o su exportación para CSMP.')
-            return Work(cfg).analyze(path,mode,sheet=sheet)
+            return Work(cfg).analyze(path,mode,sheet=sheet,batch=batch)
         self._run('Analizando '+mode+'…',analyze,done)
 
     def _export_current(self):
@@ -216,25 +211,28 @@ class App(_BaseApp):
 
     def _show_work(self,reset_projects=True):
         if not self.work:return
-        from .review_store import bind
-        bind(self.work,self.cfg.directory/'revisiones_firmas.json')
         journal_path=self.cfg.directory/'registro_observaciones.sqlite'
         if journal_path.is_file():
             from .registration import Journal,attach_receipts
             attach_receipts(self.work,Journal(journal_path))
+        previous_selection=list(selected_ids(self,'records'))
+        previous_words=list(selected_ids(self,'words'))
         self.mode.set(self.work.mode);self.file.set(self.work.path);self.observation_id=None
         self.work_primary_button.configure(text='Exportar copia actual')
         self.observation_editor.delete('1.0','end')
-        for iid in list(getattr(self,'_work_all_iids',self.records.get_children())):
-            if self.records.exists(iid):self.records.delete(iid)
-        if reset_projects:
-            for iid in list(getattr(self,'_resolution_all_iids',self.words.get_children())):
-                if self.words.exists(iid):self.words.delete(iid)
+        from .table_update import prune,render_rows
+        old_work=list(getattr(self,'_work_all_iids',self.records.get_children()))
+        old_words=list(getattr(self,'_resolution_all_iids',self.words.get_children()))
+        jobs=[]
         fallback_kind=(kind_code(self.manual_word.get()) if hasattr(self,'manual_word') else 'PC_IE') or 'PC_IE'
         selections=unique_case_selections(self.work,automatic_project_selections(self.work,fallback_kind))
         resolution_ids={rid for rid,_ in selections}
         by_id={row.id:row for row in self.work.rows}
-        self._work_all_iids=[];self._work_search_text={}
+        from collections import defaultdict
+        case_peers=defaultdict(list)
+        for row in self.work.rows:
+            if not row.excluded:case_peers[_case_key(self.work,row)].append(row)
+        self._work_all_iids=[];self._work_search_text={};self._work_filter_text={}
         if reset_projects:
             self._resolution_all_iids=[];self._resolution_search_text={}
         for row in self.work.rows:
@@ -242,22 +240,31 @@ class App(_BaseApp):
             tags=[]
             if row.excluded:tags.append('excluded')
             elif row.warnings:tags.append('warning')
-            if not row.excluded and self.work.signed_activity.get(row.id,{}).get('pendientes'):
-                state='Firma por revisar';tags.append('signed')
             if row.id in resolution_ids:tags.append('resolution')
-            self.records.insert('','end',iid=row.id,values=(state,value(self.work,row,'rit'),value(self.work,row,'nombre'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation)),tags=tuple(tags))
+            values=(state,value(self.work,row,'rit'),value(self.work,row,'nombre'),value(self.work,row,'tribunal'),value(self.work,row,'programa'),row.review.get('OBSERVACION',row.observation))
+            jobs.append((self.records,row.id,values,tuple(tags)))
             self._work_all_iids.append(row.id)
             self._work_search_text[row.id]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa'))
+            self._work_filter_text[row.id]=normalize(' '.join(str(v or '') for v in values)+' '+self._work_search_text[row.id])
         for rid,kind in selections if reset_projects else []:
             row=by_id[rid]
-            source=resolution_selection_source(self.work,row,kind)
+            source=resolution_selection_source(self.work,row,kind,peers=case_peers[_case_key(self.work,row)])
             origin_tag={'Definido en RES':'res_explicit','RES antiguo · tipo inferido':'res_legacy','Sugerencia automática revisable':'res_auto'}.get(source,'res_auto')
             iid=rid+'|'+kind
-            self.words.insert('','end',iid=iid,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind_label(kind),source),tags=(origin_tag,))
+            jobs.append((self.words,iid,(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind_label(kind),source),(origin_tag,)))
             self._resolution_all_iids.append(iid)
             self._resolution_search_text[iid]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa'))
-        self._apply_work_filter()
-        if reset_projects:self._apply_resolution_filter()
+        prune(self.records,old_work,self._work_all_iids)
+        if reset_projects:prune(self.words,old_words,self._resolution_all_iids)
+        remember(self,'records',previous_selection)
+        if reset_projects:remember(self,'words',previous_words)
+        def finish_render():
+            self.records.selection_set([rid for rid in previous_selection if self.records.exists(rid)])
+            self._apply_work_filter()
+            if reset_projects:
+                self.words.selection_set([iid for iid in previous_words if self.words.exists(iid)])
+                self._apply_resolution_filter()
+        render_rows(self,jobs,finish_render)
         n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)
         invalid_res=sum(any(str(w).startswith('RES no reconocido:') for w in r.warnings) for r in self.work.rows)
         projects=len(getattr(self,'_resolution_all_iids',self.words.get_children()))
@@ -285,7 +292,7 @@ class App(_BaseApp):
         return None
 
     def _assign_word_type(self):
-        selected=list(self.words.selection())
+        selected=list(selected_ids(self,'words'))
         if not selected:raise ValueError('Selecciona una o más filas concretas de Resoluciones antes de cambiar su tipo.')
         kind=kind_code(self.manual_word.get()) or 'PC_IE';new=[]
         registry=getattr(self,'_resolution_all_iids',None)
@@ -323,7 +330,7 @@ class App(_BaseApp):
         self.status.set(f'{kind_label(kind)} aplicado solo a {len(selected)} selección(es).')
 
     def _add_words(self):
-        work=self._require_work();kind=kind_code(self.manual_word.get()) or 'PC_IE';selected=list(self.records.selection())
+        work=self._require_work();kind=kind_code(self.manual_word.get()) or 'PC_IE';selected=list(selected_ids(self,'records'))
         if not selected:raise ValueError('Selecciona en Trabajo los registros que quieres agregar manualmente como proyecto.')
         from .record_edits import apply
         apply(work,selected,decisions={'resolution':kind})

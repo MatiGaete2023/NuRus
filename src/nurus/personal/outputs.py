@@ -69,6 +69,9 @@ class Draft:
     dependency_hash: str = ''
     original: dict = field(default_factory=dict)
     options: dict = field(default_factory=dict)
+    roster: list = field(default_factory=list)
+    roster_reviewed: bool = True
+    product_id: str = field(default_factory=lambda:uuid4().hex)
 
 
 _MONTHS = ('', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre')
@@ -135,10 +138,7 @@ def import_contacts(cfg,path):
 
 
 def _table(work,rows,path,kind=''):
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Border, Side
-    from openpyxl.utils import get_column_letter
-    book=Workbook();sheet=book.active;sheet.title='Nómina'
+    from .reports import _book
     if kind=='programa_espera':
         headers=['RIT','TRIBUNAL','NOMBRE','DERIVACION','T ESPERA']
         keys=('rit','tribunal','nombre','programa','espera')
@@ -149,25 +149,11 @@ def _table(work,rows,path,kind=''):
         metric_header={'espera':'T ESPERA','vencimiento':'F. VENCIMIENTO','egreso_proy':'F. EGRESO PROYECTADO'}[mail_metric_key(work,kind)]
         headers=['RIT','TRIBUNAL','RUT','NOMBRE','PROGRAMA',metric_header,'OBSERVACION']
         keys=None
-    sheet.append(headers)
+    data=[]
     for row in rows:
-        if keys:
-            sheet.append([mail_metric_value(work,row,key) or 'Sin dato' if key in ('espera','vencimiento') else value(work,row,key) for key in keys])
-        else:
-            sheet.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[due_value(work,row,kind) or 'Sin dato',str(row.review.get('OBSERVACION',row.observation))])
-        for cell in sheet[sheet.max_row]:cell.data_type='s'
-    sheet.freeze_panes='A2';sheet.auto_filter.ref=sheet.dimensions
-    for cell in sheet[1]:cell.font=Font(bold=True)
-    thin=Side(style='thin',color='FF000000')
-    border=Border(left=thin,right=thin,top=thin,bottom=thin)
-    for cells in sheet.iter_rows(min_row=1,max_row=sheet.max_row,min_col=1,max_col=sheet.max_column):
-        for cell in cells:cell.border=border
-    for index,header in enumerate(headers,1):
-        sheet.column_dimensions[get_column_letter(index)].width=38 if header=='NOMBRE' else 24
-    from .attachment_store import workbook_bytes
-    content=workbook_bytes(book)
-    write_new_file(Path(path),lambda destination: Path(destination).write_bytes(content))
-    return str(path)
+        if keys:data.append([mail_metric_value(work,row,key) or 'Sin dato' if key in ('espera','vencimiento') else value(work,row,key) for key in keys])
+        else:data.append([value(work,row,k) for k in ('rit','tribunal','rut','nombre','programa')]+[due_value(work,row,kind) or 'Sin dato',str(row.review.get('OBSERVACION',row.observation))])
+    return _book([('Nómina',headers,data)],path)
 
 
 def draft_fingerprint(draft):
@@ -224,7 +210,7 @@ def due_value(work,row,kind):
     return mail_metric_value(work,row,mail_metric_key(work,kind))
 
 
-def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto'):
+def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto',defer_attachments=False):
     if recipient_scope not in {'auto','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     from .sync import require_current_copy
     require_current_copy(work)
@@ -281,9 +267,14 @@ def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=N
             for row in rows:by_program[value(work,row,'programa')].append(row)
             draft.attachments=[]
             for name,subset in by_program.items():
-                target=folder/'adjuntos'/uuid4().hex
-                target.mkdir(parents=True,exist_ok=True)
-                draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx'),operational))
+                if defer_attachments:
+                    from .roster import snapshot
+                    draft.roster.append(snapshot(work,subset,name,operational))
+                    draft.roster_reviewed=False
+                else:
+                    target=folder/'adjuntos'/uuid4().hex
+                    target.mkdir(parents=True,exist_ok=True)
+                    draft.attachments.append(_table(work,subset,target/(program_filename(name)+'.xlsx'),operational))
         from .product_state import stamp
         stamp(work,draft)
         draft.original={key:deepcopy(getattr(draft,key)) for key in ('to','cc','subject','body','attachments')}
@@ -293,7 +284,7 @@ def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=N
     return output
 
 
-def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None,recipient_scope='todos'):
+def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None,recipient_scope='todos',defer_attachments=False):
     """Prepara en una sola operación todas las comunicaciones que surgen del trabajo."""
     if recipient_scope not in {'todos','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     from .sync import require_current_copy
@@ -321,7 +312,7 @@ def prepare_required_drafts(work,*,modalities='',period='',selected=None,directo
         kinds.append(kind)
     drafts=[];seen=set()
     for kind in kinds:
-        for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys,recipient_scope='auto' if recipient_scope=='todos' else recipient_scope):
+        for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys,recipient_scope='auto' if recipient_scope=='todos' else recipient_scope,defer_attachments=defer_attachments):
             if draft.key not in seen:
                 drafts.append(draft);seen.add(draft.key)
     return drafts
@@ -343,8 +334,15 @@ def program_filename(name):
 
 def create_drafts(work,drafts):
     """Un clic guarda el lote. Los resultados parciales se conservan sin repetir Save."""
-    result={'created':0,'skipped':0,'errors':[]}
-    for draft in drafts:
+    result={'created':0,'skipped':0,'errors':[],'processed':0}
+    from .operations import checkpoint,progress,OperationCancelled
+    for index,draft in enumerate(drafts):
+        try:
+            checkpoint()
+        except OperationCancelled:
+            result['cancelled']=True;break
+        progress('Guardando borradores en Outlook',index,len(drafts))
+        result['processed']=index+1
         try:
             draft.key=draft_fingerprint(draft)
             if draft.key in work.receipts:
@@ -354,6 +352,7 @@ def create_drafts(work,drafts):
                 continue
             create_draft(work,draft,confirmed=True);result['created']+=1
         except Exception as exc:result['errors'].append(draft.subject+': '+str(exc))
+    progress('Borradores procesados',result['processed'],len(drafts))
     return result
 
 
@@ -361,6 +360,7 @@ def create_draft(work,draft,*,confirmed=False):
     if not confirmed:raise ValueError('Revisa destinatarios, texto y adjuntos antes de crear el borrador.')
     from .product_state import require_fresh
     require_fresh(work,draft)
+    if not draft.roster_reviewed:raise ValueError('Revisa la nómina antes de crear los adjuntos y guardar el correo.')
     draft.key=draft_fingerprint(draft)
     if draft.key in work.receipts:raise ValueError('Este borrador ya se creó o su guardado quedó incierto; revisa Outlook antes de repetir.')
     to='; '.join(emails(draft.to));cc='; '.join(emails(CC+';'+draft.cc))
@@ -379,7 +379,7 @@ def create_draft(work,draft,*,confirmed=False):
     work.receipts[draft.key]=activity
     if getattr(work,'storage_directory',None):work.save(work.storage_directory)
     try:
-        receipt=save_draft(product,confirmed=True,account_key=work.config.get('cuenta_outlook') or None,preserve_signature=True)
+        receipt=save_draft(product,confirmed=True,account_key=work.config.get('cuenta_outlook') or None,preserve_signature=True,html_body=work.config.get('correo_html',True))
     except DraftSaveUncertain:
         activity['state']='uncertain'
         if getattr(work,'storage_directory',None):work.save(work.storage_directory)

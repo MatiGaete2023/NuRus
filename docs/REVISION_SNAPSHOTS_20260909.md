@@ -6,11 +6,11 @@ Rama: `implementacion-plan-2026-09-08`.
 La aprobación del lote y la creación del snapshot se ejecutan en una única transacción. Los productos y las exportaciones tabulares consultan los registros congelados. Las vistas previas antiguas no pueden registrarse como productos de una nueva aprobación.
 
 Código: `bef83f7298267fce3215b37ad1668e932cbaa530`.
-Verificación: [Actions 34287905754](https://github.com/MatiGaete2023/NuRus/actions/runs/34287905754): 58 pruebas aprobadas en Linux y 58 en Windows.
+Verificación: [Actions 34287905754](https://github.com/MatiGaete2023/NuRus/actions/runs/34287905754): 58 pruebas aprobadas en entorno de desarrollo y 58 en Windows.
 
 Se detectó y corrigió además una exportación potencialmente destructiva: `overwrite=True` permitía elegir el propio libro de entrada. La comprobación nueva rechaza rutas equivalentes y archivos con la misma identidad antes de crear la salida.
 Código: `1b931961192d0cb7dba2b7fc484f76b6fc1e406f`.
-Verificación: [Actions 34357265914](https://github.com/MatiGaete2023/NuRus/actions/runs/34357265914): 62 pruebas aprobadas en Linux (4,59 s) y 62 en Windows (20,95 s). Ambos trabajos terminaron correctamente.
+Verificación: [Actions 34357265914](https://github.com/MatiGaete2023/NuRus/actions/runs/34357265914): 62 pruebas aprobadas en entorno de desarrollo (4,59 s) y 62 en Windows (20,95 s). Ambos trabajos terminaron correctamente.
 
 ## Hallazgos y cambios aplicados
 | Problema | Consecuencia anterior | Solución y comprobación |

@@ -24,7 +24,7 @@ def check(destination):
         app=App(Configuration(Path(folder)))
         try:
             app.withdraw();app.update()
-            for name in ('Trabajo','Correos','Resoluciones','Resultados','Configuración','Enviados'):
+            for name in ('Trabajo','Correos','Resoluciones','Resultados','Configuración'):
                 app.tabs.select(app.pages[name]);app.update()
             result={'version':__version__,'frozen':bool(getattr(sys,'frozen',False)),
                     'pages':list(app.pages),'templates':len(templates),'matrix_patches':5,'ok':True}

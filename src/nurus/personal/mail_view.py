@@ -5,7 +5,7 @@ import tkinter as tk
 import customtkinter as ctk
 
 from . import ui
-from .widgets import NamedChoice, CaseDetailPanel, ComparisonPanel
+from .widgets import NamedChoice, CaseDetailPanel
 from .modalities import MODALITIES
 
 
@@ -24,9 +24,13 @@ class DraftCards(ctk.CTkScrollableFrame):
 
     def curselection(self):return () if self._selected is None else (self._selected,)
 
+    def selection_clear(self,start=0,end=None):
+        self._selected=None
+        for card in self.cards:card.configure(border_color=ui.LINE)
+
     def selection_set(self,index):
         self._selected=int(index)
-        for i,card in enumerate(self.cards):card.configure(border_color='#5494d5' if i==self._selected else '#36414e')
+        for i,card in enumerate(self.cards):card.configure(border_color='#5494d5' if i==self._selected else ui.LINE)
 
     def _choose(self,index):
         self.selection_set(index)
@@ -38,7 +42,7 @@ class DraftCards(ctk.CTkScrollableFrame):
             ctk.CTkLabel(self,text=empty_message or 'Prepara correos para ver los borradores.',wraplength=205,
                          justify='left',text_color=ui.MUTED).pack(padx=10,pady=24)
         for i,draft in enumerate(drafts):
-            card=ctk.CTkFrame(self,fg_color=ui.PANEL,corner_radius=10,border_width=1,border_color='#36414e')
+            card=ctk.CTkFrame(self,fg_color=ui.PANEL,corner_radius=10,border_width=1,border_color=ui.LINE)
             card.pack(fill='x',padx=4,pady=6);self.cards.append(card)
             title=draft.program or draft.court or draft.subject
             ctk.CTkLabel(card,text=title,wraplength=205,anchor='w',justify='left',font=('Segoe UI',13,'bold')).pack(fill='x',padx=12,pady=(10,2))
@@ -61,7 +65,7 @@ class DraftCards(ctk.CTkScrollableFrame):
             if work:
                 from .product_state import stale
                 if not problem and stale(work,draft):text='Necesita actualizar'
-            ctk.CTkLabel(badges,text=text,fg_color='#245f54' if saved else ui.BLUE,corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w')
+            ctk.CTkLabel(badges,text=text,text_color='white',fg_color='#245f54' if saved else ui.BLUE,corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w')
             if draft.due:
                 ctk.CTkLabel(badges,text='Fecha vencida' if expired else 'Por vencer',fg_color='#813c32' if expired else '#665220',corner_radius=5,height=21,font=('Segoe UI',11)).pack(anchor='w',pady=(4,0))
             self._bind_card(card,i)
@@ -113,6 +117,10 @@ def build_mail_page(app):
     toolbar=ctk.CTkFrame(page,fg_color='transparent');toolbar.grid(row=1,column=0,sticky='ew',padx=8,pady=(2,6))
     ui.Button(toolbar,text='Preparar todos',fg_color='transparent',border_width=1,command=lambda:app._guard(app._prepare_all_mail)).pack(side='left')
     ui.Button(toolbar,text='Cargar planilla',fg_color='transparent',border_width=1,command=lambda:app._guard(app._external)).pack(side='left',padx=7)
+    from .manual import open_editor
+    from .roster import review
+    ui.Button(toolbar,text='Correo libre',width=110,command=lambda:app._guard(lambda:open_editor(app,'mail'))).pack(side='left')
+    ui.Button(toolbar,text='Revisar nómina',width=120,command=lambda:app._guard(lambda:review(app))).pack(side='left',padx=4)
     app.mail_note=tk.StringVar();ui.Label(toolbar,textvariable=app.mail_note,wraplength=380,text_color=ui.MUTED).pack(side='left',padx=7)
 
     app.mail_scope=tk.StringVar()
@@ -130,15 +138,15 @@ def build_mail_page(app):
     compose=ctk.CTkFrame(tabs,fg_color=ui.PANEL)
     app.mail_compose_tab=compose
     tabs.add(compose,text='Correo')
-    compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1,minsize=80)
+    compose.grid_columnconfigure(1,weight=1);compose.grid_rowconfigure(4,weight=1,minsize=120)
     ui.Label(compose,text='Correo editable',font=('Segoe UI',16,'bold')).grid(row=0,column=0,columnspan=2,sticky='w',padx=12,pady=(8,4))
     ui.Button(compose,text='Vista previa',width=100,fg_color='transparent',border_width=1,command=lambda:app._guard(app._preview_mail)).grid(row=0,column=1,sticky='e',padx=12,pady=5)
     app.to=tk.StringVar();app.cc=tk.StringVar();app.subject=tk.StringVar();app.attach=tk.StringVar()
     for row,label,var in [(1,'Para',app.to),(2,'CC',app.cc),(3,'Asunto',app.subject)]:
         ui.Label(compose,text=label).grid(row=row,column=0,sticky='w',padx=(12,5))
-        ctk.CTkEntry(compose,textvariable=var,height=30).grid(row=row,column=1,sticky='ew',padx=(0,12),pady=3)
+        ctk.CTkEntry(compose,textvariable=var,height=30).grid(row=row,column=1,sticky='ew',padx=(0,12),pady=2)
     app.body=ui.Textbox(compose,height=200,wrap='word',font=('Segoe UI',14),undo=True)
-    app.body.grid(row=4,column=0,columnspan=2,sticky='nsew',padx=12,pady=7)
+    app.body.grid(row=4,column=0,columnspan=2,sticky='nsew',padx=12,pady=5)
     app.attachment_chips=AttachmentChips(compose,app.attach);app.attachment_chips.grid(row=5,column=0,columnspan=2,sticky='ew',padx=12,pady=(0,4))
     actions=ctk.CTkFrame(editor,fg_color='transparent');actions.grid(row=1,column=0,sticky='ew',padx=8,pady=(3,10))
     ui.Button(actions,text='Adjuntar…',width=82,fg_color='transparent',border_width=1,command=app._attachment).pack(side='left')
@@ -147,9 +155,9 @@ def build_mail_page(app):
     from .widgets import ScrollPane
     details=ScrollPane(tabs);tabs.add(details,text='Registros incluidos')
     app.mail_case_detail=CaseDetailPanel(details.body);app.mail_case_detail.pack(fill='x',padx=8,pady=8)
+    from .work_tools import contact_search
+    ui.Button(details.body,text='Buscar destinatario',command=lambda:app._guard(lambda:contact_search(app))).pack(anchor='w')
     app.mail_records_panel=ui.Frame(details.body);app.mail_records_panel.pack(fill='x')
-    changes=ui.Frame(tabs);tabs.add(changes,text='Cambios');changes.grid_columnconfigure(0,weight=1);changes.grid_rowconfigure(0,weight=1)
-    app.mail_compare=ComparisonPanel(changes);app.mail_compare.grid(row=0,column=0,sticky='nsew',padx=8,pady=8)
     from .widgets import ScrollPane
     options=ScrollPane(tabs);tabs.add(options,text='Filtros')
     app.mail_options_tab=options

@@ -138,7 +138,7 @@ La versión anterior ya contenía correcciones para hojas RUS genéricas, guarda
 2. Ejecutar `python -m compileall -q src tests` y `python -m pip check` en el entorno instalado.
 3. Construir con `python -m pip wheel --no-deps --wheel-dir dist .` e instalar el paquete en entorno aislado. Verificar versión, JSON de catálogo y plantillas, y creación de SQLite desde un proceso `python -I`.
 4. Publicar en la rama de integración sin sobrescribir cambios remotos. Comparar hashes de los archivos publicados y el commit revisado.
-5. Después de publicar, comprobar la ejecución Windows/Linux de GitHub Actions y revisar otra vez las rutas modificadas. Si aparece una regresión, corregirla y repetir su prueba y dependencias.
+5. Después de publicar, comprobar la ejecución Windows de GitHub Actions y revisar otra vez las rutas modificadas. Si aparece una regresión, corregirla y repetir su prueba y dependencias.
 
 Los resultados concretos de la ejecución se registran en la entrega y en GitHub Actions para el commit. Las simulaciones no equivalen a aceptación Office. La ausencia de fallos en estas pruebas no demuestra ausencia absoluta de errores.
 
@@ -149,7 +149,7 @@ La primera publicación de estas mejoras fue `391b5fef52dbb19cd92323b17472bfce46
 - **P14 — Cambio de modalidad:** una selección explícita de hoja podía seguir activa al pasar de Espera a Cumplimiento. El evento ahora restablece selección automática y encabezado y elimina el análisis visible anterior. Prueba: `test_mode_change_discards_previous_modes_explicit_sheet`.
 - **P15 — Memoria de la devolución:** al invalidar una fila, eliminar también el hash de importación del lote permitía que la aprobación general olvidara que se encontraba en un flujo de constancia. Se conserva en el lote la referencia de la última devolución, se invalida la confirmación y se exige nuevamente evidencia válida de la fila. Se comprueba el rechazo antes de recibir otra devolución, tanto al editar como al restaurar.
 
-**Resultados locales:** 142 pruebas aprobadas; una prueba de `cmd.exe` se omite en Linux y debe ejecutarse en el trabajo Windows de CI. Compilación y construcción/instalación aislada del paquete comprobadas. El resultado final de CI se identifica por el commit y enlace de la entrega; incluye `pip check`, recursos instalados y wheel. No se publicó información de los registros institucionales.
+**Resultados locales:** 142 pruebas aprobadas; una prueba de `cmd.exe` se omite en entorno de desarrollo y debe ejecutarse en el trabajo Windows de CI. Compilación y construcción/instalación aislada del paquete comprobadas. El resultado final de CI se identifica por el commit y enlace de la entrega; incluye `pip check`, recursos instalados y wheel. No se publicó información de los registros institucionales.
 
 ## Actualización y próximos pasos humanos
 

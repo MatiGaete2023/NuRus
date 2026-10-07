@@ -99,6 +99,7 @@ def save_draft(
     account_key: str | None = None,
     folder_path: tuple[str, ...] = (),
     preserve_signature: bool = False,
+    html_body: bool = False,
 ) -> DraftReceipt:
     """Guarda un borrador Outlook y devuelve su identidad.
 
@@ -149,13 +150,14 @@ def save_draft(
         mail.CC = with_mandatory_cc(product.cc)
         mail.Subject = product.rendered_subject
         if preserve_signature:
-            from html import escape
+            from nurus.personal.mail_presentation import insert_before_signature
             mail.Display(False)
             signature = str(mail.HTMLBody or '')
-            addition = '<div>' + escape(product.rendered_body).replace('\n', '<br>') + '</div><br>'
-            import re
-            match = re.search(r'<body\b[^>]*>', signature, flags=re.IGNORECASE)
-            mail.HTMLBody = (signature[:match.end()] + addition + signature[match.end():]) if match else addition + signature
+            # The signature is HTML even when the user chooses plain-style body.
+            mail.HTMLBody = insert_before_signature(product.rendered_body, signature, styled=html_body)
+        elif html_body:
+            from nurus.personal.mail_presentation import body_html
+            mail.HTMLBody = '<html><body>'+body_html(product.rendered_body)+'</body></html>'
         else:
             mail.Body = product.rendered_body
         with _reviewed_attachments(product.attachments) as attachments:

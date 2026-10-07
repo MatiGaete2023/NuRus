@@ -1,4 +1,5 @@
 """Complete, versioned recovery state; no widget is the sole owner of an edit."""
+from .selection import selected_ids, remember, restore_visible
 from dataclasses import asdict
 
 from .outputs import Draft
@@ -39,7 +40,7 @@ def capture(app):
     prefs=app.work.session['preferences']
     if hasattr(app,'modality_vars'):prefs['modalities']=[key for key,var in app.modality_vars.items() if var.get()]
     if hasattr(app,'_selected_mail_courts'):prefs['courts']=app._selected_mail_courts()
-    if hasattr(app,'records'):prefs['records']=list(app.records.selection())
+    if hasattr(app,'records'):prefs['records']=list(selected_ids(app,'records'))
     for key in ('work_sash_ratio','resolution_sash_ratio'):
         if hasattr(app,key):prefs[key]=getattr(app,key)
 
@@ -67,7 +68,8 @@ def restore(app):
         for index,key in enumerate(app.mail_court_keys):
             if key in prefs['courts']:app.mail_courts.selection_set(index)
     if 'records' in prefs and hasattr(app,'records'):
-        app.records.selection_set([rid for rid in prefs['records'] if app.records.exists(rid)])
+        ids=[rid for rid in prefs['records'] if app.records.exists(rid)]
+        remember(app,'records',ids);restore_visible(app,'records')
     for key in ('work_sash_ratio','resolution_sash_ratio'):
         ratio=prefs.get(key)
         if isinstance(ratio,(int,float)) and .1<=ratio<=.9:setattr(app,key,ratio)
@@ -96,9 +98,19 @@ def merge_draft_edits(old_drafts, new_drafts):
         old = previous.get(key(draft))
         if old is None:
             continue
+        draft.product_id=old.product_id
         for field in ('to', 'cc', 'subject', 'body'):
             if field in old.original and getattr(old, field) != old.original[field]:
                 setattr(draft, field, getattr(old, field))
+        prior={row['id']:row for group in old.roster for row in group['rows']}
+        for group in draft.roster:
+            for row in group['rows']:
+                previous=prior.get(row['id'])
+                if not previous:continue
+                row['include']=previous['include']
+                for index,cell in enumerate(previous['cells']):
+                    base=previous.get('base',previous['cells'])
+                    if index<len(row['cells']) and index<len(base) and cell!=base[index]:row['cells'][index]=cell
         # Regenerated automatic attachments replace the old automatic list. Explicit
         # additions/removals survive, without retaining an obsolete generated file.
         originals = old.original.get('attachments', [])

@@ -10,23 +10,7 @@ from nurus.personal.config import Configuration
 from nurus.personal.app import App
 from nurus.personal.work import Work, Row
 
-def capture_window(app,name):
-    import win32gui,win32ui,win32con
-    folder=Path('artifacts');folder.mkdir(exist_ok=True)
-    hwnd=win32gui.GetAncestor(app.winfo_id(),2)
-    left,top,right,bottom=win32gui.GetWindowRect(hwnd)
-    handle=win32gui.GetWindowDC(hwnd)
-    source=win32ui.CreateDCFromHandle(handle);target=source.CreateCompatibleDC()
-    bitmap=win32ui.CreateBitmap();bitmap.CreateCompatibleBitmap(source,right-left,bottom-top)
-    target.SelectObject(bitmap)
-    try:
-        target.BitBlt((0,0),(right-left,bottom-top),source,(0,0),win32con.SRCCOPY)
-        bitmap.SaveBitmapFile(target,str(folder/(name+'.bmp')))
-        png=folder/(name+'.png')
-        Image.open(folder/(name+'.bmp')).save(png)
-        print('CSMP_CAPTURE:'+name+':'+base64.b64encode(png.read_bytes()).decode('ascii'))
-    finally:
-        target.DeleteDC();source.DeleteDC();win32gui.ReleaseDC(hwnd,handle);win32gui.DeleteObject(bitmap.GetHandle())
+from window_capture import capture_window
 
 
 with TemporaryDirectory() as directory:
@@ -34,8 +18,15 @@ with TemporaryDirectory() as directory:
     try:
         app.update_idletasks();app.update()
         assert isinstance(app,ctk.CTk)
-        assert ctk.get_appearance_mode()=='Dark'
-        assert len(app.tabs.tabs())==6
+        assert ctk.get_appearance_mode() in ('Light','Dark')
+        for choice in ('Claro','Oscuro','Sistema'):
+            app.theme_choice.set(choice);app.apply_appearance();app.update()
+        assert len(app.tabs.tabs())==5
+        from pywinauto import Application as NativeApplication
+        import win32gui
+        native=NativeApplication(backend='win32').connect(handle=win32gui.GetAncestor(app.winfo_id(),2))
+        assert native.top_window().is_visible()
+        assert native.top_window().rectangle().width()>500
         for tab in app.tabs.tabs():
             app.tabs.select(tab);app.update_idletasks();app.update()
             assert app.nametowidget(tab).winfo_ismapped()
@@ -47,9 +38,10 @@ with TemporaryDirectory() as directory:
         assert app.observation_editor.winfo_exists()
         app.geometry('1024x650');app.update_idletasks();app.update()
         app.tabs.select(app.pages['Resultados']);app.update_idletasks();app.update()
+        app.results_more();app.update()
         app.results_scrollpane.body._parent_canvas.yview_moveto(1);app.update()
         capture_window(app,'resultados-1024x650')
-        button=app.results_return_button
+        button=app.results_download_button
         assert button.winfo_rooty()+button.winfo_height()<=app.winfo_rooty()+app.winfo_height()
         button=app.results_download_button
         assert button.winfo_ismapped()
@@ -100,7 +92,7 @@ with TemporaryDirectory() as directory:
         assert '2 registros' in app.context.get()
         assert 'Pide cuenta ingreso efectivo' in app.words.item('a|PC_IE','values')[2]
         assert 'Definido en RES'==app.words.item('a|PC_IE','values')[3]
-        app.work_search.set('NNA UNO');app.update()
+        app.work_search.set('NNA UNO');time.sleep(.2);app.update()
         assert app.records.get_children()==('a',)
         app.work_search.set('');app.work_filter.set('Con aviso');app._apply_work_filter();app.update()
         assert app.records.get_children()==('b',)

@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from nurus.personal.outputs import Draft, draft_fingerprint
 from nurus.personal.ux_support import (
-    RES_HELP, case_detail_lines, compact_case_detail_text, edited_pair, incident_ids, product_indicators, resume_available, resume_description
+    RES_HELP, case_detail_lines, compact_case_detail_text, incident_ids, product_indicators, resume_available, resume_description
 )
 from nurus.personal.work import Row
 
@@ -55,11 +55,6 @@ def test_incident_navigation_source_is_only_existing_warnings(tmp_path):
     assert incident_ids(work)==['r1']
 
 
-def test_comparison_exists_only_for_real_change():
-    assert edited_pair('igual','igual') is None
-    assert edited_pair('motor','editado')==('motor','editado')
-
-
 def test_saved_draft_indicator_uses_effective_draft_identity(tmp_path):
     work,row=make_work(tmp_path)
     draft=Draft('Asunto','Cuerpo',record_ids=[row.id])
@@ -96,9 +91,9 @@ def test_ui_source_keeps_secondary_actions_and_exposes_requested_hierarchy():
     assert 'Guardar borradores' in mail and 'Guardar este' in mail and 'Preparar todos' in mail
     assert "text='Básico'" in app and "text='Avanzado'" in app
     assert 'Siguiente aviso' in work
-    assert 'CaseDetailPanel' in work and 'ComparisonPanel' in work
-    assert 'CaseDetailPanel' in mail and 'ComparisonPanel' in mail
-    assert "tabs.add(changes,text='Cambios')" in work
+    assert 'CaseDetailPanel' in work
+    assert 'CaseDetailPanel' in mail
+    assert "tabs.add(changes,text='Cambios')" not in work
     assert "split.add(table,weight=2);split.add(edit,weight=3)" in work
     assert "messagebox.showinfo('Catastro incorporado'" not in app
     assert "✓ Catastro incorporado" in app

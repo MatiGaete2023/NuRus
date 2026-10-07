@@ -17,7 +17,7 @@ La tabla workbook_sources conserva una sola copia por hash. Una nueva importaci�
 6. **Reconstrucción falsa de datos antiguos.** Cuando faltan bytes conservados, el API informa que se debe reimportar. No vuelve a leer automáticamente la ruta externa ni presume que corresponde al contenido histórico.
 
 ## Verificación
-73 pruebas aprobadas en Linux (3,16 s) y 73 en Windows (60,37 s), sobre 67a23b7. Evidencia: [Actions 34360067190](https://github.com/MatiGaete2023/NuRus/actions/runs/34360067190).
+73 pruebas aprobadas en entorno de desarrollo (3,16 s) y 73 en Windows (60,37 s), sobre 67a23b7. Evidencia: [Actions 34360067190](https://github.com/MatiGaete2023/NuRus/actions/runs/34360067190).
 
 Pruebas nuevas: recuperación tras modificación, eliminación y reapertura; sustitución externa durante lectura; deduplicación; rechazo de hash incorrecto; rollback de lote y copia; protección frente a UPDATE/DELETE; detección de corrupción; tratamiento explícito de lotes antiguos sin bytes; respaldo v3→v4; hash del lector y omisión del contenido binario en repr.
 

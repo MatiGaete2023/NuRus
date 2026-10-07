@@ -18,13 +18,13 @@ El objetivo sigue siendo producir propuestas para la revisión individual humana
 | R04 | Una condición de color por excluido aumentaba las llamadas COM y el límite de color no incluía siempre las últimas columnas administradas. | Una regla condicional sobre el tramo, usando el estado de cada fila; extender hasta la última columna original o administrada. | Contratos COM existentes, prueba de color y revisión del cálculo de columnas. |
 | R05 | Una lista vacía de selección se trataba como selección de todo el lote. | `None` conserva el significado de todas las filas elegibles; `[]` produce cero correos. | `test_explicit_empty_selection_does_not_prepare_entire_batch`. |
 | R06 | La nómina buscaba cada ID en una secuencia y podía aceptar un snapshot técnico con filas sin constancia. | Crear un conjunto para la búsqueda y exigir `rus_recorded` en cada registro del adjunto. | Pruebas de grupo limitado y rechazo de adjunto sin confirmación, antes de crear archivos. |
-| R07 | Faltaba medición reproducible para lotes grandes. | Añadir `tools/benchmark_pipeline.py` y ejecutarlo en CI Windows/Linux; adjuntar JSON de resultados al wheel. | Verifica conteo, hash, fila física, fórmula en OB, exportación y recuperación de SQLite con datos sintéticos. |
+| R07 | Faltaba medición reproducible para lotes grandes. | Añadir `tools/benchmark_pipeline.py` y ejecutarlo en CI Windows; adjuntar JSON de resultados al wheel. | Verifica conteo, hash, fila física, fórmula en OB, exportación y recuperación de SQLite con datos sintéticos. |
 
 Las pruebas que usan mocks representan contratos del código. No acreditan rendimiento, conservación completa de objetos Office ni interacción visual en Excel 2010.
 
 ## Medición local
 
-Mismo entorno Linux/Python 3.12 y generador sintético. Cada tamaño se ejecutó una vez por versión para el flujo completo. La conversión interna del lector usa la mediana de cinco repeticiones. Se excluye del tiempo total la creación de la muestra y la verificación posterior; el total suma lectura, evaluación, persistencia, exportación portable y recuperación.
+Mismo entorno entorno de desarrollo/Python 3.12 y generador sintético. Cada tamaño se ejecutó una vez por versión para el flujo completo. La conversión interna del lector usa la mediana de cinco repeticiones. Se excluye del tiempo total la creación de la muestra y la verificación posterior; el total suma lectura, evaluación, persistencia, exportación portable y recuperación.
 
 | Registros | Exportación dev5 | Exportación dev6 | Flujo dev5 | Flujo dev6 |
 |---:|---:|---:|---:|---:|
@@ -41,7 +41,7 @@ Datos exactos y entorno: [benchmark_20260913.json](benchmark_20260913.json). La 
 1. Descargar la rama de integración y ejecutar `Instalar_NuRus.bat` para instalar dev6 en el entorno aislado existente. La carpeta local de datos y el esquema SQLite permanecen iguales. No requiere Node, servicios nuevos ni permisos administrativos adicionales.
 2. Ejecutar `python -m pytest -q` dentro del entorno de desarrollo con las dependencias de pruebas. Resultado local: 148 aprobadas y una omitida por ser exclusiva de Windows.
 3. Ejecutar `python tools/benchmark_pipeline.py --output medicion.json` desde la raíz. Elegir un nombre inexistente: el comando no sobrescribe el informe. Usa datos ficticios y elimina sus libros temporales.
-4. Consultar GitHub Actions del commit para comprobar compilación, dependencias, instalación aislada, pruebas y benchmark en Windows/Linux. El artefacto del trabajo incluye wheel y JSON de medición.
+4. Consultar GitHub Actions del commit para comprobar compilación, dependencias, instalación aislada, pruebas y benchmark en Windows. El artefacto del trabajo incluye wheel y JSON de medición.
 5. En el PC institucional, procesar una copia autorizada y verificar propuestas/final con Excel 2010. Comprobar especialmente observaciones de más de 255 caracteres, fórmulas intermedias, campos administrativos y excluidos coloreados. NuRus continúa usando Excel nativo en Windows para la ruta de fidelidad completa; el benchmark portable no la sustituye.
 6. Si surge una diferencia, conservar versión, hash del archivo, modalidad y mensaje de error. Reproducir el caso, corregir su causa y repetir su prueba y dependencias antes de aprobar la actualización.
 

@@ -93,12 +93,12 @@ def _layout_probe(tmp_path,size):
         app.tabs.select(app.pages['Correos'])
         app._display_prepared_drafts([Draft('Asunto','Texto\n'*40,program='Programa')],'{count} preparados')
         app.update_idletasks();app.update()
-        assert app.body.winfo_height()>=120
+        assert app.body.winfo_height()>=120, f'Editor {app.body.winfo_height()}px; ventana {app.winfo_height()}px'
         # Abrir filtros nunca resta alto al editor: usa el mismo panel por pestañas.
         app.mail_tabs.select(app.mail_options_tab);app.update_idletasks();app.update()
         assert app.mail_options_tab.winfo_ismapped()
         app.mail_tabs.select(app.mail_compose_tab);app.update_idletasks();app.update()
-        assert app.body.winfo_height()>=120
+        assert app.body.winfo_height()>=120, f'Editor {app.body.winfo_height()}px; ventana {app.winfo_height()}px'
         for widget in (app.body,app.save_all_button):
             assert widget.winfo_rooty()+widget.winfo_height()<=app.winfo_rooty()+app.winfo_height()
     finally:app.destroy()
