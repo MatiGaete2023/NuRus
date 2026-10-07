@@ -1,11 +1,17 @@
 # CSMP Assistant personal — Windows
 
-**Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Integra dev14, procedencia SITFA, el flujo conjunto con alertas de firmas por ingreso y los informes independientes. Añade el diario recuperable de operaciones y la conciliación de fechas con Excel. La cobertura temporal de carga es parcial hasta comprobar su filtro. El adaptador real de lectura y guardado de bitácoras sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse la [guía de pruebas](docs/GUIA_PRUEBAS_INTEGRALES.md), el [diario y la conciliación](docs/REGISTRO_RECUPERABLE_20261005.md) y el [estado de los 32 elementos](docs/ESTADO_PLAN_INTEGRAL_20261005.md).
+**Prototipo 0.4.0.dev20 · 7 de octubre de 2026.** **Resultados → Importar bitácoras HAR y crear Excel** recupera textos completos del centro y del tribunal desde capturas locales, analiza hasta cuatro meses calendario y conserva todo el historial capturado en «Copia íntegra». Incluye fechas, autores, tipo, CC, respuestas y procedencia; elimina las aperturas idénticas y rechaza identidades o versiones incompatibles. Véase [lectura y copia de bitácoras](docs/LECTURA_BITACORAS_DEV20.md). La consulta automática de varios ingresos desde Chrome permanece pendiente de validación. La escritura queda para después, por indicación del usuario. Conserva productos manuales, vistas guardadas, recuperación de descargas y devolución de recibos a Excel. **Configuración → Avanzado → Diagnóstico** muestra versión, commit y rutas de la instalación cargada.
 
 
 Base conservada: **0.4.0.dev14**, actualizada el 30 de septiembre de 2026 en `codex/auditoria-ux-20260925-final`. Aplicación de uso personal en Windows con Python 3.12–3.14. Prepara copias de Excel, proyectos Word y borradores editables de Outlook; el registro oficial se realiza en RUS. La [corrección de adjuntos](docs/CORRECCION_ADJUNTOS_20260930.md) documenta este parche sobre el [informe de revisión y ejecución dev13](docs/REVISION_Y_PLAN_20260929.md).
 
 ## Cambios actuales
+
+La rama integral incluye también el código del descargador en [descargador](descargador/README.md), versión 2.4.4. Cada aplicación conserva su configuración, ejecución y pruebas. Las capturas y las planillas de causas se mantienen locales.
+
+- Dev20 permite leer y copiar bitácoras desde HAR sin preparar un trabajo o propuestas. El período de análisis tiene controles propios y parte de los últimos cuatro meses; la copia íntegra no pierde las entradas más antiguas. No publica capturas ni datos de causas en el repositorio.
+
+- Dev19 incorpora correos y proyectos manuales sin Excel, revisión y edición de registros antes de crear nóminas, y eliminación persistente de correos sugeridos con opción de restaurarlos. Véase [guía de productos manuales](docs/PRODUCTOS_MANUALES_DEV19.md).
 
 - La devolución del descargador se puede recuperar desde Resultados después de reiniciar CSMP. Conserva las ediciones incluso al empezar otro trabajo y solicita el EXE correcto si la configuración apunta a un script Python. Véase [devolución recuperable](docs/DEVOLUCION_DESCARGAS_20261005.md).
 - Las nóminas tienen bordes negros en cada celda y una columna específica de vencimiento, espera o egreso. Reconocen `F. VENCIMIENTO`; un dato ausente se identifica como «Sin dato».
@@ -36,8 +42,8 @@ La [auditoría y limpieza dev8](docs/LIMPIEZA_ASISTENTE_20260921.md) retira la i
 
 ## Instalación y actualización
 
-1. Descarga el ZIP de **`codex/auditoria-ux-20260925-final`**, que contiene esta versión, y extrae su contenido en una carpeta nueva. `main` conserva la candidata anterior hasta su integración.
-2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat` desde esa misma carpeta. Repite la instalación al actualizar: el lanzador usa el paquete instalado en `.venv-csmp`, no los archivos fuente recién descargados. Comprueba **0.4.0.dev14** en el título de la ventana.
+1. Descarga el ZIP Windows de esta entrega, identificado por commit y SHA-256 en `ESTADO_PLAN_LUNA_20261006.md`, y extráelo completo en una carpeta nueva. No mezcles sus archivos con otra instalación.
+2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat` desde esa misma carpeta. Repite la instalación al actualizar: el lanzador usa el paquete instalado en `.venv-csmp`, no los archivos fuente recién descargados. Comprueba **0.4.0.dev18** en el título de la ventana.
 3. Se admite Python 3.12, 3.13 o 3.14. El entorno queda en `.venv-csmp` dentro de la carpeta de la aplicación. No requiere permisos de administrador ni Node. El instalador incorpora `customtkinter` 5.2.x dentro de ese entorno aislado.
 4. Excel de escritorio y Outlook clásico son necesarios para la ruta completa de uso institucional. La instalación normal puede descargar dependencias Python; si existe `paquetes/`, el instalador usa ese repositorio local.
 

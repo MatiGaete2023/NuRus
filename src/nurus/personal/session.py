@@ -39,7 +39,9 @@ def capture(app):
     prefs=app.work.session['preferences']
     if hasattr(app,'modality_vars'):prefs['modalities']=[key for key,var in app.modality_vars.items() if var.get()]
     if hasattr(app,'_selected_mail_courts'):prefs['courts']=app._selected_mail_courts()
-    if hasattr(app,'records'):prefs['records']=list(app.records.selection())
+    if hasattr(app,'records'):
+        chooser=getattr(app,'_selected_work_ids',app.records.selection)
+        prefs['records']=list(chooser())
     for key in ('work_sash_ratio','resolution_sash_ratio'):
         if hasattr(app,key):prefs[key]=getattr(app,key)
 
@@ -68,6 +70,8 @@ def restore(app):
             if key in prefs['courts']:app.mail_courts.selection_set(index)
     if 'records' in prefs and hasattr(app,'records'):
         app.records.selection_set([rid for rid in prefs['records'] if app.records.exists(rid)])
+        visible=set(app.records.get_children())
+        app._hidden_work_selection={rid for rid in prefs['records'] if app.records.exists(rid) and rid not in visible}
     for key in ('work_sash_ratio','resolution_sash_ratio'):
         ratio=prefs.get(key)
         if isinstance(ratio,(int,float)) and .1<=ratio<=.9:setattr(app,key,ratio)
@@ -90,6 +94,7 @@ def merge_draft_edits(old_drafts, new_drafts):
     if not new_drafts:
         return []
     def key(draft):
+        if draft.options.get('manual'):return ('manual',draft.key)
         return draft.kind, draft.recipient_type, draft.court, draft.program
     previous = {key(draft): draft for draft in old_drafts}
     for draft in new_drafts:
@@ -109,6 +114,8 @@ def merge_draft_edits(old_drafts, new_drafts):
         if originals and not any(path in old.attachments for path in originals):
             draft.attachments = []
         draft.attachments.extend(path for path in additions if path not in draft.attachments)
+        from .manual_products import merge_table_edits
+        merge_table_edits(old,draft)
     return new_drafts
 
 

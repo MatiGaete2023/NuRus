@@ -224,7 +224,7 @@ def due_value(work,row,kind):
     return mail_metric_value(work,row,mail_metric_key(work,kind))
 
 
-def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto'):
+def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=None,manual_selection=False,modality_keys=None,recipient_scope='auto',defer_attachments=False):
     if recipient_scope not in {'auto','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     from .sync import require_current_copy
     require_current_copy(work)
@@ -275,7 +275,7 @@ def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=N
         draft.court=court_cfg['nombre'];draft.due=min(dates).isoformat() if dates else ''
         draft.kind=kind;draft.record_ids=[r.id for r in rows]
         if cfg.get('firma'):draft.body+='\n\n'+cfg['firma']
-        if draft.required:
+        if draft.required and not defer_attachments:
             folder=Path(directory or Path(work.output).parent);folder.mkdir(parents=True,exist_ok=True)
             by_program=defaultdict(list)
             for row in rows:by_program[value(work,row,'programa')].append(row)
@@ -288,12 +288,15 @@ def prepare_drafts(work,kind,*,modalities='',period='',selected=None,directory=N
         stamp(work,draft)
         draft.original={key:deepcopy(getattr(draft,key)) for key in ('to','cc','subject','body','attachments')}
         draft.options=dict(modalities=modalities,period=period,selected=selected,manual_selection=manual_selection,modality_keys=modality_keys,recipient_scope=recipient_scope)
+        if draft.required and defer_attachments:
+            from .manual_products import table_snapshot
+            draft.options.update(table=table_snapshot(work,rows,operational),pending_table=True)
         draft.key=draft_fingerprint(draft)
         output.append(draft)
     return output
 
 
-def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None,recipient_scope='todos'):
+def prepare_required_drafts(work,*,modalities='',period='',selected=None,directory=None,modality_keys=None,recipient_scope='todos',defer_attachments=False):
     """Prepara en una sola operación todas las comunicaciones que surgen del trabajo."""
     if recipient_scope not in {'todos','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     from .sync import require_current_copy
@@ -321,7 +324,7 @@ def prepare_required_drafts(work,*,modalities='',period='',selected=None,directo
         kinds.append(kind)
     drafts=[];seen=set()
     for kind in kinds:
-        for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys,recipient_scope='auto' if recipient_scope=='todos' else recipient_scope):
+        for draft in prepare_drafts(work,kind,modalities=modalities,period=period,selected=selected,directory=directory,manual_selection=False,modality_keys=modality_keys,recipient_scope='auto' if recipient_scope=='todos' else recipient_scope,defer_attachments=defer_attachments):
             if draft.key not in seen:
                 drafts.append(draft);seen.add(draft.key)
     return drafts
@@ -331,7 +334,7 @@ def drafts_for_scope(drafts,scope):
     """Filtra vistas preparadas sin reconstruir ni perder las ediciones del usuario."""
     if scope not in {'todos','programas','tribunales'}:raise ValueError('Destino de correo inválido.')
     if scope=='todos':return list(drafts)
-    return [d for d in drafts if (d.recipient_type or ('programas' if d.program else 'tribunales'))==scope]
+    return [d for d in drafts if d.options.get('manual') or (d.recipient_type or ('programas' if d.program else 'tribunales'))==scope]
 
 
 def program_filename(name):
@@ -359,6 +362,7 @@ def create_drafts(work,drafts):
 
 def create_draft(work,draft,*,confirmed=False):
     if not confirmed:raise ValueError('Revisa destinatarios, texto y adjuntos antes de crear el borrador.')
+    if draft.options.get('pending_table'):raise ValueError('Revisa los registros y genera el Excel adjunto antes de guardar este correo.')
     from .product_state import require_fresh
     require_fresh(work,draft)
     draft.key=draft_fingerprint(draft)

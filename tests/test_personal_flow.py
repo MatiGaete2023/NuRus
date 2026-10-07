@@ -46,6 +46,14 @@ def test_no_cross_is_warning_and_export_continues(tmp_path):
     out=w.export(tmp_path/'out.xlsx',backend='portable',reduced_fidelity=True)
     assert Path(out).is_file()
 
+def test_other_court_does_not_promise_unavailable_rus_read_or_write(tmp_path):
+    path=source(tmp_path)
+    book=load_workbook(path);book['informe_1']['B4']='Juzgado de Letras y Garantía de Santiago';book.save(path);book.close()
+    work=Work(defaults()).analyze(path,'ESPERA')
+    assert work.rows[0].observation==''
+    assert any('no tiene reglas históricas disponibles' in warning for warning in work.rows[0].warnings)
+    assert all('consulta y registro disponibles' not in warning for warning in work.rows[0].warnings)
+
 def test_text_edit_cannot_change_actions(tmp_path):
     path=source(tmp_path);a=Work(defaults()).analyze(path,'ESPERA')
     cfg=defaults();cfg['textos']['ESPERA']['E05_PROYECTO_Y_CORREO']['texto']='Redacción completamente diferente.'

@@ -40,6 +40,8 @@ Actualizado: 30 de septiembre de 2026. Versión de trabajo: **0.4.0.dev14** en `
 
 ## Documentos históricos
 
+Actualización vigente: [Lectura y copia de bitácoras dev20](LECTURA_BITACORAS_DEV20.md), 7 de octubre de 2026. Importación HAR operativa; lectura masiva desde Chrome pendiente; escritura pospuesta por el usuario.
+
 - `CAMBIOS_USO_20260914.md`: estado consolidado de la versión 0.4.0.dev5 al 14-09-2026. Se conserva como trazabilidad y no describe la release vigente.
 - Los documentos fechados entre el 8 y el 13 de septiembre (`AUDITORIA_*`, `CHECKPOINT_*`, `REVISION_*`, `EJECUCION_*`, `RENDIMIENTO_*`, `README_NURUS_DEV7.md`, `INSTALACION_Y_EXCEPCION_*` y equivalentes) describen estados anteriores. Se conservan para trazabilidad y **no sustituyen** los documentos vigentes anteriores.
 

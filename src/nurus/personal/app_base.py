@@ -148,6 +148,8 @@ class App(ctk.CTk):
         try:
             self._save_text(notify=False);self._save_tpl(notify=False)
             self._save_session()
+            preferences=getattr(self,'view_preferences',None)
+            if preferences is not None:preferences.save_current()
         except (ValueError,OSError) as exc:
             messagebox.showerror('No se pudo guardar antes de cerrar',str(exc));return
         self.destroy()
@@ -223,6 +225,7 @@ class App(ctk.CTk):
 
     def _apply_work_filter(self,*_):
         if not hasattr(self,'records'):return
+        selected=set(self._selected_work_ids())
         search=normalize(self.work_search.get() if hasattr(self,'work_search') else '')
         mode=self.work_filter.get() if hasattr(self,'work_filter') else 'Todos'
         for iid in list(getattr(self,'_work_all_iids',[])):
@@ -235,6 +238,15 @@ class App(ctk.CTk):
             elif mode=='Excluidos':visible=visible and 'excluded' in tags
             elif mode=='Sin incidencias':visible=visible and not ({'warning','excluded'} & tags)
             if not visible:self.records.detach(iid)
+        visible=set(self.records.get_children())
+        self._hidden_work_selection=selected-visible
+        self.records.selection_set([iid for iid in selected if iid in visible])
+
+    def _selected_work_ids(self):
+        hidden=getattr(self,'_hidden_work_selection',set())
+        selected=set(self.records.selection())|set(hidden)
+        order=getattr(self,'_work_all_iids',self.records.get_children())
+        return tuple(iid for iid in order if iid in selected and self.records.exists(iid))
 
     def _apply_resolution_filter(self,*_):
         if not hasattr(self,'words'):return
@@ -635,6 +647,8 @@ class App(ctk.CTk):
         self._field(office,'Cuenta Outlook (vacío: predeterminada)',self.account,0);self._field(office,'Firma de texto adicional',self.signature,1);self._field(office,'CC adicional',self.additional,2)
         ttk.Label(office,text='Copia institucional siempre incluida: ucc_concepcion@pjud.cl').grid(row=3,column=0,columnspan=2,sticky='w',pady=10)
         ttk.Button(office,text='Guardar Outlook y CC',command=lambda:self._guard(self._save_office)).grid(row=4,column=0)
+        from .view_preferences_view import build as build_view_preferences
+        build_view_preferences(self,basic_nb)
 
         texts=ttk.Frame(advanced_nb,padding=8);advanced_nb.add(texts,text='Textos de observación')
         keys=[s+'.'+k for s,d in self.cfg.data['textos'].items() if not s.startswith('_') for k in d]
@@ -655,6 +669,18 @@ class App(ctk.CTk):
         ttk.Button(matrix,text='Reemplazar matriz…',command=lambda:self._guard(self._import_word)).pack(side='left',padx=4)
         ttk.Button(matrices,text='Importar paquete de plantillas ZIP',command=lambda:self._guard(self._import_templates_zip)).grid(row=4,column=0,pady=8,sticky='w')
         ttk.Label(matrices,text='Carpetas LAJA, MULCHEN y TOME; tipos PC_IE.docx, PC_INFO.docx y NOMENCL.docx.',wraplength=640).grid(row=3,column=0,columnspan=2,sticky='w')
+
+        diagnostics=ttk.Frame(advanced_nb,padding=10);advanced_nb.add(diagnostics,text='Diagnóstico')
+        ttk.Label(diagnostics,text='Identifica la instalación efectiva que abrió esta ventana.',
+                  font=('Segoe UI',11,'bold')).pack(anchor='w',pady=(0,6))
+        from .diagnostics import installation_info,format_installation_info
+        self.installation_info=installation_info()
+        self.installation_info_text=ScrolledText(diagnostics,wrap='word',height=8,font=('Consolas',10))
+        self.installation_info_text.pack(fill='both',expand=True)
+        self.installation_info_text.insert('1.0',format_installation_info(self.installation_info))
+        self.installation_info_text.configure(state='disabled')
+        ttk.Label(diagnostics,text='La ruta del módulo permite distinguir esta copia del paquete instalado en .venv-csmp.',
+                  wraplength=720).pack(anchor='w',pady=(6,0))
 
     def _filter_config_parameters(self,*_):
         query=normalize(self.config_search.get()) if hasattr(self,'config_search') else ''

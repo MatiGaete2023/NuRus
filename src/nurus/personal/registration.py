@@ -88,13 +88,18 @@ class Intent:
     stage: str = ''
     antiguo: str = ''
     modality: str = ''
+    form_text_limit_utf16: int | None = None
 
     def validate(self):
         self.identity.validate()
         if not isinstance(self.text, str) or not self.text.strip():
             raise ValueError('La observación del Excel está vacía.')
-        if len(self.text.encode('utf-16-le')) // 2 > 2000:
-            raise ValueError('La observación excede el límite del formulario de 2000 caracteres.')
+        if (not isinstance(self.form_text_limit_utf16, int)
+                or isinstance(self.form_text_limit_utf16, bool)
+                or self.form_text_limit_utf16 < 1):
+            raise ValueError('El límite del formulario RUS no está comprobado; el registro no está disponible.')
+        if len(self.text.encode('utf-16-le')) // 2 > self.form_text_limit_utf16:
+            raise ValueError(f'La observación excede el límite comprobado del formulario de {self.form_text_limit_utf16} unidades UTF-16.')
         if cc_for_type(self.type) is None or not self.state.strip():
             raise ValueError('Selecciona tipo y estado explícitos para esta operación.')
         if type(self.send_to_tribunal) is not bool or not self.author_id.strip():
@@ -105,7 +110,8 @@ class Intent:
             raise ValueError('Falta comprobar etapa, modalidad o indicador del registro antiguo.')
 
 
-def intent_from_excel(work, row, *, type, state, send_to_tribunal, author_id):
+def intent_from_excel(work, row, *, type, state, send_to_tribunal, author_id,
+                      form_text_limit_utf16=None):
     """No usa la propuesta del motor como si fuera texto aprobado del Excel."""
     if not getattr(work, 'external_input', False) or 'OBSERVACION' not in row.review:
         raise ValueError('Carga el Excel de registro: se necesita su columna OBSERVACION efectiva.')
@@ -125,7 +131,8 @@ def intent_from_excel(work, row, *, type, state, send_to_tribunal, author_id):
                     str(value(work, row, 'tribunal')),
                     _source_id(row.values.get('SITFA_ETAPA_RUS', '')),
                     _source_id(row.values.get('SITFA_ANTIGUO_RUS', '')),
-                    _source_id(row.values.get('SITFA_MODALIDAD', '')))
+                    _source_id(row.values.get('SITFA_MODALIDAD', '')),
+                    form_text_limit_utf16)
     result.validate()
     return result
 

@@ -157,7 +157,7 @@ class Work:
                         warnings.append('Días negativos y egreso futuro: verifica la contradicción; no se afirma que la medida esté vencida.')
                         ctx['invalid'].append('CUMPLIMIENTO.C04_VENCIDA')
                 court=tribunal(values.get(cols.get('tribunal',''),'')) or ''
-                if not court:warnings.append('Tribunal fuera de Laja, Mulchén y Tomé: consulta y registro disponibles; sin reglas históricas.')
+                if not court:warnings.append('Este tribunal no tiene reglas históricas disponibles en CSMP; las funciones de consulta y registro dependen de una conexión RUS habilitada para esta pantalla.')
                 key=tuple(historical_match(values.get(cols.get(k,''),'')) for k in key_fields)
                 args={'incidencias':inc,'fila_excel':record.source.row_number}
                 if self.mode=='CUMPLIMIENTO':args['fecha_hoja2']=index.get(key)

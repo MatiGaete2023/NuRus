@@ -6,10 +6,17 @@ from openpyxl.styles import Border, PatternFill, Side
 import pytest
 
 from nurus.personal.config import defaults
-from nurus.personal.registration import Journal, RemoteEntry, attach_receipts, export_journal, intent_from_excel, submit
+from nurus.personal.registration import Journal, RemoteEntry, attach_receipts, export_journal, intent_from_excel as build_intent_from_excel, submit
 from nurus.personal.registration_excel import reconcile_excel
 from nurus.personal.work import Work
 from test_registration import Adapter, Clock
+
+
+def intent_from_excel(*args, **kwargs):
+    # Synthetic adapter fixture supplies this test contract explicitly; the
+    # production default remains unavailable until the RUS form limit is observed.
+    kwargs.setdefault('form_text_limit_utf16', 2000)
+    return build_intent_from_excel(*args, **kwargs)
 
 
 def source(tmp_path):
@@ -56,7 +63,7 @@ def portable(journal, source, target, **kw):
                            reduced_fidelity=True, **kw)
 
 
-def test_excel_return_follows_real_ingreso_after_reorder_and_preserves_other_fields(tmp_path):
+def test_return_refuses_reordered_source_even_when_remote_identity_still_matches(tmp_path):
     path, work, journal, operation, adapter = registered(tmp_path)
     book = load_workbook(path)
     sheet = book['Registros']
@@ -67,26 +74,13 @@ def test_excel_return_follows_real_ingreso_after_reorder_and_preserves_other_fie
         sheet.cell(3, index).value = value
     book.save(path)
     book.close()
-    before = path.read_bytes()
     target = tmp_path / 'devuelto.xlsx'
-    portable(journal, path, target)
-    assert path.read_bytes() == before and adapter.saves == 1
-    result = load_workbook(target)
-    try:
-        sheet = result['Registros']
-        assert sheet['F2'].value is None and sheet['G2'].value is None
-        assert sheet['F3'].value.date() == date(2026, 10, 5) and sheet['G3'].value == 1
-        assert sheet['E3'].value == work.rows[0].review['OBSERVACION']
-        assert sheet['H3'].value == 0 and sheet['I3'].value == 'Manual'
-        assert sheet['J3'].value == '=1+2'
-        assert result['Otra']['A1'].value == '=SUM(Registros!H2:H3)'
-        assert sheet['E2'].fill.fgColor.rgb == '00ABCDEF'
-        assert sheet['F3'].border.bottom.style == 'thin'
-    finally:
-        result.close()
-    receipt = journal.get(operation)
-    assert receipt['state'] == 'COMPROBADA'
-    assert receipt['excel_sha256'] == sha256(target.read_bytes()).hexdigest()
+    changed_source = path.read_bytes()
+    with pytest.raises(ValueError, match='otro Excel'):
+        portable(journal, path, target, operation_ids=[operation])
+    assert path.read_bytes() == changed_source and adapter.saves == 1
+    assert not target.exists()
+    assert journal.get(operation)['state'] == 'PENDIENTE_EXCEL'
 
 
 @pytest.mark.parametrize('cell,value', [('E2', 'Nuevo texto'), ('F2', datetime(2026, 10, 1)), ('G2', 0)])
@@ -186,14 +180,15 @@ def test_multiple_receipts_complete_atomically_or_none_do(tmp_path):
 
 
 def test_formula_in_management_field_is_not_replaced(tmp_path):
-    path, work, journal, operation, adapter = registered(tmp_path)
+    path = source(tmp_path)
     book = load_workbook(path)
     book['Registros']['F2'] = '=IF(1=1,"",TODAY())'
     book.save(path)
     book.close()
+    path, work, journal, operation, adapter = registered(tmp_path, path=path)
     before = path.read_bytes()
     with pytest.raises(ValueError, match='fórmula'):
-        portable(journal, path, tmp_path / 'salida.xlsx')
+        portable(journal, path, tmp_path / 'salida.xlsx', operation_ids=[operation])
     assert path.read_bytes() == before and journal.get(operation)['state'] == 'PENDIENTE_EXCEL'
     assert not (tmp_path / 'salida.xlsx').exists()
 
@@ -208,6 +203,14 @@ def test_source_modified_after_import_must_be_loaded_again(tmp_path):
     with pytest.raises(ValueError, match='cambió desde la lectura'):
         intent_from_excel(work, work.rows[0], type='Al Tribunal', state='Realizada',
                           send_to_tribunal=True, author_id='usuario-ficticio')
+
+
+def test_unobserved_rus_form_limit_keeps_real_intent_unavailable(tmp_path):
+    path = source(tmp_path)
+    work = Work.external(path, defaults(), sheet='Registros')
+    with pytest.raises(ValueError, match='límite del formulario RUS no está comprobado'):
+        build_intent_from_excel(work, work.rows[0], type='Al Tribunal', state='Realizada',
+                                send_to_tribunal=True, author_id='usuario-ficticio')
 
 
 def test_registration_report_separates_intentions_and_confirmed_entries(tmp_path):
@@ -240,6 +243,71 @@ def test_zero_antiguo_flag_is_not_lost_when_reading_numeric_cell(tmp_path):
     data = intent_from_excel(work, work.rows[0], type='Al Tribunal', state='Realizada',
                              send_to_tribunal=True, author_id='usuario-ficticio')
     assert data.antiguo == '0'
+
+
+def test_explicit_receipt_selection_disambiguates_two_operations_for_one_row(tmp_path):
+    from nurus.personal.registration import submit
+    from nurus.personal.registration_excel import receipts_for_source
+
+    path, work, journal, tribunal_operation, tribunal_adapter = registered(tmp_path)
+    data = intent_from_excel(work, work.rows[0], type='Administrativa', state='Realizada',
+                             send_to_tribunal=False, author_id='usuario-ficticio')
+    administrative_operation = journal.prepare(data)['operation_id']
+    administrative_adapter = Adapter(data, Clock())
+    administrative_adapter.entries = list(tribunal_adapter.entries)
+    administrative_adapter.saves = 1
+    submit(journal, administrative_operation, administrative_adapter)
+
+    choices = receipts_for_source(journal, path, mode='ESPERA', sheet='Registros')
+    assert {item['operation_id'] for item in choices} == {tribunal_operation, administrative_operation}
+    assert all(item['rit'] == 'X-1-2026' and item['ingreso_id'] == '20' for item in choices)
+    assert {item['text'] for item in choices} == {work.rows[0].review['OBSERVACION']}
+
+    target = tmp_path / 'elegido.xlsx'
+    portable(journal, path, target, operation_ids=[tribunal_operation])
+    result = load_workbook(target)
+    try:
+        sheet = result['Registros']
+        assert sheet['F2'].value.date() == date(2026, 10, 5)
+        assert sheet['G2'].value == 1
+        assert sheet['F3'].value is None and sheet['G3'].value is None
+    finally:
+        result.close()
+
+
+def test_selecting_two_receipts_for_same_row_fails_without_touching_source(tmp_path):
+    from nurus.personal.registration import submit
+
+    path, work, journal, tribunal_operation, tribunal_adapter = registered(tmp_path)
+    data = intent_from_excel(work, work.rows[0], type='Administrativa', state='Realizada',
+                             send_to_tribunal=False, author_id='usuario-ficticio')
+    administrative_operation = journal.prepare(data)['operation_id']
+    administrative_adapter = Adapter(data, Clock())
+    administrative_adapter.entries = list(tribunal_adapter.entries)
+    administrative_adapter.saves = 1
+    submit(journal, administrative_operation, administrative_adapter)
+
+    before = path.read_bytes()
+    with pytest.raises(ValueError, match='varias gestiones para una misma fila'):
+        portable(journal, path, tmp_path / 'ambiguo.xlsx',
+                 operation_ids=[tribunal_operation, administrative_operation])
+    assert path.read_bytes() == before
+    assert not (tmp_path / 'ambiguo.xlsx').exists()
+
+
+def test_selected_receipt_cannot_be_returned_to_a_different_workbook(tmp_path):
+    path, work, journal, operation, adapter = registered(tmp_path)
+    book = load_workbook(path)
+    book['Registros']['D2'] = 'Programa ficticio corregido'
+    book.save(path)
+    book.close()
+    before = path.read_bytes()
+
+    with pytest.raises(ValueError, match='otro Excel'):
+        portable(journal, path, tmp_path / 'otro.xlsx', operation_ids=[operation])
+    assert path.read_bytes() == before
+    assert not (tmp_path / 'otro.xlsx').exists()
+    assert journal.get(operation)['state'] == 'PENDIENTE_EXCEL'
 
 
 def test_existing_observation_can_return_its_date_without_becoming_new_management(tmp_path):

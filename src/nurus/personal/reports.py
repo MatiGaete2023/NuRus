@@ -37,20 +37,41 @@ def _book(sheets, destination):
 
 
 def period(start, end):
-    if not isinstance(start,date) or not isinstance(end,date) or start>end:
+    if (not isinstance(start,date) or isinstance(start,datetime) or
+            not isinstance(end,date) or isinstance(end,datetime) or start>end):
         raise ValueError('El período del informe no es válido.')
 
 
-def export_activity(works,destination):
-    """Una fila por firma e ingreso. La cobertura acompaña siempre al resultado."""
+def export_activity(works,destination,start,end):
+    """Una fila por firma e ingreso dentro del período; cobertura siempre explícita."""
+    period(start,end)
     found={};scopes={}
     for work in works:
         attach(work)
         for code,scope in getattr(work,'activity_sources',{}).get('cobertura',{}).items():
-            scopes[(work.source_hash,code)]=[Path(work.path).name,code,str(scope['desde']),str(scope['hasta']),scope['estado'],scope['criterio_temporal']]
+            source_start=as_date(scope.get('desde'));source_end=as_date(scope.get('hasta'))
+            overlaps=bool(source_start and source_end and source_start<=end and source_end>=start)
+            fully_covers=bool(source_start and source_end and source_start<=start and source_end>=end)
+            original_state=str(scope.get('estado','NO_CONSULTADA'))
+            if original_state in ('COMPLETA','VACIA_COMPROBADA') and not fully_covers:
+                state='PARCIAL' if overlaps else 'NO_CONSULTADA'
+                reason=('La consulta de origen no cubre todo el período solicitado.' if overlaps else
+                        'El período solicitado queda fuera de la consulta de origen.')
+            else:
+                state=original_state
+                reason='' if fully_covers else 'La cobertura de origen no acredita todo el período solicitado.'
+            clipped_start=max(source_start,start) if overlaps else ''
+            clipped_end=min(source_end,end) if overlaps else ''
+            scopes[(work.source_hash,code)]=[
+                Path(work.path).name,code,start.isoformat(),end.isoformat(),state,
+                str(scope.get('criterio_temporal','')),source_start.isoformat() if source_start else '',
+                source_end.isoformat() if source_end else '',clipped_start.isoformat() if clipped_start else '',
+                clipped_end.isoformat() if clipped_end else '',reason]
         for row in work.rows:
             key,kind=identity(work,row)
             for signature in work.signed_activity.get(row.id,{}).get('firmas',[]):
+                signed=as_date(signature.get('firma'))
+                if signed is None or not start<=signed<=end:continue
                 reviewed=work.activity_reviewed.get(row.id,{}).get(signature['huella'],'')
                 item=[value(work,row,'tribunal'),value(work,row,'rit'),value(work,row,'nombre'),
                       value(work,row,'programa'),signature['firma'],signature['hora'],signature['tramite'],
@@ -63,11 +84,13 @@ def export_activity(works,destination):
     rows=list(found.values())
     return _book([
         ('Resumen',('Categoría','Cantidad'),[
+            ['Período solicitado desde',start.isoformat()],['Período solicitado hasta',end.isoformat()],
             ['Firmas por ingreso detectadas',len(rows)],['Revisadas para el ingreso',sum(bool(r[8]) for r in rows)],
             ['Por revisar',sum(not r[8] for r in rows)],['Fuentes de cobertura',len(scopes)]]),
         ('Firmas por ingreso',('Tribunal','RIT','Persona','Centro','Fecha firma','Hora firma','Trámite',
              'Estado de revisión','Fecha de revisión local','Identidad de firma','Alcance de vínculo','Fuente'),rows),
-        ('Cobertura',('Fuente','Tribunal código','Desde','Hasta','Estado','Criterio temporal'),list(scopes.values()))],destination)
+        ('Cobertura',('Fuente','Tribunal código','Desde pedido','Hasta pedido','Estado','Criterio temporal',
+            'Desde fuente','Hasta fuente','Desde consultado en alcance','Hasta consultado en alcance','Detalle'),list(scopes.values()))],destination)
 
 
 def export_management(works,destination,start,end):
@@ -132,10 +155,13 @@ def main():
     parser.add_argument('tipo',choices=['firmas','gestion'])
     parser.add_argument('--trabajo',action='append',required=True,help='Carpeta de una sesión CSMP guardada.')
     parser.add_argument('--salida',required=True)
-    parser.add_argument('--desde',type=date.fromisoformat)
-    parser.add_argument('--hasta',type=date.fromisoformat)
-    args=parser.parse_args();works=[Work.load(Path(path)) for path in args.trabajo]
-    if args.tipo=='firmas':export_activity(works,args.salida)
+    parser.add_argument('--desde',type=date.fromisoformat,required=True)
+    parser.add_argument('--hasta',type=date.fromisoformat,required=True)
+    args=parser.parse_args()
+    try:period(args.desde,args.hasta)
+    except ValueError as exc:parser.error(str(exc))
+    works=[Work.load(Path(path)) for path in args.trabajo]
+    if args.tipo=='firmas':export_activity(works,args.salida,args.desde,args.hasta)
     else:export_management(works,args.salida,args.desde,args.hasta)
 
 

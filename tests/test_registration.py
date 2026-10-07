@@ -20,7 +20,7 @@ class Clock:
 def intent(**changes):
     data = Intent(RemoteIdentity('666', '10', '20', '30', '40', 'X-1-2026'),
                   '  Texto efectivo del Excel.\nSegunda línea.  ', 'Al Tribunal', 'Realizada',
-                  True, 'usuario-ficticio', 'a' * 64, 'Cumplimiento', 8, 'Tribunal ficticio', '3', '1', '1')
+                  True, 'usuario-ficticio', 'a' * 64, 'Cumplimiento', 8, 'Tribunal ficticio', '3', '1', '1', 2000)
     return replace(data, **changes)
 
 
@@ -165,6 +165,13 @@ def test_form_limit_counts_utf16_and_unknown_types_are_not_guessed():
         intent(type='Con carga').validate()
     with pytest.raises(ValueError, match='identidad real'):
         intent(identity=RemoteIdentity('666', '10', '', '30', '40', 'X-1-2026')).validate()
+
+
+def test_unknown_form_limit_disables_registration_until_contract_is_verified():
+    with pytest.raises(ValueError, match='no está comprobado'):
+        intent(form_text_limit_utf16=None).validate()
+    with pytest.raises(ValueError, match='límite comprobado'):
+        intent(text='😀' * 1001, form_text_limit_utf16=2000).validate()
 
 
 def test_recovery_partial_or_stale_does_not_clear_uncertainty(tmp_path):

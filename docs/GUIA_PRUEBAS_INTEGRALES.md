@@ -1,11 +1,11 @@
 # Cómo probar CSMP y el descargador integrales
 
-Versiones: CSMP **0.4.0.dev17** y descargador/extensión **2.4.0**. Estos paquetes usan configuración propia de prototipo. Conservar las carpetas anteriores permite volver a la versión de uso.
+Versiones: CSMP **0.4.0.dev18** y descargador/extensión **2.4.1**. Estos paquetes usan configuración propia de prototipo. Conservar las carpetas anteriores permite volver a la versión de uso.
 
 ## Preparación
 
 1. Extraer los dos ZIP en carpetas permanentes. Cada ejecutable necesita su carpeta `_internal` completa.
-2. Actualizar la extensión desde la carpeta del descargador de esta versión: `_internal/extension`. En Chrome, cargarla o recargar la copia que apunta a esa carpeta. Confirmar versión **2.4.0**.
+2. Actualizar la extensión desde la carpeta del descargador de esta versión: `_internal/extension`. En Chrome, cargarla o recargar la copia que apunta a esa carpeta. Confirmar versión **2.4.1**.
 3. Entrar personalmente en RUS y abrir Seguimiento.
 4. Abrir `CSMP_Integral.exe`. En Trabajo → Archivo/opciones → Descargar y analizar, seleccionar una vez el `SITFA_Descargador.exe` de esta entrega. CSMP abre una ventana del descargador para recibir su resultado.
 
@@ -20,6 +20,9 @@ Versiones: CSMP **0.4.0.dev17** y descargador/extensión **2.4.0**. Estos paquet
 7. Si CSMP se cerró antes de recibir la descarga, **Resultados → Recuperar descarga** incorpora el resultado conservado. Si falló la exportación de Excel, recupera el trabajo analizado y sus ediciones; **Exportar copia actual** permite continuar. Con varias solicitudes, elegir por fecha y modo. Véase DEVOLUCION_DESCARGAS_20261005.md.
 
 ## Qué contrastar
+
+- En **Configuración → Básico → Vista**, guardar una vista, modificar columnas/filtros/fuente, aplicar otra y restaurar la anterior. Exportar/importar JSON en un archivo nuevo. Cerrar y abrir: comprobar tamaño de ventana y columnas. Una selección oculta por el buscador debe reaparecer al quitar el filtro y conservarse en la sesión.
+- En Resultados del Descargador, ICS diferencia vencimiento de informe y egreso proyectado; las fechas proyectadas no acreditan egreso efectivo. Cada evento identifica columna de origen y lote incompleto cuando corresponde.
 
 - Todos los ingresos de la consulta permanecen, incluso antiguos. Varias firmas no multiplican filas principales.
 - Las firmas recientes pendientes aparecen en azul claro. La revisión incompleta aparece en ámbar. Las exclusiones y los bordes anteriores se conservan.

@@ -2,9 +2,11 @@
 
 El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo conjunto y las alertas; no acredita todavía lectura ni registro automático de bitácoras en RUS.
 
+> Actualización del 6 de octubre: el estado vigente del plan y sus cambios está en [ESTADO_PLAN_LUNA_20261006.md](ESTADO_PLAN_LUNA_20261006.md). Esta página conserva la evidencia histórica de la entrega del 5 de octubre.
+
 ## Versiones y ramas
 
-- CSMP: paquete Windows probado 0.4.0.dev16 y avance 0.4.0.dev17: `experimento/plan-integral-csmp-20261002`, sobre la base corregida dev14. Configuración de prueba separada en `CSMP_Personal_Prototipo_Integral`.
+- CSMP: paquete Windows 0.4.0.dev17, con corrección de sintaxis publicada en `experimento/plan-integral-csmp-20261005-dev17-fix`, sobre la base corregida dev14. Configuración de prueba separada en `CSMP_Personal_Prototipo_Integral`.
 - Descargador 2.4.0: `experimento/plan-integral-descargador-20261002`, sobre la línea experimental 2.3.1. Configuración separada en `SITFA_Descargador_Integral`.
 - El asistente histórico mantiene reglas, correos y proyectos limitados a Laja, Mulchén y Tomé. Las fuentes y alertas admiten todos los tribunales disponibles en la pantalla correspondiente.
 
@@ -50,7 +52,7 @@ El objetivo completo sigue en ejecución. Esta entrega permite probar el flujo c
 ## Pruebas verificadas
 
 - CSMP dev16: 443 pruebas aprobadas y una omitida en Windows, con Python 3.12, 3.13 y 3.14. La omitida corresponde a una condición de plataforma; no es prueba pendiente de registro RUS. CI del código: https://github.com/MatiGaete2023/NuRus/actions/runs/37348807233.
-- CSMP dev17: regresión local de 459 aprobadas y una omitida; recuperación de descarga, fallos de disco/Excel y preservación de ediciones al cambiar de trabajo. Pendiente contraste del nuevo CI y del paquete final.
+- CSMP dev17: regresión local de 459 aprobadas y una omitida; recuperación de descarga, fallos de disco/Excel y preservación de ediciones al cambiar de trabajo. La sintaxis publicada se corrigió en el commit `c3feedd357d4ddf88c5caa946b5d33bd80413fe4`; la rama de prueba es `experimento/plan-integral-csmp-20261005-dev17-fix`.
 - Descargador: 111 pruebas aprobadas antes de añadir la comprobación de arranque del paquete; ésta se ejecuta además sobre el ejecutable real.
 - Excel de escritorio: original intacto, tres ingresos conservados, cuatro columnas de actividad, colores azul/ámbar, bordes y formato original, TT/CC/FECHA_OBS vacíos.
 - Captura real de carga: 169 filas, comparación completa de sus 23 celdas y multiplicidad; 168 firmas válidas, 13 posteriores a la fecha consultada.

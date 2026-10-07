@@ -34,6 +34,7 @@ def build(app):
         app._show_work();app._save_session()
     ui.Button(actions,text='Quitar del lote',width=105,command=lambda:app._guard(lambda:set_decision('none'))).pack(side='right')
     bar=ui.Frame(page);bar.pack(fill='x',pady=4)
+    ui.Button(bar,text='Nuevo manual',width=110,command=lambda:app._guard(app._manual_resolution)).pack(side='left',padx=(0,5))
     ui.Button(bar,text='Preparar / actualizar proyectos',width=205,command=lambda:app._guard(app._prepare_words)).pack(side='left')
     ui.Button(bar,text='Restaurar automático',width=150,command=lambda:app._guard(lambda:set_decision('auto'))).pack(side='left',padx=5)
     app.generate_word_button=ui.Button(bar,text='Generar Word',width=135,command=lambda:app._guard(app._generate_words))

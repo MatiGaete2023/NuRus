@@ -21,17 +21,25 @@ from .work import Work
 from nurus.rus.columns import normalize
 
 
-class App(_BaseApp):
+from .manual_actions import ManualActions
+
+
+class App(ManualActions,_BaseApp):
     def __init__(self,configuration=None):
         if configuration is None:
             import os
             from .config import Configuration
             configuration=Configuration(Path(os.environ.get('LOCALAPPDATA') or Path.home())/'CSMP_Personal_Prototipo_Integral')
         super().__init__(configuration=configuration)
+        from .manual_products import ManualStore
+        self.manual_store=ManualStore(self.cfg.directory/'manuales',self.cfg.data)
+        self._display_prepared_drafts([], '{count} correos manuales recuperados.')
         width=min(1180,self.winfo_screenwidth()-60)
         height=min(820,self.winfo_screenheight()-110)
         self.geometry(f'{width}x{height}')
         self.minsize(min(940,width),min(580,height))
+        from .view_preferences_view import attach
+        attach(self)
 
     def _mail_page(self):
         build_mail_page(self)
@@ -77,7 +85,7 @@ class App(_BaseApp):
         courts=self._selected_mail_courts()
         ids=selected_court_record_ids(work,courts) if courts else [row.id for row in work.rows]
         if manual:
-            chosen=set(self.records.selection())
+            chosen=set(self._selected_work_ids())
             if not chosen:raise ValueError('Selecciona los registros de esta gestión en la pestaña Trabajo.')
             ids=[rid for rid in ids if rid in chosen]
         if not ids:raise ValueError('No hay registros del trabajo que coincidan con los tribunales seleccionados.')
@@ -96,6 +104,11 @@ class App(_BaseApp):
         if not keep_source:
             from .session import merge_draft_edits
             drafts=merge_draft_edits(getattr(self,'_draft_scope_source',self.drafts),drafts)
+            from .manual_products import logical_mail_key
+            dismissed=getattr(getattr(self,'work',None),'dismissed_mail',[])
+            drafts=[d for d in drafts if not d.options.get('manual') and logical_mail_key(d) not in dismissed]
+            store=getattr(self,'manual_store',None)
+            if store:drafts+=list(store.drafts)
             self._draft_scope_source=list(drafts)
         target=self.mail_target.get() if hasattr(self,'mail_target') else 'todos'
         drafts=drafts_for_scope(drafts,target)
@@ -106,7 +119,8 @@ class App(_BaseApp):
         self.mail_list.work=getattr(self,'work',None)
         if not drafts and not empty_message and getattr(self,'_draft_scope_source',[]):
             empty_message='No hay borradores preparados para este destino. Preparar todos incorpora las gestiones del alcance elegido.'
-        self.mail_list.set_drafts(drafts,getattr(getattr(self,'work',None),'receipts',{}),empty_message=empty_message)
+        receipts={**getattr(getattr(self,'work',None),'receipts',{}),**getattr(getattr(self,'manual_store',None),'receipts',{})}
+        self.mail_list.set_drafts(drafts,receipts,empty_message=empty_message)
         if drafts:self.mail_list.selection_set(0);self._select_mail()
         else:self._clear_mail_editor()
         if drafts and not keep_source and hasattr(self,'mail_tabs'):self.mail_tabs.select(self.mail_compose_tab)
@@ -125,7 +139,7 @@ class App(_BaseApp):
         period=self.period.get()
         def done(drafts):self._display_prepared_drafts(drafts,'{count} borradores preparados para revisión; todavía no se guardaron en Outlook.',
                                                     empty_message=empty_preparation_message(work,selected,modality_keys,kind) if not drafts else None)
-        self._run('Preparando textos y adjuntos…',lambda:prepare_drafts(work,kind,modalities=phrase,period=period,selected=selected,manual_selection=manual,modality_keys=modality_keys,recipient_scope='auto' if target=='todos' else target),done)
+        self._run('Preparando textos y registros para revisión…',lambda:prepare_drafts(work,kind,modalities=phrase,period=period,selected=selected,manual_selection=manual,modality_keys=modality_keys,recipient_scope='auto' if target=='todos' else target,defer_attachments=True),done)
 
     def _prepare_all_mail(self):
         work=self._require_work();self._capture_mail();self._sync_mail_config(work)
@@ -134,33 +148,7 @@ class App(_BaseApp):
         phrase=alcance_modalidades(keys);selected=self._mail_selected_ids(work,manual=self.manual_mail.get());period=self.period.get();target=self.mail_target.get()
         def done(drafts):self._display_prepared_drafts(drafts,'{count} correos preparados para el alcance elegido. Todavía no se guardaron en Outlook.',
                                                     empty_message=empty_preparation_message(work,selected,keys) if not drafts else None)
-        self._run('Preparando todos los correos necesarios del trabajo…',lambda:prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys,recipient_scope=target),done)
-
-    def _send_all(self):
-        work=self._require_work();self._capture_mail()
-        if self.drafts:
-            drafts=[replace(draft) for draft in self.drafts]
-            def done(result):
-                self._save_session()
-                self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya procesados; {len(result['errors'])} incidencias.")
-                if result['errors']:messagebox.showwarning('Lote guardado con incidencias','\n'.join(result['errors']))
-            self._run('Guardando el lote de borradores en Outlook…',lambda:create_drafts(work,drafts),done)
-            return
-        self._sync_mail_config(work)
-        keys=self._selected_mail_modalities()
-        if not keys:raise ValueError('Selecciona al menos una modalidad.')
-        selected=self._mail_selected_ids(work,manual=self.manual_mail.get())
-        period=self.period.get();phrase=alcance_modalidades(keys);target=self.mail_target.get()
-        def action():
-            drafts=prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys,recipient_scope=target)
-            return drafts,create_drafts(work,[replace(draft) for draft in drafts])
-        def done(payload):
-            drafts,result=payload
-            self._display_prepared_drafts(drafts,'{count} borradores preparados y procesados para Outlook.')
-            self._save_session()
-            self.status.set(f"{result['created']} borradores guardados; {result['skipped']} ya existentes; {len(result['errors'])} incidencias.")
-            if result['errors']:messagebox.showwarning('Lote guardado con incidencias','\n'.join(result['errors']))
-        self._run('Preparando y guardando todos los borradores en Outlook…',action,done)
+        self._run('Preparando todos los correos necesarios del trabajo…',lambda:prepare_required_drafts(work,modalities=phrase,period=period,selected=selected,modality_keys=keys,recipient_scope=target,defer_attachments=True),done)
 
     def _attachment_all(self):
         self._capture_mail()
@@ -216,6 +204,9 @@ class App(_BaseApp):
 
     def _show_work(self,reset_projects=True):
         if not self.work:return
+        scope=(getattr(self.work,'source_hash',''),self.work.sheet)
+        chosen=self._selected_work_ids() if getattr(self,'_work_selection_scope',None)==scope else ()
+        self._hidden_work_selection=set();self._work_selection_scope=scope
         from .review_store import bind
         bind(self.work,self.cfg.directory/'revisiones_firmas.json')
         journal_path=self.cfg.directory/'registro_observaciones.sqlite'
@@ -256,6 +247,7 @@ class App(_BaseApp):
             self.words.insert('','end',iid=iid,values=(value(self.work,row,'rit'),value(self.work,row,'tribunal'),kind_label(kind),source),tags=(origin_tag,))
             self._resolution_all_iids.append(iid)
             self._resolution_search_text[iid]=' '.join(str(value(self.work,row,key) or '') for key in ('nombre','rut','rit','tribunal','programa'))
+        self.records.selection_set([rid for rid in chosen if self.records.exists(rid)])
         self._apply_work_filter()
         if reset_projects:self._apply_resolution_filter()
         n=len(self.work.rows);exc=sum(r.excluded for r in self.work.rows);obs=sum(bool(r.observation) for r in self.work.rows)

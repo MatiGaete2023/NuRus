@@ -66,3 +66,21 @@ def test_export_alerts_preserves_sources_styles_and_gestion_fields(tmp_path):
 def test_invalid_signature_or_coverage_does_not_turn_into_zero(tmp_path):
     path=source(tmp_path);book=load_workbook(path);book['Resoluciones firmadas'].cell(2,5,'2026-07-31');book.save(path);book.close()
     with pytest.raises(ValueError,match='fuera'):Work(defaults()).analyze(path,'ESPERA')
+
+
+def test_verified_empty_activity_is_complete_only_when_no_signatures_exist(tmp_path):
+    path=source(tmp_path)
+    book=load_workbook(path)
+    book['SITFA_COBERTURA'].cell(3,4,'VACIA_COMPROBADA')
+    book.save(path);book.close()
+    work=Work(defaults()).analyze(path,'ESPERA',as_of=date(2026,10,2))
+    other=work.rows[2]
+    assert work.signed_activity[other.id]['valores']['ACTIVIDAD RECIENTE']=='Sin firmas en el período'
+    assert work.signed_activity[other.id]['color']==''
+
+    book=load_workbook(path)
+    book['Resoluciones firmadas'].append(['888','Tribunal ficticio 888','X-1-2026','Resolución ficticia',
+        '2026-10-01','09:30','SI','huella_fila_sin_id_remoto','firma-3'])
+    book.save(path);book.close()
+    with pytest.raises(ValueError,match='cobertura vacía comprobada'):
+        Work(defaults()).analyze(path,'ESPERA',as_of=date(2026,10,2))

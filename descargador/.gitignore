@@ -1,0 +1,18 @@
+# Archivos locales y datos de SITFA
+.venv/
+__pycache__/
+*.py[cod]
+descargas/
+pruebas_locales/
+work/
+*.har
+*.xls
+*.xlsx
+*.pdf
+*.png
+*.jpg
+*.zip
+*.log
+.env*
+dist/
+build/

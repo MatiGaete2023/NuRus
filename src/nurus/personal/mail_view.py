@@ -40,7 +40,7 @@ class DraftCards(ctk.CTkScrollableFrame):
         for i,draft in enumerate(drafts):
             card=ctk.CTkFrame(self,fg_color=ui.PANEL,corner_radius=10,border_width=1,border_color='#36414e')
             card.pack(fill='x',padx=4,pady=6);self.cards.append(card)
-            title=draft.program or draft.court or draft.subject
+            title=draft.program or draft.court or draft.subject or 'Correo manual sin asunto'
             ctk.CTkLabel(card,text=title,wraplength=205,anchor='w',justify='left',font=('Segoe UI',13,'bold')).pack(fill='x',padx=12,pady=(10,2))
             details=draft.court if draft.program else draft.subject
             if draft.due:details+='\nVencimiento más cercano: '+draft.due
@@ -55,8 +55,8 @@ class DraftCards(ctk.CTkScrollableFrame):
             if (draft.required and not draft.attachments) or any(not Path(path).is_file() for path in draft.attachments):problem=True
             saved=receipt=='created'
             edited=any(getattr(draft,key)!=draft.original.get(key,getattr(draft,key)) for key in ('to','cc','subject','body','attachments'))
-            text='Guardado en Outlook' if saved else 'Guardado incierto' if receipt in {'saving','uncertain'} else 'Editado' if edited else 'Preparado'
-            if problem:text='Revisar destinatarios / adjuntos'
+            text='Revisar registros / generar Excel' if draft.options.get('pending_table') else 'Manual' if draft.options.get('manual') and not saved else 'Guardado en Outlook' if saved else 'Guardado incierto' if receipt in {'saving','uncertain'} else 'Editado' if edited else 'Preparado'
+            if problem and not draft.options.get('pending_table'):text='Revisar destinatarios / adjuntos'
             work=getattr(self,'work',None)
             if work:
                 from .product_state import stale
@@ -113,6 +113,9 @@ def build_mail_page(app):
     toolbar=ctk.CTkFrame(page,fg_color='transparent');toolbar.grid(row=1,column=0,sticky='ew',padx=8,pady=(2,6))
     ui.Button(toolbar,text='Preparar todos',fg_color='transparent',border_width=1,command=lambda:app._guard(app._prepare_all_mail)).pack(side='left')
     ui.Button(toolbar,text='Cargar planilla',fg_color='transparent',border_width=1,command=lambda:app._guard(app._external)).pack(side='left',padx=7)
+    ui.Button(toolbar,text='Nuevo manual',width=105,command=lambda:app._guard(app._new_manual_mail)).pack(side='left')
+    ui.Button(toolbar,text='Eliminar correo',width=110,fg_color='transparent',border_width=1,command=lambda:app._guard(app._delete_mail)).pack(side='left',padx=5)
+    ui.Button(toolbar,text='Restaurar omitidos',width=130,fg_color='transparent',border_width=1,command=lambda:app._guard(app._restore_mail)).pack(side='left')
     app.mail_note=tk.StringVar();ui.Label(toolbar,textvariable=app.mail_note,wraplength=380,text_color=ui.MUTED).pack(side='left',padx=7)
 
     app.mail_scope=tk.StringVar()
@@ -148,6 +151,8 @@ def build_mail_page(app):
     details=ScrollPane(tabs);tabs.add(details,text='Registros incluidos')
     app.mail_case_detail=CaseDetailPanel(details.body);app.mail_case_detail.pack(fill='x',padx=8,pady=8)
     app.mail_records_panel=ui.Frame(details.body);app.mail_records_panel.pack(fill='x')
+    ui.Label(app.mail_records_panel,text='Revisa y corrige la nómina antes de crear el archivo adjunto.',wraplength=440).pack(anchor='w',padx=8,pady=6)
+    ui.Button(app.mail_records_panel,text='Revisar registros / generar Excel',command=lambda:app._guard(app._review_mail_records)).pack(anchor='w',padx=8,pady=6)
     changes=ui.Frame(tabs);tabs.add(changes,text='Cambios');changes.grid_columnconfigure(0,weight=1);changes.grid_rowconfigure(0,weight=1)
     app.mail_compare=ComparisonPanel(changes);app.mail_compare.grid(row=0,column=0,sticky='nsew',padx=8,pady=8)
     from .widgets import ScrollPane

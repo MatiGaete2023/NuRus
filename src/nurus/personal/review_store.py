@@ -55,7 +55,8 @@ class ReviewStore:
 
 def bind(work, path):
     store = ReviewStore(path)
-    entries = store.read()['ingresos']
+    data = store.read()
+    entries = data['ingresos']
     work.review_store_path = str(store.path)
     for row in work.rows:
         key, _ = identity(work, row)
@@ -63,3 +64,21 @@ def bind(work, path):
         work.activity_reviewed.setdefault(row.id, {}).update(saved)
     from .rus_activity import attach
     attach(work)
+    # Promote only an exact, unique alias from a verified intake. Keep the old
+    # hash in the same store entry because it cannot be reconstructed later.
+    from .rus_activity import _legacy_alias_matches
+    changed=False
+    for row in work.rows:
+        key, kind = identity(work, row)
+        if kind!='ingreso_real':continue
+        item=entries.get(key)
+        if not item or not isinstance(item.get('firmas'),dict):continue
+        signatures=work.signed_activity.get(row.id,{}).get('firmas',[])
+        for fingerprint,legacy in _legacy_alias_matches(signatures).items():
+            if legacy in item['firmas'] and fingerprint not in item['firmas']:
+                item['firmas'][fingerprint]=item['firmas'][legacy];changed=True
+    if changed:
+        try:atomic_json(store.path,data)
+        except OSError:
+            warnings=getattr(work,'warnings',None)
+            if isinstance(warnings,list):warnings.append('No se pudo guardar la nueva huella de una revisión heredada; se conserva la anterior y la coincidencia actual solo se usa en esta sesión.')

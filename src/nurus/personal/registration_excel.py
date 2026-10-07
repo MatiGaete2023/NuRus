@@ -149,6 +149,10 @@ def reconcile_excel(journal, source, destination, *, mode='ESPERA', sheet=None,
                 raise ValueError('Una operación seleccionada carece de registro comprobado en RUS.')
             continue
         intent = restore_intent(data)
+        if intent.source_sha256 != work.source_hash:
+            if wanted is not None:
+                raise ValueError('El recibo pertenece a otro Excel; vuelve a cargar el libro de origen correspondiente.')
+            continue
         if intent.identity not in rows:
             if wanted is not None:
                 raise ValueError('Una operación seleccionada no tiene un ingreso único en este Excel.')
@@ -194,6 +198,41 @@ def reconcile_excel(journal, source, destination, *, mode='ESPERA', sheet=None,
             raise ValueError('La copia no conserva la carga comprobada; el retorno sigue pendiente.')
     journal.complete_excel_many([data['operation_id'] for data, _, _ in selected], target, returned.source_hash)
     return str(target)
+
+
+def receipts_for_source(journal, source, *, mode='ESPERA', sheet=None):
+    """Lista solo recibos comprobados que pertenecen a este Excel y sus ingresos."""
+    source = Path(source).resolve()
+    if source.stat().st_size > 80 * 1024 * 1024:
+        raise ValueError('El Excel excede el límite de lectura de 80 MB.')
+    work = Work.external(source, defaults(), mode=mode, sheet=sheet)
+    rows = _rows(work)
+    result = []
+    for data in journal.list():
+        if data.get('verified') is not True or data.get('state') not in ('PENDIENTE_EXCEL', 'COMPROBADA'):
+            continue
+        intent = restore_intent(data)
+        if intent.source_sha256 != work.source_hash:
+            continue
+        row = rows.get(intent.identity)
+        if row is None or row.review.get('OBSERVACION') != intent.text:
+            continue
+        result.append({
+            'operation_id': data['operation_id'],
+            'registered_at': data['registered_at'],
+            'state': data['state'],
+            'text': intent.text,
+            'type': data['type'],
+            'cc': data['cc'],
+            'tribunal': intent.tribunal,
+            'rit': intent.identity.rit,
+            'ingreso_id': intent.identity.ingreso_id,
+            'source_sheet': intent.source_sheet,
+            'source_row': intent.source_row,
+            'excel_date': row.review.get('FECHA_OBS'),
+            'excel_cc': row.review.get('CC'),
+        })
+    return result
 
 
 def main():
