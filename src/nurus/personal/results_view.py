@@ -37,11 +37,6 @@ def build(app):
         else:advanced.pack(fill='x',pady=6)
     app.results_more=more
     ui.Button(actions,text='Más acciones',command=more).pack(side='right')
-    ui.Button(advanced,text='Diagnóstico de instalación',command=lambda:app._guard(lambda:export_diagnosis(app))).pack(anchor='w',pady=4)
-    from .download_link import resume
-    app.results_download_button=ui.Button(advanced,text='Recuperar descarga interrumpida',command=lambda:app._guard(lambda:resume(app)));app.results_download_button.pack(anchor='w',pady=4)
-    from .work_tools import show_deadlines
-    ui.Button(advanced,text='Vencimientos / egreso proyectado',command=lambda:app._guard(lambda:show_deadlines(app))).pack(anchor='w',pady=4)
     # Consulta autónoma, sin activar la escritura de observaciones.
     section=ui.Frame(advanced);section.pack(fill='x',pady=(8,4))
     ui.Label(section,text='Bitácoras RUS · solo lectura',font=('Segoe UI',13,'bold')).pack(anchor='w')
@@ -87,6 +82,11 @@ def build(app):
     ui.Button(buttons,text='Recuperar consulta',command=lambda:app._guard(recover)).pack(side='left',padx=(0,5))
     ui.Button(buttons,text='Importar HAR',command=lambda:app._guard(open_har)).pack(side='left',padx=(0,5))
     ui.Button(buttons,text='Abrir lote',command=lambda:app._guard(open_lot)).pack(side='left')
+    ui.Button(advanced,text='Diagnóstico de instalación',command=lambda:app._guard(lambda:export_diagnosis(app))).pack(anchor='w',pady=4)
+    from .download_link import resume
+    app.results_download_button=ui.Button(advanced,text='Recuperar descarga interrumpida',command=lambda:app._guard(lambda:resume(app)));app.results_download_button.pack(anchor='w',pady=4)
+    from .work_tools import show_deadlines
+    ui.Button(advanced,text='Vencimientos / egreso proyectado',command=lambda:app._guard(lambda:show_deadlines(app))).pack(anchor='w',pady=4)
     def detail_selected(event=None):
         selected=tasks.selection();check=app.results_checks.get(selected[0]) if selected else None
         if not check:app.results_detail.set('Selecciona un producto.');return
