@@ -71,6 +71,11 @@ class DiaryRunner:
     def run(self,batch,destination,resume=None):
         if batch.screen!='seguimiento':raise m.PocError('Las bitácoras se consultan desde Seguimiento.')
         plan=batch.plan(self.catalog);read=parser()
+        from nurus.bitacora_html import visible_identity_warnings
+        def annotate_visible(record,snapshot):
+            notes=visible_identity_warnings(snapshot,record['rit'],record['nombre'])
+            record['advertencias']=notes
+            record['error']=' '.join(notes)
         old={};previous_records=[]
         if resume:
             folder=Path(resume).resolve();previous=load(folder/MANIFEST)
@@ -100,7 +105,7 @@ class DiaryRunner:
             data=path.read_bytes()
             if hashlib.sha256(data).hexdigest()!=previous.get('sha256'):return False
             snapshot=read(data.decode('utf-8-sig'),record['params'])
-            if m.record_key(snapshot['rit'],snapshot['persona'])!=m.record_key(record['rit'],record['nombre']):return False
+            annotate_visible(record,snapshot)
             record.update({k:previous[k] for k in ('archivo','sha256','capturada','entradas')})
             record['estado']='LEIDA';record['reutilizada']=True
             return True
@@ -171,8 +176,7 @@ class DiaryRunner:
                                         from datetime import datetime
                                         datetime.fromisoformat(result['startedAt'].replace('Z','+00:00'))
                                         snapshot=read(data.decode('utf-8-sig'),record['params'])
-                                        if m.record_key(snapshot['rit'],snapshot['persona'])!=m.record_key(item['rit'],item['nombre']):
-                                            raise m.PocError('La persona o RIT de la bitácora difiere del listado.')
+                                        annotate_visible(record,snapshot)
                                         name='bitacora-'+record['clave'][:24]+'-'+digest[:16]+'.html'
                                         path=folder/name
                                         if path.exists():

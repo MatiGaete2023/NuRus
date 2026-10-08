@@ -3,7 +3,7 @@ from pathlib import Path
 from hashlib import sha256
 import json
 from .bitacora_har import read_popup, export_har_audit
-from nurus.rus.columns import normalize
+from nurus.bitacora_html import visible_identity_warnings
 
 def import_lote(manifest):
     manifest=Path(manifest).resolve()
@@ -27,8 +27,10 @@ def import_lote(manifest):
                 query=read_popup(body.decode('utf-8-sig'),record['params'],source=name,captured_at=record['capturada'])
                 if tuple(query[k] for k in ('tribunal_codigo','causa_id','ingreso_id'))!=identity:
                     raise ValueError('La bitácora pertenece a otro ingreso.')
-                if normalize(query['persona'])!=normalize(record['nombre']) or normalize(query['rit'])!=normalize(record['rit']):
-                    raise ValueError('La persona o RIT no corresponde al listado.')
+                notes=visible_identity_warnings(query,record['rit'],record['nombre'])
+                if notes:
+                    query['warnings'].extend(notes)
+                    error=' '.join(notes)
             except (ValueError,KeyError,OSError,TypeError) as exc:
                 state='FALLIDA';error=str(exc) if isinstance(exc,ValueError) else 'No se pudo abrir una copia verificable.';query=None
         if all(identity):

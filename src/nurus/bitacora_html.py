@@ -10,6 +10,15 @@ def normalize(value):
     text=unicodedata.normalize('NFKD',str(value or '')).encode('ascii','ignore').decode()
     return re.sub(r'\s+',' ',re.sub(r'[-().]+',' ',text.lower().strip()))
 
+def visible_identity_warnings(snapshot, rit, persona):
+    """Advertir diferencias de pantalla sin invalidar la identidad remota fuerte."""
+    warnings = []
+    if normalize(snapshot.get('rit')) != normalize(rit):
+        warnings.append('Advertencia: RIT visible de bitácora distinto al listado; revisar el ingreso.')
+    if normalize(snapshot.get('persona')) != normalize(persona):
+        warnings.append('Advertencia: nombre visible de bitácora distinto al listado; revisar el ingreso.')
+    return warnings
+
 ORIGIN = 'https://familia.pjud.cl'
 POPUP_PATH = '/SITFAWEB/IrPopUpInformesAccion.do'
 HEADERS = ('Tipo Observación', 'Etapa', 'Fecha Centro', 'Usuario Centro',

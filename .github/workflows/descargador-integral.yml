@@ -40,6 +40,6 @@ jobs:
           if (-not $proof.ok -or -not $proof.bitacora_button_verified -or -not $proof.shared_bitacora_parser_verified) { throw 'Paquete incompleto' }
       - uses: actions/upload-artifact@v4
         with:
-          name: Descargador-SITFA-2.7.0-Windows
+          name: Descargador-SITFA-2.7.1-Windows
           path: descargador/dist/SITFA_Descargador/
           if-no-files-found: error

@@ -1,4 +1,4 @@
-# Entrega conjunta: CSMP dev22, Descargador y extensión 2.7.0
+# Entrega conjunta: CSMP dev23, Descargador y extensión 2.7.1
 
 Actualización del 8 de octubre de 2026. Alcance: leer y copiar bitácoras de
 RUS por lotes, devolver el resultado a CSMP y producir el Excel. La escritura
@@ -30,9 +30,9 @@ Ahora esos contadores siempre se conservan desde la respuesta del servidor.
 
 | Componente | Responsabilidad | Control implementado |
 | --- | --- | --- |
-| CSMP dev22 | Iniciar consulta y exportar Excel | Consulta las capacidades del EXE antes de abrirlo; prefiere el descargador incluido en el mismo paquete |
-| Descargador 2.7.0 | Seleccionar alcance, recorrer páginas y copiar ingresos | Comprueba las capacidades de la extensión antes del lote; guarda versión y origen |
-| Extensión 2.7.0 | Consultar desde la sesión abierta de Chrome | Acredita conjuntamente lectura, descarga CSMP y PDF; `diary_open` solo permite GET de la bitácora vinculada |
+| CSMP dev23 | Iniciar consulta y exportar Excel | Consulta las capacidades del EXE antes de abrirlo; prefiere el descargador incluido en el mismo paquete |
+| Descargador 2.7.1 | Seleccionar alcance, recorrer páginas y copiar ingresos | Comprueba las capacidades de la extensión antes del lote; guarda versión y origen |
+| Extensión 2.7.1 | Consultar desde la sesión abierta de Chrome | Acredita conjuntamente lectura, descarga CSMP y PDF; `diary_open` solo permite GET de la bitácora vinculada |
 | Copias HTML y bitacoras.json | Conservar texto y control de cada registro | Identidad tribunal + causa + ingreso, SHA-256, estados, fallas y consulta de procedencia |
 | Retorno a CSMP | Entregar resultado a la solicitud correcta | Identificador, carpeta propia, SHA-256 y versión/commit del descargador empleado |
 | Excel de CSMP | Presentar copias y análisis | Texto completo, CC por tipo de observación, control de lecturas y consultas, errores y versiones visibles |
@@ -50,7 +50,7 @@ Los lotes anteriores sin metadatos conservan su importación y recuperación.
 2. En Chrome, abrir `chrome://extensions`, activar Modo desarrollador y cargar
    la carpeta `extension` de esta entrega mediante «Cargar descomprimida».
    Si la anterior apunta a otra carpeta, desactivarla para evitar confundirlas.
-   Comprobar versión **2.7.0**, cerrar la conexión anterior y recargar RUS.
+   Comprobar versión **2.7.1**, cerrar la conexión anterior y recargar RUS.
 3. Abrir `Abrir_CSMP.cmd`. En **Resultados → Consultar bitácoras en RUS** elegir
    un período de análisis de hasta cuatro meses y el destino del Excel.
    CSMP abre el descargador incluido y conserva una solicitud recuperable.
@@ -91,6 +91,21 @@ Las reglas históricas y los correos específicos continúan limitados a Laja,
 Mulchén y Tomé. La lectura de bitácoras permite cualquier tribunal disponible
 en el formulario y las cuatro modalidades. No se registran observaciones ni
 se envían correos durante este recorrido.
+
+## Corrección de identidad visible
+
+En dev23 / 2.7.1, la identidad remota exacta de tribunal, causa, ingreso, etapa
+y modalidad sigue siendo obligatoria; también el vínculo desde el listado actual
+y la integridad SHA-256. Una diferencia de presentación en RIT o nombre ya no
+se confunde con otro ingreso: queda como advertencia visible en **Lecturas** y
+**Capturas** del Excel, y se conserva en el manifiesto del lote. El mismo criterio
+rige lectura inicial, recuperación e importación a CSMP. Otro ingreso sigue
+rechazándose. La corrección no habilita ninguna operación de escritura RUS.
+
+La aceptación real continúa pendiente: releer los dos registros que fallaron,
+comparar con la pantalla RUS y validar muestras de las cuatro modalidades y
+pestañas. Las pruebas sintéticas no acreditan acceso a RUS institucional.
+No se fusiona esta rama con `main` hasta contar con esa aceptación.
 
 ## Verificación y mantenimiento
 

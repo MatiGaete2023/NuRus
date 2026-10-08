@@ -75,6 +75,38 @@ def test_same_rit_different_ingresos_and_failed_popup(tmp_path):
     assert recovered['leidas']==2 and len(bridge.openings)==1
     assert bridge.openings[0]['ID_Ingreso']=='202'
 
+def test_visible_identity_difference_is_warning_in_manifest_and_excel(tmp_path):
+    from nurus.personal.bitacora_lote import import_lote
+    class DisplayVariant(Bridge):
+        def call(self,command,payload=None,timeout=75):
+            result=super().call(command,payload,timeout)
+            if command=='diary_open':
+                body=base64.b64decode(result['body']).decode('utf-8')
+                body=body.replace('name="RIT_Causa" value="X-1-2026"',
+                                  'name="RIT_Causa" value="X-0001-2026"')
+                body=body.replace('name="GLS_Nombre" value="Persona ficticia"',
+                                  'name="GLS_Nombre" value="Otra grafía del nombre"')
+                raw=body.encode('utf-8')
+                result['body']=base64.b64encode(raw).decode()
+                result['digest']=hashlib.sha256(raw).hexdigest()
+            return result
+    initial=run(tmp_path,DisplayVariant())
+    assert initial['estado']=='COMPLETA' and initial['leidas']==2
+    rows=json.loads(Path(initial['manifest']).read_text(encoding='utf-8'))['registros']
+    assert all(row['estado']=='LEIDA' for row in rows)
+    assert all('RIT visible' in row['error'] and 'nombre visible' in row['error'] for row in rows)
+    imported=import_lote(initial['manifest'])
+    assert len(imported['queries'])==2
+    assert all(len(q['warnings'])>=2 for q in imported['queries'])
+    sheet=next(rows for title,headers,rows in imported['extra_sheets'] if title=='Lecturas')
+    assert all(row[10]=='LEIDA' and 'RIT visible' in row[11] for row in sheet)
+    bridge=Bridge()
+    resumed=run(tmp_path,bridge,resume=initial['folder'])
+    assert resumed['leidas']==2 and not bridge.openings
+    resumed_rows=json.loads(Path(resumed['manifest']).read_text(encoding='utf-8'))['registros']
+    assert all('nombre visible' in r['error'] for r in resumed_rows)
+
+
 def test_missing_link_never_invents_get_and_all_rows_counted(tmp_path):
     bridge=Bridge(missing=True);result=run(tmp_path,bridge)
     data=json.loads(Path(result['manifest']).read_text(encoding='utf-8'))

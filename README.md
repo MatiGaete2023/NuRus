@@ -1,19 +1,19 @@
 # CSMP Assistant personal — Windows
 
-**Entrega conjunta: CSMP 0.4.0.dev22 + Descargador y extensión 2.7.0.**
+**Entrega conjunta: CSMP 0.4.0.dev23 + Descargador y extensión 2.7.1.**
 Se reúnen la lectura de bitácoras y las mejoras de PDF de las dos líneas anteriores.
 CSMP comprueba el descargador que abrirá; este comprueba la extensión conectada;
 el retorno acredita solicitud, carpeta, integridad y origen. Usar el paquete
-completo. [Instalación, diagnóstico y verificación integral](docs/INTEGRACION_COMPLETA_20261008.md).
+completo. [Instalación, diagnóstico y verificación integral](docs/INTEGRACION_COMPLETA_20261008.md). Esta guía es la referencia de instalación vigente; los hitos anteriores conservados abajo son históricos.
 
-**Prototipo 0.4.0.dev22 · 8 de octubre de 2026.** **Resultados → Consultar bitácoras en RUS** abre el Descargador 2.7.0 y recibe su lectura por lotes para crear el Excel. Admite Ambulatorio, FAE, Residencia y DCE, selección de tribunales y pestañas, recorrido por páginas, cancelación y recuperación. Conserva la importación HAR, productos manuales y el trabajo de correos. El análisis abarca hasta cuatro meses calendario y «Copia íntegra» conserva toda la tabla capturada. La escritura queda para después. Véase [uso, controles y límites de los lotes](docs/BITACORAS_LOTES_DEV21.md). Las pruebas locales no acreditan aceptación de las cuatro modalidades en una sesión real de RUS.
+**Prototipo 0.4.0.dev23 · 8 de octubre de 2026.** **Resultados → Consultar bitácoras en RUS** abre el Descargador 2.7.0 y recibe su lectura por lotes para crear el Excel. Admite Ambulatorio, FAE, Residencia y DCE, selección de tribunales y pestañas, recorrido por páginas, cancelación y recuperación. Conserva la importación HAR, productos manuales y el trabajo de correos. El análisis abarca hasta cuatro meses calendario y «Copia íntegra» conserva toda la tabla capturada. La escritura queda para después. Véase [uso, controles y límites de los lotes](docs/BITACORAS_LOTES_DEV21.md). Las pruebas locales no acreditan aceptación de las cuatro modalidades en una sesión real de RUS.
 
 
 Base conservada: **0.4.0.dev14**, actualizada el 30 de septiembre de 2026 en `codex/auditoria-ux-20260925-final`. Aplicación de uso personal en Windows con Python 3.12–3.14. Prepara copias de Excel, proyectos Word y borradores editables de Outlook; el registro oficial se realiza en RUS. La [corrección de adjuntos](docs/CORRECCION_ADJUNTOS_20260930.md) documenta este parche sobre el [informe de revisión y ejecución dev13](docs/REVISION_Y_PLAN_20260929.md).
 
 ## Cambios actuales
 
-La rama integral incluye también el código del descargador en [descargador](descargador/README.md), versión 2.5.0. Cada aplicación conserva su configuración, ejecución y pruebas. Las capturas y las planillas de causas se mantienen locales.
+La rama integral incluye también el código del descargador en [descargador](descargador/README.md), versión 2.7.1. Cada aplicación conserva su configuración, ejecución y pruebas. Las capturas y las planillas de causas se mantienen locales.
 
 - Dev20 permite leer y copiar bitácoras desde HAR sin preparar un trabajo o propuestas. El período de análisis tiene controles propios y parte de los últimos cuatro meses; la copia íntegra no pierde las entradas más antiguas. No publica capturas ni datos de causas en el repositorio.
 
@@ -49,7 +49,7 @@ La [auditoría y limpieza dev8](docs/LIMPIEZA_ASISTENTE_20260921.md) retira la i
 ## Instalación y actualización
 
 1. Descarga el ZIP Windows de esta entrega, identificado por commit y SHA-256 en `ESTADO_PLAN_LUNA_20261006.md`, y extráelo completo en una carpeta nueva. No mezcles sus archivos con otra instalación.
-2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat` desde esa misma carpeta. Repite la instalación al actualizar: el lanzador usa el paquete instalado en `.venv-csmp`, no los archivos fuente recién descargados. Comprueba **0.4.0.dev18** en el título de la ventana.
+2. Ejecuta `Instalar_CSMP.bat` y luego `Abrir_CSMP.bat` desde esa misma carpeta. Repite la instalación al actualizar: el lanzador usa el paquete instalado en `.venv-csmp`, no los archivos fuente recién descargados. Comprueba **0.4.0.dev23** en el título de la ventana.
 3. Se admite Python 3.12, 3.13 o 3.14. El entorno queda en `.venv-csmp` dentro de la carpeta de la aplicación. No requiere permisos de administrador ni Node. El instalador incorpora `customtkinter` 5.2.x dentro de ese entorno aislado.
 4. Excel de escritorio y Outlook clásico son necesarios para la ruta completa de uso institucional. La instalación normal puede descargar dependencias Python; si existe `paquetes/`, el instalador usa ese repositorio local.
 
