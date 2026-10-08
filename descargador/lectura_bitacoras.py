@@ -85,6 +85,10 @@ def anonymous_diagnostic(data):
         import re
         text=str(value or '')
         return text if re.fullmatch(r'[0-9]{1,3}(?:\.[0-9]{1,3}){2}(?:\.dev[0-9]{1,5})?',text) else 'NO_VERIFICADA'
+    def safe_commit(value):
+        import re
+        text=str(value or '')
+        return text.lower() if re.fullmatch(r'[0-9a-fA-F]{40}',text) else 'NO_VERIFICADO'
     def state_code(value):
         return value if value in allowed_states else 'OTRO'
     records=data.get('registros',[])
@@ -115,6 +119,7 @@ def anonymous_diagnostic(data):
         'version':1,
         'estado_lote':data.get('estado') if data.get('estado') in ('COMPLETA','INCOMPLETA','CANCELADA','EN_CURSO') else 'OTRO',
         'descargador_version':safe_version((data.get('origen') or {}).get('version')),
+        'descargador_commit':safe_commit((data.get('origen') or {}).get('commit')),
         'extension_version':safe_version((data.get('extension') or {}).get('version')),
         'registros':len(records),
         'estados':dict(global_states),

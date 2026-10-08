@@ -113,6 +113,29 @@ def test_missing_link_never_invents_get_and_all_rows_counted(tmp_path):
     assert len(data['registros'])==2 and not bridge.openings
     assert all(r['estado']=='SIN_VINCULO' for r in data['registros'])
 
+def test_espera_without_historia_and_rut_script_reads_verified_ingresos(tmp_path):
+    import re
+    class EsperaSinHistoria(Bridge):
+        def call(self,command,payload=None,timeout=75):
+            result=super().call(command,payload,timeout)
+            if command=='search':
+                source=base64.b64decode(result['body']).decode('utf-8')
+                source=re.sub(r'<a onclick="ShowHistoria[^"]*">Causa</a>','',source)
+                source=source.replace('11111111-1</td>',
+                    '11111111-1<script>document.write("Imagen");</script></td>')
+                raw=source.encode('utf-8')
+                result['body']=base64.b64encode(raw).decode('ascii')
+            return result
+    bridge=EsperaSinHistoria()
+    result=run(tmp_path,bridge,Batch(('49',),('2',),('Espera',)))
+    records=json.loads(Path(result['manifest']).read_text(encoding='utf-8'))['registros']
+    assert result['estado']=='COMPLETA' and result['leidas']==2
+    assert len(bridge.openings)==2
+    assert {r['ingreso_id'] for r in records}=={'201','202'}
+    assert all(r['rut']=='11111111-1' and r['estado']=='LEIDA' for r in records)
+    assert all('vinculo_diagnostico' not in r for r in records)
+
+
 def test_version_incompatible_fails_before_query(tmp_path):
     class OlderExtension(Bridge):
         def call(self,command,payload=None,timeout=75):
@@ -140,6 +163,7 @@ def test_anonymous_diagnostic_has_totals_but_no_personal_data(tmp_path):
     assert data['registros']==2
     assert data['descargador_version'] in ('NO_VERIFICADA','2.7.2')
     assert data['extension_version']=='2.7.2'
+    assert data['descargador_commit']=='NO_VERIFICADO' or len(data['descargador_commit'])==40
     assert data['diagnosticos_sin_vinculo']['SIN_ACCION_OBSERVACIONES']==2
     assert data['consultas'][0]['registros']==2
     assert data['contiene_identificadores_personales'] is False
