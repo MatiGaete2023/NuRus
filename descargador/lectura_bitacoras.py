@@ -73,6 +73,58 @@ def listing_rows(body,profile):
         raise m.PocError('El control de filas no coincide con el listado validado.')
     return result
 
+
+def anonymous_diagnostic(data):
+    """Resumen apto para compartir: nunca reproduce filas, identificadores ni HTML."""
+    allowed_states=('LEIDA','FALLIDA','SIN_VINCULO','PENDIENTE')
+    allowed_link=('SIN_ACCION_OBSERVACIONES','MULTIPLES_ACCIONES_OBSERVACIONES',
+                  'ACCION_OBSERVACIONES_NO_VERIFICADA')
+    allowed_extension=('DIARY_CONTEXT','DIARY_LINK','DIARY_IDENTITY',
+                       'DIARY_NETWORK','DIARY_TIMEOUT','DIARY_RESPONSE')
+    def safe_version(value):
+        import re
+        text=str(value or '')
+        return text if re.fullmatch(r'[0-9]{1,3}(?:\\.[0-9]{1,3}){2}(?:\\.dev[0-9]{1,5})?',text) else 'NO_VERIFICADA'
+    def state_code(value):
+        return value if value in allowed_states else 'OTRO'
+    records=data.get('registros',[])
+    global_states=Counter(state_code(r.get('estado')) for r in records)
+    global_links=Counter(r.get('vinculo_diagnostico')
+                         if r.get('vinculo_diagnostico') in allowed_link else 'NO_ESPECIFICADO'
+                         for r in records if r.get('estado')=='SIN_VINCULO')
+    global_extension=Counter((r.get('diagnostico') or {}).get('codigo_extension')
+                             if (r.get('diagnostico') or {}).get('codigo_extension') in allowed_extension
+                             else 'OTRA_FALLA'
+                             for r in records if r.get('estado')=='FALLIDA')
+    scopes=[]
+    for q in data.get('consultas',[]):
+        key=(q.get('tribunal'),q.get('modality'),q.get('tab'))
+        subset=[r for r in records if (r.get('tribunal_codigo'),r.get('modalidad'),r.get('pestana'))==key]
+        status=str(q.get('estado',''))
+        scopes.append({
+            'tribunal_codigo':str(key[0]) if str(key[0]).isdigit() else 'NO_VERIFICADO',
+            'modalidad_codigo':str(key[1]) if key[1] in ('1','2','3','4') else 'NO_VERIFICADA',
+            'pestana':key[2] if key[2] in ('Espera','Cumplimiento','Informes','Egreso') else 'NO_VERIFICADA',
+            'estado_consulta':status if status in ('ENUMERADA','SIN_REGISTROS','FALLIDA','EN_CURSO') else 'OTRO',
+            'paginas':q.get('paginas',0) if isinstance(q.get('paginas'),int) else 0,
+            'registros':len(subset),
+            'estados':dict(Counter(state_code(r.get('estado')) for r in subset))
+        })
+    return {
+        'tipo':'BITACORAS_DIAGNOSTICO_ANONIMO',
+        'version':1,
+        'estado_lote':data.get('estado') if data.get('estado') in ('COMPLETA','INCOMPLETA','CANCELADA','EN_CURSO') else 'OTRO',
+        'descargador_version':safe_version((data.get('origen') or {}).get('version')),
+        'extension_version':safe_version((data.get('extension') or {}).get('version')),
+        'registros':len(records),
+        'estados':dict(global_states),
+        'diagnosticos_sin_vinculo':dict(global_links),
+        'errores_extension':dict(global_extension),
+        'consultas':scopes,
+        'anteriores_no_reenumeradas':len(data.get('anteriores_no_reenumeradas',[])),
+        'contiene_identificadores_personales':False
+    }
+
 class DiaryRunner:
     def __init__(self,bridge,catalog,emit,cancel):
         self.bridge,self.catalog,self.emit,self.cancel=bridge,catalog,emit,cancel
@@ -221,6 +273,8 @@ class DiaryRunner:
             retained={r['clave']:r for r in previous_records if r['clave'] not in current_keys}
             state['anteriores_no_reenumeradas']=list(retained.values())
             checkpoint()
+            # Archivo independiente para soporte técnico sin datos judiciales de NNA.
+            write(folder/'diagnostico_bitacoras.json',anonymous_diagnostic(state))
             if locked:
                 try:self.bridge.call('unlock',timeout=8)
                 except Exception:pass
@@ -229,5 +283,6 @@ class DiaryRunner:
                'fallidas':sum(r['estado']!='LEIDA' for r in state['registros']),
                'consultas_fallidas':sum(q['estado']=='FALLIDA' for q in state['consultas']),
                'detalle':next((q.get('error','') for q in state['consultas'] if q['estado']=='FALLIDA'),state.get('error',''))}
+        value['diagnostico_anonimo']=str(folder/'diagnostico_bitacoras.json')
         self.emit('diary_done',value)
         return value

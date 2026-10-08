@@ -65,3 +65,7 @@ En la revisión de nóminas: F2 o doble clic para editar, Tab/Enter para avanzar
 Los Excel nuevos tienen anchos por tipo de columna y encabezados repetidos al imprimir. Los Word conservan sus matrices; pueden generarse como proyectos por completar, pero la entrega final impide campos pendientes. La vista PDF requiere Word instalado. ZIP incorpora INDICE.txt y MANIFIESTO.json. Las operaciones por lote permiten detenerse entre productos.
 
 El instalador Windows de Inno Setup instala por usuario, crea accesos directos y permite reinstalar conservando configuración. Consulte [implementación y comprobación](docs/MEJORAS_DISENO_20261007.md).
+
+Para incidencias de bitácoras, compartir `diagnostico_bitacoras.json`
+(generado junto al lote), no el `bitacoras.json` ni las copias HTML con
+datos de NNA.

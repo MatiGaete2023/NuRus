@@ -69,3 +69,20 @@ No publicar JSON ni HTML con datos de NNA en GitHub.
 `main` y `experimento/plan-integral-csmp-20261002` quedan intactas.
 La consolidación de código está en una rama de integración; su promoción
 exige resultados de CI y aceptación con sesión RUS real.
+
+### Diagnóstico anónimo de fallas de bitácoras (revisión octubre 2026)
+
+Cada ejecución escribe `diagnostico_bitacoras.json` junto al
+`bitacoras.json` original. **Compartir únicamente el diagnóstico anónimo**;
+incluye estado, versiones de Descargador/extensión, conteos por tribunal
+numérico, modalidad y pestaña, tipos de SIN_VINCULO y errores categóricos,
+pero no nombres, RIT, RUT, identidades remotas, textos de observaciones,
+HTML, archivos locales ni rutas del equipo.
+
+El `bitacoras.json` y las capturas HTML conservan información protegida:
+no subirlos a GitHub, tickets ni servicios públicos. Si una revisión
+requiere evidencia de un enlace o de la respuesta real de RUS, debe
+efectuarse localmente bajo las autorizaciones institucionales.
+
+Este reporte **no acredita por sí solo** que la bitácora coincida con
+la visualizada en RUS ni que exista lectura íntegra de otras pestañas.

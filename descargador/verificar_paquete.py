@@ -1,7 +1,7 @@
 """Comprobación del ejecutable y su extensión, sin sesión ni datos del usuario."""
 from pathlib import Path
 from hashlib import sha256
-import gc,json,sys
+import gc,json,sys,re
 import shutil
 import tkinter as tk
 from uuid import uuid4
@@ -20,6 +20,9 @@ def check(destination):
     manifest=json.loads((extension/'manifest.json').read_text(encoding='utf-8'))
     from contrato_integral import VERSION
     assert manifest['version']==VERSION
+    capability_source=(extension/'pagina.js').read_text(encoding='utf-8')
+    advertised=re.findall(r"if\\(command==='capabilities'\\) return \\{[^\\n]*version:'([^']+)'",capability_source)
+    assert advertised==[VERSION], 'La extensión no anuncia la versión real del manifiesto.'
     from csmp_shared import parser
     assert callable(parser())
     for name in ('background.js','conexion.js','conexion.html','conexion.css','pagina.js'):

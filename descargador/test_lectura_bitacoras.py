@@ -127,6 +127,43 @@ def test_version_incompatible_fails_before_query(tmp_path):
     assert 'versión distinta' in result['detalle']
 
 
+def test_anonymous_diagnostic_has_totals_but_no_personal_data(tmp_path):
+    from lectura_bitacoras import anonymous_diagnostic
+    bridge=Bridge(missing=True)
+    result=run(tmp_path,bridge)
+    path=Path(result['diagnostico_anonimo'])
+    assert path.is_file()
+    source=path.read_text(encoding='utf-8')
+    data=json.loads(source)
+    assert data['tipo']=='BITACORAS_DIAGNOSTICO_ANONIMO'
+    assert data['estados']=={'SIN_VINCULO':2}
+    assert data['registros']==2
+    assert data['descargador_version'] in ('NO_VERIFICADA','2.7.2')
+    assert data['extension_version']=='2.7.2'
+    assert data['diagnosticos_sin_vinculo']['SIN_ACCION_OBSERVACIONES']==2
+    assert data['consultas'][0]['registros']==1
+    assert data['contiene_identificadores_personales'] is False
+    assert all(value not in source for value in ('Persona ficticia','X-1-2026','11111111-1','PRM Centro ficticio','\\u0022rut\\u0022','\\u0022nombre\\u0022'))
+    # Ni siquiera un manifiesto malicioso puede inyectar texto libre al reporte.
+    malicious={'registros':[{'estado':'FALLIDA','rit':'X-1-2026','nombre':'Persona ficticia',
+                            'error':'Texto privado NNA','diagnostico':{'codigo_extension':'Texto privado NNA'}}],
+               'consultas':[{'tribunal':'Texto privado NNA','modality':'1','tab':'Espera','estado':'FALLIDA'}],
+               'origen':{'version':'Texto privado NNA'},'extension':{'version':'2.7.2'}}
+    sanitized=json.dumps(anonymous_diagnostic(malicious),ensure_ascii=False)
+    assert 'Texto privado NNA' not in sanitized
+    assert 'Persona ficticia' not in sanitized
+
+
+def test_extension_declared_version_matches_manifest():
+    import re
+    from contrato_integral import VERSION
+    folder=Path(__file__).parent/'extension'
+    manifest=json.loads((folder/'manifest.json').read_text(encoding='utf-8'))
+    script=(folder/'pagina.js').read_text(encoding='utf-8')
+    matches=re.findall(r"if\\(command==='capabilities'\\) return \\{[^\\n]*version:'([^']+)'",script)
+    assert matches==[VERSION]==[manifest['version']]
+
+
 def test_cancel_and_resume_keeps_verified_copy(tmp_path):
     cancel=threading.Event()
     def emit(name,value):
