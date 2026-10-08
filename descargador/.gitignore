@@ -16,3 +16,6 @@ work/
 .env*
 dist/
 build/
+_build_meta.py
+.pytest_cache/
+pytest-cache-files-*/

@@ -63,9 +63,10 @@ def build(app):
         app._run('Leyendo los textos completos de las bitácoras…',
                  lambda:export_har_audit(import_har(chosen),destination,a,b),
                  lambda path:app.status.set('Bitácoras de la captura exportadas: '+path))
-    ui.Label(page,text='Bitácoras RUS desde capturas HAR',font=('Segoe UI',16,'bold')).pack(anchor='w',pady=(16,4))
+    ui.Label(page,text='Bitácoras RUS · lectura por lotes',font=('Segoe UI',16,'bold')).pack(anchor='w',pady=(16,4))
     ui.Label(page,text='Exporta los textos completos, respuestas, reiteraciones y CC. El análisis abarca hasta '
-             'cuatro meses; la hoja Copia íntegra conserva todo el historial capturado. No es una consulta en vivo.',
+             'cuatro meses; Copia íntegra conserva toda la tabla capturada. Puedes consultar RUS con el descargador '
+             'para Ambulatorio, FAE, Residencia y DCE, o importar capturas locales.',
              wraplength=770,text_color=ui.MUTED).pack(fill='x',pady=4)
     diary_bar=ui.Frame(page);diary_bar.pack(fill='x',pady=6)
     for title,var in [('Desde · año-mes-día',diary_start),('Hasta · año-mes-día',diary_end)]:
@@ -74,6 +75,28 @@ def build(app):
     app.results_bitacora_button=ui.Button(page,text='Importar bitácoras HAR y crear Excel',width=280,
                                          command=lambda:app._guard(import_diary))
     app.results_bitacora_button.pack(anchor='w',pady=8)
+    def live_diary():
+        from .bitacora_link import start
+        start(app,date.fromisoformat(diary_start.get()),date.fromisoformat(diary_end.get()))
+    app.results_bitacora_live_button=ui.Button(page,text='Consultar bitácoras en RUS',width=280,
+        command=lambda:app._guard(live_diary))
+    app.results_bitacora_live_button.pack(anchor='w',pady=8)
+    def recover_diary():
+        from .bitacora_link import recover
+        recover(app)
+    ui.Button(page,text='Recuperar Excel de bitácoras',width=280,
+        command=lambda:app._guard(recover_diary)).pack(anchor='w',pady=8)
+    def open_diary_lot():
+        from .bitacora_lote import export_lote
+        source=filedialog.askopenfilename(title='Lote del descargador: bitacoras.json',filetypes=[('Control de bitácoras','bitacoras.json')])
+        if not source:return
+        destination=filedialog.asksaveasfilename(defaultextension='.xlsx',initialfile='Bitacoras_RUS.xlsx')
+        if not destination:return
+        a,b=date.fromisoformat(diary_start.get()),date.fromisoformat(diary_end.get())
+        app._run('Exportando el lote de bitácoras…',lambda:export_lote(source,destination,a,b),
+            lambda p:app.status.set('Excel de bitácoras creado: '+str(p)))
+    ui.Button(page,text='Abrir lote de bitácoras y crear Excel',width=280,
+        command=lambda:app._guard(open_diary_lot)).pack(anchor='w',pady=8)
     def journal():
         from .registration import Journal
         path=app.cfg.directory/'registro_observaciones.sqlite'

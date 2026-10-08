@@ -83,18 +83,20 @@ jobs:
       - name: Build Windows distribution
         if: matrix.python == '3.12'
         shell: pwsh
-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev17.zip HEAD
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev21.zip HEAD
 
       - name: Source distribution
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Windows-dev17
-          path: dist/CSMP_Assistant_personal_0.4.0-dev17.zip
+          name: CSMP-Windows-dev21
+          path: dist/CSMP_Assistant_personal_0.4.0-dev21.zip
 
       - name: Windows executable
         if: matrix.python == '3.12'
         run: |
+          python tools/write_build_meta.py
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la identificación de versión y código fuente' }
           python -m pip install pyinstaller
           if ($LASTEXITCODE -ne 0) { throw 'Falló la instalación del empaquetador' }
           python -m PyInstaller --noconfirm CSMP_Experimental.spec
@@ -108,7 +110,7 @@ jobs:
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Integral-Windows-dev17
+          name: CSMP-Integral-Windows-dev21
           path: dist/CSMP_Integral/
           if-no-files-found: error
 

@@ -1,4 +1,6 @@
-# Descargador SITFA · prototipo integral 2.4.4
+# Descargador SITFA · prototipo integral 2.5.0
+
+**8 de octubre de 2026 · lectura de bitácoras.** El botón **Leer bitácoras del lote** recorre el listado y sus páginas para Ambulatorio, FAE, Residencia y DCE. Usa los tribunales y pestañas seleccionados y copia la tabla de observaciones de cada ingreso identificado. Conserva copias HTML, control de lecturas y fallas; **Reintentar lecturas fallidas** vuelve a consultar el listado y reutiliza las copias verificadas. CSMP dev21 recibe el resultado y genera el Excel, o permite abrir después `bitacoras.json` desde Resultados. [Guía de uso y límites](../docs/BITACORAS_LOTES_DEV21.md). Las pruebas locales no equivalen a aceptación con datos reales de las cuatro modalidades. No escribe observaciones en RUS.
 
 **Corrección de retorno a CSMP (6 de octubre).** Descarga conjunta CSMP reúne la principal completa y los informes por vencer del mes actual y siguiente, y entrega el XLSX a CSMP. Se retiró Carga/resoluciones firmadas de ese flujo porque impedía completar la entrega. La actividad queda explícitamente `NO_CONSULTADA`; no acredita ausencia de movimientos. Los flujos anteriores con esas tres fases validadas se pueden recuperar sin repetir descargas. La consulta independiente de Carga se conserva fuera del flujo conjunto, sin atribuirle validación en vivo.
 

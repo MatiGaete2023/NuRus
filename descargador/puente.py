@@ -120,7 +120,7 @@ class Bridge:
     def connected(self):return bool(self.origin and time.monotonic()-self.last_seen<20 and not self.closed)
 
     def call(self,command,payload=None,timeout=75):
-        if command not in ('catalog','lock','unlock','prepare','search','download','evidence_open','evidence_capture','evidence_close'):
+        if command not in ('catalog','lock','unlock','prepare','search','download','evidence_open','evidence_capture','evidence_close','diary_open'):
             raise PocError('Accion no permitida.')
         if self.closed or not self.connected:
             raise PocError('Conecta la extension desde la pestaña SITFA de tu Chrome. Mantén abierta su pestaña de conexión.')

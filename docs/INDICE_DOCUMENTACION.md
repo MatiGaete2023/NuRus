@@ -1,5 +1,12 @@
 # Índice y vigencia de documentación
 
+**Actualización vigente: CSMP 0.4.0.dev21 y Descargador 2.5.0, 8 de octubre de 2026.**
+La [guía de bitácoras por lotes](BITACORAS_LOTES_DEV21.md) documenta la consulta
+desde Chrome para cuatro modalidades, el retorno a CSMP, las fallas y la
+recuperación. [Dev20](LECTURA_BITACORAS_DEV20.md) describe la importación HAR
+que se conserva. La escritura continúa diferida; los estados y limitaciones
+de documentos anteriores son antecedentes, no el estado de esta actualización.
+
 **Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Conserva la base corregida dev14, el flujo conjunto y las alertas. Añade diario recuperable y conciliación de fechas con Excel. El adaptador real de bitácoras y registro sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse REGISTRO_RECUPERABLE_20261005.md y ESTADO_PLAN_INTEGRAL_20261005.md. Las secciones anteriores a este avance se conservan como antecedentes, no como aceptación de las funciones nuevas.
 
 

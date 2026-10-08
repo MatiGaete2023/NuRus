@@ -56,11 +56,14 @@ def check(destination):
         app._delete_mail()
         if not hasattr(app,'results_bitacora_button'):
             raise ValueError('No se encuentra la importación de bitácoras HAR en Resultados.')
+        from .bitacora_lote import import_lote
+        from .bitacora_link import verify_reply
+        assert app.results_bitacora_live_button.winfo_exists()
         result={'version':__version__,'source_commit':BUILD_COMMIT,'frozen':True,
                 'executable':executable.name,'executable_sha256':exe_hash,
                 'resource_sha256':resource_hashes,'pages':list(app.pages),
                 'templates':len(templates),'matrix_patches':5,'manual_mail_without_work_verified':True,
-                'bitacora_har_button_verified':True,'ok':True}
+                'bitacora_har_button_verified':True,'bitacora_lote_button_verified':True,'ok':True}
     finally:
         if app is not None:app.destroy()
         shutil.rmtree(folder)

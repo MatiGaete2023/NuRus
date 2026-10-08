@@ -111,6 +111,7 @@ class Application:
         self.recovery=None;self.context=tk.StringVar(value='Sin lote activo');self.query_index=0;self.query_total=0
         self.result_windows=[]
         self.signature_days=tk.IntVar(value=self.prefs.data.get('dias_firmas',60));self.csmp_reply=None;self.csmp_mode=None
+        self.bitacoras_reply=None;self.bitacoras_id=None
         self.tribunal=tk.StringVar(value=ALL_TRIBUNALS);self.modality=tk.StringVar(value=ALL_MODALITIES)
         self.selected_tribunals=None if self.prefs.data['tribunales'] is None else tuple(self.prefs.data['tribunales']);self.screen=tk.StringVar(value='Seguimiento')
         self.order_state=tk.StringVar();self.month=tk.StringVar();self.year=tk.StringVar()
@@ -124,7 +125,7 @@ class Application:
         self.status=tk.StringVar(value='Abre tu Chrome, entra a Seguimiento y conecta la extensión local.')
         self.preview=tk.StringVar(value='Carga las opciones de tu sesión para preparar el lote.')
         self.count=tk.StringVar(value='Sin descargas en este lote')
-        root.title('Descargador SITFA · Prototipo integral 2.4.4 · CSMP y resultados')
+        root.title('Descargador SITFA · Prototipo integral 2.5.0 · CSMP y bitácoras')
         menu=tk.Menu(root);root.configure(menu=menu)
         tools=tk.Menu(menu,tearoff=False);menu.add_cascade(label='Más opciones',menu=tools)
         for label,command in [('Guardar consulta favorita…',self.save_favorite),('Elegir favorita…',self.choose_favorite),
@@ -205,6 +206,10 @@ class Application:
         ttk.Button(actions,text='Resultados…',command=self.show_results).grid(row=0,column=3,padx=8)
         self.joint_button=ttk.Button(actions,text='Descarga conjunta CSMP',command=self.start_joint);self.joint_button.grid(row=1,column=0,sticky='w',pady=5)
         ttk.Label(actions,text='Principal completa + informes del mes actual y siguiente').grid(row=1,column=1,columnspan=3,sticky='w',padx=8)
+        self.diary_button=ttk.Button(actions,text='Leer bitácoras del lote',command=self.start_diary)
+        self.diary_button.grid(row=2,column=0,sticky='w',pady=5)
+        self.diary_retry_button=ttk.Button(actions,text='Reintentar lecturas fallidas…',command=self.resume_diary)
+        self.diary_retry_button.grid(row=2,column=1,columnspan=2,sticky='w',padx=8)
         self.progress=ttk.Progressbar(results);self.progress.grid(row=1,column=0,sticky='ew',pady=10)
         table=ttk.Frame(results);table.grid(row=2,column=0,sticky='ew');table.columnconfigure(0,weight=1)
         self.tree=ttk.Treeview(table,columns=('page','rows','file'),show='headings',height=5)
@@ -346,7 +351,9 @@ class Application:
         self.screen_combo.configure(state='readonly' if idle and self.connected else 'disabled')
         for button,enabled in [(self.open_button,idle),(self.setup_button,idle),(self.load_button,idle and self.connected),
              (self.disconnect_button,idle and self.connected),(self.copy_button,idle),(self.browse_button,idle),
-             (self.download_button,ready and bool(self.selected_tribunals)),(self.joint_button,ready and followup and bool(self.selected_tribunals)),(self.trib_button,ready),(self.cancel_button,self.busy and getattr(self,'operation',None) in ('download','joint','resume_joint') and not self.quitting),
+             (self.download_button,ready and bool(self.selected_tribunals)),(self.joint_button,ready and followup and bool(self.selected_tribunals)),
+             (self.diary_button,ready and followup and bool(self.selected_tribunals)),(self.diary_retry_button,ready and followup),
+             (self.trib_button,ready),(self.cancel_button,self.busy and getattr(self,'operation',None) in ('download','joint','resume_joint','diary') and not self.quitting),
              (self.folder_button,self.last_folder is not None and not self.quitting),
              (self.date_check,ready and not calendar_screen),(self.filter_check,ready and not calendar_screen)]:button.configure(state='normal' if enabled else 'disabled')
         for combo in (self.mod_combo,self.tab_combo):combo.configure(state='readonly' if ready and followup else 'disabled')
@@ -385,7 +392,26 @@ class Application:
         self.progress.configure(value=0,maximum=1);self.count.set('Preparando el lote…');self.status.set('Descargando en tu sesión Chrome…')
         self.save_preferences();self.enqueue('download',(batch,destination,self.recovery[1] if self.recovery else None))
 
-    def request_cancel(self):self.cancel.set();self.status.set('Se detendrá antes de pedir la página siguiente.');self.cancel_button.configure(state='disabled')
+    def request_cancel(self):self.cancel.set();self.status.set('Se detendrá antes de la siguiente consulta.');self.cancel_button.configure(state='disabled')
+
+    def start_diary(self,resume=None):
+        try:
+            from lectura_bitacoras import saved_batch,load
+            batch=saved_batch(load(Path(resume)/'bitacoras.json')) if resume else self.batch()
+            if batch.screen!='seguimiento':raise m.PocError('Selecciona Seguimiento para leer bitácoras.')
+            batch.plan(self.catalog)
+            destination=Path(self.dest.get()).resolve();destination.mkdir(parents=True,exist_ok=True)
+            if self.bitacoras_reply and resume and not Path(resume).resolve().is_relative_to(destination):
+                raise m.PocError('Para devolver a CSMP, recupera un lote de la carpeta de esta solicitud.')
+        except (m.PocError,OSError,ValueError,KeyError) as exc:
+            messagebox.showerror('Revisa el lote de bitácoras',str(exc),parent=self.root);return
+        self.cancel.clear();self.tree.delete(*self.tree.get_children());self.last_folder=None
+        self.status.set('Leyendo y copiando bitácoras. Las fallas quedan en el control del lote.');self.save_preferences()
+        self.enqueue('diary',(batch,destination,resume))
+
+    def resume_diary(self):
+        folder=filedialog.askdirectory(parent=self.root,title='Carpeta del lote de bitácoras a reintentar')
+        if folder:self.start_diary(folder)
 
     def start_joint(self):
         try:
@@ -437,6 +463,9 @@ class Application:
                 if command=='open':open_chrome(m.START);self.emit('status','SITFA abierto en tu Chrome. Entra a Seguimiento y conecta su extensión.')
                 elif command=='catalog':self.emit('catalog',self.bridge.call('catalog',{'screen':arg}))
                 elif command=='download':BatchRunner(self.bridge,self.catalog,self.emit,self.cancel).run(*arg)
+                elif command=='diary':
+                    from lectura_bitacoras import DiaryRunner
+                    DiaryRunner(self.bridge,self.catalog,self.emit,self.cancel).run(*arg)
                 elif command=='joint':
                     from flujo_csmp import JointRunner
                     JointRunner(self.bridge,self.emit,self.cancel).run(*arg)
@@ -457,6 +486,18 @@ class Application:
             finally:self.emit('idle',None)
 
     def process_event(self,name,value):
+        if name=='diary_done':
+            self.last_folder=Path(value['folder']);self.count.set(f"{value['leidas']} lecturas verificadas · {value['fallidas']} fallidas o sin vínculo")
+            self.context.set('Bitácoras · '+value['estado'])
+            self.status.set('Copias guardadas. CSMP genera el Excel al recibir el lote; también puedes abrir bitacoras.json desde Resultados.')
+            if self.bitacoras_reply:
+                from lectura_bitacoras import write
+                write(Path(self.bitacoras_reply),{**value,'id':self.bitacoras_id})
+            self.refresh();return True
+        if name=='diary_progress':
+            self.tree.insert('','end',values=(value['pagina'],value['registros'],value['rit']+' · '+value['estado']))
+            self.tree.yview_moveto(1);self.count.set(f'{len(self.tree.get_children())} filas revisadas en el lote')
+            self.status.set('Bitácora '+value['rit']+' · '+value['estado']);return True
         if name=='joint_done':
             self.catalog=None;self.last_folder=Path(value['folder']);self.tree.delete(*self.tree.get_children())
             self.tree.insert('','end',values=('Final','',Path(value['archivo']).name))
@@ -526,6 +567,7 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description='Descargador SITFA · prototipo integral')
     parser.add_argument('--csmp-reply',type=Path);parser.add_argument('--modo',choices=('ESPERA','CUMPLIMIENTO'))
     parser.add_argument('--destino',type=Path)
+    parser.add_argument('--bitacoras-reply',type=Path);parser.add_argument('--bitacoras-id')
     parser.add_argument('--verificar-paquete',type=Path,help=argparse.SUPPRESS)
     args=parser.parse_args(argv)
     if args.verificar_paquete:
@@ -534,6 +576,8 @@ def main(argv=None):
     root=tk.Tk();app=Application(root)
     app.csmp_reply=args.csmp_reply
     app.csmp_mode=args.modo
+    if bool(args.bitacoras_reply)!=bool(args.bitacoras_id):parser.error('La lectura de bitácoras requiere respuesta e identificador.')
+    app.bitacoras_reply=args.bitacoras_reply;app.bitacoras_id=args.bitacoras_id
     if args.modo:app.tab.set('Espera' if args.modo=='ESPERA' else 'Cumplimiento')
     if args.destino:app.dest.set(str(args.destino.resolve()))
     app.refresh();root.mainloop()

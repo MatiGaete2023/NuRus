@@ -1,13 +1,13 @@
 # CSMP Assistant personal — Windows
 
-**Prototipo 0.4.0.dev20 · 7 de octubre de 2026.** **Resultados → Importar bitácoras HAR y crear Excel** recupera textos completos del centro y del tribunal desde capturas locales, analiza hasta cuatro meses calendario y conserva todo el historial capturado en «Copia íntegra». Incluye fechas, autores, tipo, CC, respuestas y procedencia; elimina las aperturas idénticas y rechaza identidades o versiones incompatibles. Véase [lectura y copia de bitácoras](docs/LECTURA_BITACORAS_DEV20.md). La consulta automática de varios ingresos desde Chrome permanece pendiente de validación. La escritura queda para después, por indicación del usuario. Conserva productos manuales, vistas guardadas, recuperación de descargas y devolución de recibos a Excel. **Configuración → Avanzado → Diagnóstico** muestra versión, commit y rutas de la instalación cargada.
+**Prototipo 0.4.0.dev21 · 8 de octubre de 2026.** **Resultados → Consultar bitácoras en RUS** abre el Descargador 2.5.0 y recibe su lectura por lotes para crear el Excel. Admite Ambulatorio, FAE, Residencia y DCE, selección de tribunales y pestañas, recorrido por páginas, cancelación y recuperación. Conserva la importación HAR, productos manuales y el trabajo de correos. El análisis abarca hasta cuatro meses calendario y «Copia íntegra» conserva toda la tabla capturada. La escritura queda para después. Véase [uso, controles y límites de los lotes](docs/BITACORAS_LOTES_DEV21.md). Las pruebas locales no acreditan aceptación de las cuatro modalidades en una sesión real de RUS.
 
 
 Base conservada: **0.4.0.dev14**, actualizada el 30 de septiembre de 2026 en `codex/auditoria-ux-20260925-final`. Aplicación de uso personal en Windows con Python 3.12–3.14. Prepara copias de Excel, proyectos Word y borradores editables de Outlook; el registro oficial se realiza en RUS. La [corrección de adjuntos](docs/CORRECCION_ADJUNTOS_20260930.md) documenta este parche sobre el [informe de revisión y ejecución dev13](docs/REVISION_Y_PLAN_20260929.md).
 
 ## Cambios actuales
 
-La rama integral incluye también el código del descargador en [descargador](descargador/README.md), versión 2.4.4. Cada aplicación conserva su configuración, ejecución y pruebas. Las capturas y las planillas de causas se mantienen locales.
+La rama integral incluye también el código del descargador en [descargador](descargador/README.md), versión 2.5.0. Cada aplicación conserva su configuración, ejecución y pruebas. Las capturas y las planillas de causas se mantienen locales.
 
 - Dev20 permite leer y copiar bitácoras desde HAR sin preparar un trabajo o propuestas. El período de análisis tiene controles propios y parte de los últimos cuatro meses; la copia íntegra no pierde las entradas más antiguas. No publica capturas ni datos de causas en el repositorio.
 

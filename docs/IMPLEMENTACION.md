@@ -1,5 +1,12 @@
 # Estado operativo — CSMP Assistant personal
 
+**Actualización vigente: 0.4.0.dev21 · 8 de octubre de 2026.** Consulta y copia
+de bitácoras por lotes con Descargador 2.5.0, para Ambulatorio, FAE, Residencia
+y DCE. La [guía actual](BITACORAS_LOTES_DEV21.md) documenta uso, recuperación,
+pruebas locales y límites. La escritura permanece diferida. La aceptación con
+una sesión real de RUS debe verificarse por separado; los resultados anteriores
+que siguen son antecedentes y no acreditan esta versión.
+
 **Prototipo 0.4.0.dev17 · 5 de octubre de 2026.** Conserva la base corregida dev14, el flujo conjunto y las alertas. Añade diario recuperable y conciliación de fechas con Excel. El adaptador real de bitácoras y registro sigue pendiente; la interfaz todavía no escribe observaciones en RUS. Véanse REGISTRO_RECUPERABLE_20261005.md y ESTADO_PLAN_INTEGRAL_20261005.md. Las secciones anteriores a este avance se conservan como antecedentes, no como aceptación de las funciones nuevas.
 
 

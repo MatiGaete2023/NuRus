@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SITFA · Descargador local experimental",
-  "version": "2.4.4",
-  "version_name": "2.4.3 prototipo integral",
+  "version": "2.5.0",
+  "version_name": "2.5.0 bitácoras de lectura",
   "description": "Descarga Seguimiento, litigantes y calendarios desde tu Chrome, sin leer cookies ni contraseñas.",
   "permissions": [
     "activeTab",

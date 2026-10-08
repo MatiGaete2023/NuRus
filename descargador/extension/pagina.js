@@ -280,11 +280,39 @@ async function sitfaTask(command, payload) {
     return {pairs};
   }
   let url,init;
+  let diaryParams=null,startedAt=new Date().toISOString();
+  if(command==="diary_open") {
+    const run=window.__sitfaRun,expected=payload.params;
+    if(screen!=="seguimiento" || !run.diaryDocument || !expected || typeof expected!=="object")throw new Error("estructura");
+    const names=["tipo_popUp","CRR_IdCausa","COD_Tribunal","TIP_Consulta","ID_Ingreso","COD_Etapa","FLG_MejorNinez"];
+    if(Object.keys(expected).length!==names.length || names.some(k=>typeof expected[k]!=="string"||!/^\d{1,20}$/.test(expected[k])) ||
+       expected.tipo_popUp!=="12" || !["1","2","3","4"].includes(expected.TIP_Consulta))throw new Error("estructura");
+    const selected=new Map(run.diaryPairs);
+    if(expected.COD_Tribunal!==selected.get("COD_Tribunal_sel")||expected.TIP_Consulta!==selected.get("TIP_Consulta"))throw new Error("estructura");
+    const tableIds={tdEspera:"tablaEspera",tdCumplimiento:"tablaCumplimiento",tdInforme:"tablaInforme",tdEgreso:"tablaEgresados"};
+    const table=run.diaryDocument.getElementById(tableIds[selected.get("COD_Lengueta")]);
+    if(!table)throw new Error("estructura");
+    const tuple=[expected.CRR_IdCausa,expected.COD_Tribunal,expected.ID_Ingreso,"12",expected.COD_Etapa,expected.FLG_MejorNinez];
+    let matches=0;
+    for(const el of table.querySelectorAll("[onclick],[href]"))for(const attr of ["onclick","href"]) {
+      for(const match of (el.getAttribute(attr)||"").matchAll(/\bShowObservaciones\s*\(([^()]*)\)/g)) {
+        const args=match[1].split(",").map(s=>{
+          const m=/^(?:(\d{1,20})|'(\d{1,20})'|"(\d{1,20})")$/.exec(s.trim());return m?(m[1]||m[2]||m[3]):null;
+        });
+        if(args.length===6 && args.every((v,i)=>v===tuple[i]))matches++;
+      }
+    }
+    if(matches!==1)throw new Error("estructura");
+    diaryParams=expected;
+    url="https://familia.pjud.cl/SITFAWEB/IrPopUpInformesAccion.do?"+new URLSearchParams(names.map(k=>[k,expected[k]]));
+    init={method:"GET"};
+  } else
   if (command === "search") {
     const pairs=payload.pairs;
     if (!validPairs(pairs))
       throw new Error("estructura");
     url=endpoint;init={method:"POST",body:new URLSearchParams(pairs)};
+    delete window.__sitfaRun.diaryDocument;delete window.__sitfaRun.diaryPairs;
   } else if (command === "download") {
     const u=new URL(payload.url);
     if (u.origin!=="https://familia.pjud.cl" || u.search || u.hash || !/^\/sitfa\/reportes\/[A-Za-z0-9_-]+\.xls$/.test(u.pathname))
@@ -309,6 +337,13 @@ async function sitfaTask(command, payload) {
   if (response.status!==200 || !bytes.length || bytes.length>80*1024*1024) throw new Error("sesion");
   const chunks=[];
   for (let i=0;i<bytes.length;i+=32768) chunks.push(String.fromCharCode(...bytes.subarray(i,i+32768)));
-  return {status:response.status,type:response.headers.get("content-type")||"",body:btoa(chunks.join(""))};
+  if(command==="search" && screen==="seguimiento") {
+    const type=response.headers.get("content-type")||"";
+    if(!type.toLowerCase().includes("html"))throw new Error("estructura");
+    window.__sitfaRun.diaryDocument=new DOMParser().parseFromString(new TextDecoder("utf-8",{fatal:true}).decode(bytes),"text/html");
+    window.__sitfaRun.diaryPairs=payload.pairs;
+  }
+  return {status:response.status,type:response.headers.get("content-type")||"",body:btoa(chunks.join("")),
+    ...(diaryParams?{params:diaryParams,startedAt,digest:await sha256(bytes)}:{})};
   } catch (_) {return {__sitfaError:command==="evidence_open"?"EVIDENCE_OPEN":"SITFA_TASK"};}
 }

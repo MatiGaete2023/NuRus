@@ -42,8 +42,8 @@ def extract(table,tribunal_code):
     for tr in table.xpath('./tr | ./tbody/tr | ./thead/tr'):
         cells=tr.xpath('./th | ./td');values=[' '.join(' '.join(c.itertext()).split()) for c in cells]
         normalized=[m.normalized(v) for v in values]
-        if tr.xpath('./th'):
-            keys={'rit':['RIT'],'nombre':['NOMBRE','NOMBRE MENOR'],'rut':['RUT'],'programa':['DERIVACION','NOMBRE CENTRO','PROGRAMA']}
+        if 'RIT' in normalized and any(v in ('NOMBRE','NOMBRE MENOR') for v in normalized):
+            keys={'rit':['RIT'],'nombre':['NOMBRE','NOMBRE MENOR'],'rut':['RUT','RUT (->RCEI)'],'programa':['DERIVACION','NOMBRE CENTRO','PROGRAMA']}
             found={k:[i for i,v in enumerate(normalized) if v in aliases] for k,aliases in keys.items()}
             if all(len(items)==1 for items in found.values()):headers={k:items[0] for k,items in found.items()}
             continue
