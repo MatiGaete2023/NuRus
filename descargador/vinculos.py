@@ -5,6 +5,12 @@ from html import unescape
 import re
 
 
+def visible_cell_text(cell):
+    """Texto del listado sin código embebido de script/style/template."""
+    parts = cell.xpath('.//text()[not(ancestor::script or ancestor::style or ancestor::noscript or ancestor::template)]')
+    return ' '.join(' '.join(parts).split())
+
+
 def calls(text,name):
     """Lectura de argumentos literales, respetando comas/paréntesis en textos."""
     result=[]
@@ -40,7 +46,7 @@ def extract(table,tribunal_code):
     import motor as m
     headers=None;result=[]
     for tr in table.xpath('./tr | ./tbody/tr | ./thead/tr'):
-        cells=tr.xpath('./th | ./td');values=[' '.join(' '.join(c.itertext()).split()) for c in cells]
+        cells=tr.xpath('./th | ./td');values=[visible_cell_text(c) for c in cells]
         normalized=[m.normalized(v) for v in values]
         if 'RIT' in normalized and any(v in ('NOMBRE','NOMBRE MENOR') for v in normalized):
             keys={'rit':['RIT'],'nombre':['NOMBRE','NOMBRE MENOR'],'rut':['RUT','RUT (->RCEI)'],'programa':['DERIVACION','NOMBRE CENTRO','PROGRAMA']}
@@ -51,11 +57,17 @@ def extract(table,tribunal_code):
         if not re.fullmatch(r'[A-Z]+-\d+-\d{4}',m.normalized(values[headers['rit']])):continue
         text=' '.join(n.get(attr,'') for n in tr.xpath('.//*[@onclick or @href]') for attr in ('onclick','href'))
         observation=calls(text,'ShowObservaciones');history=calls(text,'ShowHistoria');calendar=calls(text,'ShowInformesProgramados')
-        if len(observation)!=1 or len(history)!=1:continue
-        obs,hist=observation[0],history[0]
-        if len(obs)!=6 or len(hist)!=3 or obs[1]!=tribunal_code or hist[0]!=tribunal_code or obs[0]!=hist[2]:continue
+        if len(observation)!=1 or len(history)>1:continue
+        obs=observation[0]
+        if len(obs)!=6 or obs[1]!=tribunal_code:continue
         if any(not re.fullmatch(r'\d{1,20}',obs[i]) for i in (0,1,2,3,4,5)) or obs[3]!='12':continue
-        if m.normalized(hist[1])!=m.normalized(values[headers['rit']]):continue
+        # En Espera la fila puede no incluir ShowHistoria, pero la acción
+        # ShowObservaciones sigue entregando los tres identificadores remotos.
+        # Cuando Historia existe, su concordancia continúa siendo obligatoria.
+        if history:
+            hist=history[0]
+            if (len(hist)!=3 or hist[0]!=tribunal_code or obs[0]!=hist[2]
+                    or m.normalized(hist[1])!=m.normalized(values[headers['rit']])):continue
         entry={k:values[i] for k,i in headers.items()}
         entry.update(tribunal_codigo=tribunal_code,causa_id=obs[0],ingreso_id=obs[2],etapa=obs[4],antiguo=obs[5])
         if len(calendar)==1 and len(calendar[0])==12:

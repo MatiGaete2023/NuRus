@@ -113,6 +113,20 @@ def test_missing_link_never_invents_get_and_all_rows_counted(tmp_path):
     assert len(data['registros'])==2 and not bridge.openings
     assert all(r['estado']=='SIN_VINCULO' for r in data['registros'])
 
+def test_version_incompatible_fails_before_query(tmp_path):
+    class OlderExtension(Bridge):
+        def call(self,command,payload=None,timeout=75):
+            result=super().call(command,payload,timeout)
+            if command=='capabilities':result['version']='2.7.0'
+            return result
+    bridge=OlderExtension()
+    result=run(tmp_path,bridge)
+    data=json.loads(Path(result['manifest']).read_text(encoding='utf-8'))
+    assert result['estado']=='INCOMPLETA' and not bridge.openings
+    assert not data['consultas'] and not data['registros']
+    assert 'versión distinta' in result['detalle']
+
+
 def test_cancel_and_resume_keeps_verified_copy(tmp_path):
     cancel=threading.Event()
     def emit(name,value):

@@ -1,6 +1,6 @@
 import unittest
-from lxml import html
-from vinculos import calls,extract,match_rows
+from lxml import html, etree
+from vinculos import calls,extract,match_rows,visible_cell_text
 
 
 def listing(court='777',duplicate=False):
@@ -22,6 +22,26 @@ class BindingTests(unittest.TestCase):
         found=extract(listing(),'777');self.assertEqual(len(found),1)
         self.assertEqual(found[0]['ingreso_id'],'200');self.assertEqual(found[0]['centro_id'],'400');self.assertEqual(found[0]['persona_id'],'300')
         self.assertEqual(extract(listing(court='888'),'777'),[])
+
+    def test_observaciones_unique_without_historia_retains_remote_ids(self):
+        page=listing()
+        history=page.xpath('.//a[contains(@onclick,"ShowHistoria")]')[0]
+        history.getparent().remove(history)
+        linked=extract(page,'777')
+        self.assertEqual(len(linked),1)
+        self.assertEqual((linked[0]['tribunal_codigo'],linked[0]['causa_id'],linked[0]['ingreso_id']),('777','100','200'))
+        duplicate=page.xpath('.//a[contains(@onclick,"ShowObservaciones")]')[0]
+        clone=etree.fromstring(etree.tostring(duplicate))
+        duplicate.addnext(clone)
+        self.assertEqual(extract(page,'777'),[])
+
+    def test_script_content_is_excluded_from_rut_text(self):
+        page=listing()
+        rut=page.xpath('.//tbody/tr/td')[1]
+        script=etree.SubElement(rut,'script')
+        script.text="(function() { document.write('Buscar en registro civil'); })();"
+        self.assertEqual(visible_cell_text(rut),'11111111-1')
+        self.assertEqual(extract(page,'777')[0]['rut'],'11111111-1')
 
     def test_binding_uses_full_identity_and_rejects_ambiguous_ingresos(self):
         headers=('RIT','RUT','NOMBRE','NOMBRE CENTRO')

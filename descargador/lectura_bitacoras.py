@@ -10,7 +10,7 @@ from lxml import etree
 import motor as m
 from lotes import Batch, Dates, MODALITIES, ChromeTransport
 from perfiles import selection_profile, response_profile
-from vinculos import extract
+from vinculos import extract, visible_cell_text, calls
 from csmp_shared import parser
 
 MANIFEST='bitacoras.json'
@@ -45,13 +45,13 @@ def listing_rows(body,profile):
     if len(table)!=1:raise m.PocError('No se identifica una tabla única de registros.')
     header=None;columns=None;result=[]
     for position,row in enumerate(table[0].xpath('./tr|./tbody/tr|./thead/tr'),1):
-        values=[' '.join(' '.join(c.itertext()).split()) for c in row.xpath('./td|./th')]
+        values=[visible_cell_text(c) for c in row.xpath('./td|./th')]
         current=m.record_columns(values)
         if current:header=row;columns=current;continue
         if columns is None or not m.record_from_row(values,columns):continue
         sample=etree.Element('table');sample.append(deepcopy(header));sample.append(deepcopy(row))
         links=extract(sample,profile.tribunal)
-        names=[m.normalized(v) for v in [' '.join(' '.join(c.itertext()).split()) for c in header.xpath('./td|./th')]]
+        names=[m.normalized(visible_cell_text(c)) for c in header.xpath('./td|./th')]
         def value(labels):
             slots=[i for i,v in enumerate(names) if v in labels]
             return values[slots[0]] if len(slots)==1 and slots[0]<len(values) else ''
@@ -59,6 +59,15 @@ def listing_rows(body,profile):
               'programa':value(('DERIVACION','NOMBRE CENTRO','PROGRAMA')),
               'rut':value(('RUT','RUT (->RCEI)')),'fila':position}
         if len(links)==1:item.update(links[0])
+        else:
+            # Solo diagnóstico categórico; no registra HTML o datos del NNA.
+            commands=' '.join(n.get(attr,'') for n in row.xpath('.//*[@onclick or @href]') for attr in ('onclick','href'))
+            observation=calls(commands,'ShowObservaciones')
+            item['vinculo_diagnostico']=(
+                'SIN_ACCION_OBSERVACIONES' if not observation else
+                'MULTIPLES_ACCIONES_OBSERVACIONES' if len(observation)>1 else
+                'ACCION_OBSERVACIONES_NO_VERIFICADA'
+            )
         result.append(item)
     if Counter(m.record_key(r['rit'],r['nombre']) for r in result)!=m.result_records(root.xpath('//form[@name=$form]',form=profile.form_name)[0],profile):
         raise m.PocError('El control de filas no coincide con el listado validado.')
@@ -161,7 +170,7 @@ class DiaryRunner:
                             record['clave']=hashlib.sha256(json.dumps([selection.tab,selection.modality,identity,item['rit'],item['nombre'],item['programa'],item['rut'],item['fila'] if not all(identity) else ''],ensure_ascii=False).encode()).hexdigest()
                             state['registros'].append(record);query['registros']+=1
                             if not all(identity):
-                                record.update(estado='SIN_VINCULO',error='La fila no tiene un enlace de bitácora inequívoco. No se construyó una consulta por RIT.')
+                                record.update(estado='SIN_VINCULO',error='La fila no tiene un enlace de bitácora inequívoco. No se construyó una consulta por RIT. Diagnóstico: '+item.get('vinculo_diagnostico','NO_VERIFICADO'))
                             else:
                                 record['params']={'tipo_popUp':'12','CRR_IdCausa':item['causa_id'],'COD_Tribunal':selection.tribunal,
                                     'TIP_Consulta':selection.modality,'ID_Ingreso':item['ingreso_id'],'COD_Etapa':item['etapa'],'FLG_MejorNinez':item['antiguo']}

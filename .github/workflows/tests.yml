@@ -151,7 +151,7 @@ jobs:
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Descargador-Integral-dev4
+          name: CSMP-Descargador-Integral-dev4-SITFA-272
           path: dist/integral/
           if-no-files-found: error
 

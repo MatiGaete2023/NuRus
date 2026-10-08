@@ -6,7 +6,7 @@ Programa de escritorio para revisar el trabajo actual y preparar archivos y borr
 
 La versión de esta rama conserva las funciones principales de la línea 0.5 y
 añade lectura de bitácoras RUS, sin escritura institucional, mediante el
-Descargador/extensión 2.7.1. Acceso: **Resultados → Más acciones → Bitácoras RUS**.
+Descargador/extensión 2.7.2. Acceso: **Resultados → Más acciones → Bitácoras RUS**.
 Consulta el [informe de integración](docs/INTEGRACION_FINAL_20261008.md)
 antes de usar la distribución. La aceptación con RUS real sigue pendiente.
 
