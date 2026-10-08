@@ -1,5 +1,11 @@
 # Lectura por lotes de RUS · CSMP dev21 y Descargador 2.5.0
 
+**Corrección compatible del mismo día: Descargador 2.5.1.** Selecciona su EXE
+cuando CSMP solicite el descargador; el ejecutable CSMP dev21 sigue siendo válido.
+La actualización informa consultas fallidas aunque no se hayan enumerado filas.
+Un resultado de cero lecturas con consultas fallidas requiere revisión, no prueba
+que no existan observaciones. Véase [incidencia y verificación pendiente](../descargador/docs/BITACORAS_CERO_20261008.md).
+
 Actualización del 8 de octubre de 2026. Amplía la importación local de dev20 a un
 recorrido desde la sesión de Chrome mediante la extensión del descargador. La
 escritura de observaciones queda diferida por indicación del usuario.

@@ -36,7 +36,11 @@ def saved_batch(data):
 
 def listing_rows(body,profile):
     """Devuelve también las filas sin enlace; ninguna desaparece del control."""
-    if isinstance(body,bytes):body=body.decode('utf-8-sig')
+    # UTF-8 conserva las tildes de respuestas sin META. Si no es UTF-8,
+    # deja que el parser usado por la descarga normal lea la declaración.
+    if isinstance(body,bytes):
+        try:body=body.decode('utf-8-sig')
+        except UnicodeDecodeError:pass
     root=m.root_html(body);table=root.xpath('//form[@name=$form]//table[@id=$table]',form=profile.form_name,table=profile.table_id)
     if len(table)!=1:raise m.PocError('No se identifica una tabla única de registros.')
     header=None;columns=None;result=[]
@@ -78,6 +82,10 @@ class DiaryRunner:
             folder.mkdir(parents=True,exist_ok=False)
         state={'version':1,'tipo':'BITACORAS_LECTURA','estado':'EN_CURSO','seleccion':asdict(batch),
                'fecha':m.now().isoformat(),'consultas':[],'registros':[]}
+        try:
+            from _build_meta import BUILD_VERSION,BUILD_COMMIT
+            state['origen']={'version':BUILD_VERSION,'commit':BUILD_COMMIT}
+        except ImportError:state['origen']={'version':'desarrollo','commit':'sin metadatos'}
         manifest=folder/MANIFEST
         def checkpoint():write(manifest,state)
         def stopped():
@@ -105,6 +113,7 @@ class DiaryRunner:
                        'modalidad_nombre':MODALITIES[selection.modality],'estado':'EN_CURSO','paginas':0,'registros':0}
                 state['consultas'].append(query);checkpoint()
                 self.emit('query',{'index':index,'total':len(plan),'label':profile.label})
+                phase='PREPARAR_FORMULARIO'
                 try:
                     prepared=self.bridge.call('prepare',{'selection':asdict(selection),'dates':asdict(batch.dates) if batch.dates else None,'keep_filters':batch.keep_filters})
                     wire=prepared['pairs']
@@ -116,7 +125,9 @@ class DiaryRunner:
                     if batch.dates:
                         from urllib.parse import unquote_plus
                         if any(unquote_plus(fields.get(k,''))!=v for k,v in (('FEC_Inicio',batch.dates.start),('FEC_Fin',batch.dates.end))):raise m.PocError('Las fechas enviadas no coinciden.')
+                    phase='CONSULTAR_LISTADO'
                     transport=ChromeTransport(self.bridge,profile);body=transport.search(pairs,60000)
+                    phase='VALIDAR_LISTADO'
                     profile,current=response_profile(body,pairs,selection,self.catalog);transport.profile=profile
                     if current is None:query['estado']='SIN_REGISTROS';checkpoint();continue
                     if current.current!=1:raise m.PocError('La consulta no comenzó en la primera página.')
@@ -126,7 +137,11 @@ class DiaryRunner:
                         if number>1:
                             pairs=[(k,str(number) if k==profile.page_field else current.pagination.get(k,v)) for k,v in pairs]
                             if m.invariant(pairs)!=original:raise m.PocError('Cambió la consulta entre páginas.')
-                            body=transport.search(pairs,60000);current=m.search_page(body,pairs,number,total,profile)
+                            phase='CONSULTAR_LISTADO'
+                            body=transport.search(pairs,60000)
+                            phase='VALIDAR_LISTADO'
+                            current=m.search_page(body,pairs,number,total,profile)
+                        phase='LEER_FILAS'
                         for item in listing_rows(body,profile):
                             stopped()
                             record={**item,'tribunal_codigo':selection.tribunal,'tribunal_nombre':query['tribunal_nombre'],
@@ -170,7 +185,15 @@ class DiaryRunner:
                         query['paginas']=number;checkpoint()
                     query['estado']='ENUMERADA';checkpoint()
                 except (m.PocError,ValueError,KeyError,OSError) as exc:
-                    query.update(estado='FALLIDA',error=str(exc) if isinstance(exc,m.PocError) else 'No se pudo comprobar el listado de esta consulta.')
+                    import traceback
+                    trace=traceback.extract_tb(exc.__traceback__)
+                    diagnostic={'fase':phase,'tipo':type(exc).__name__,
+                        'ubicacion':[{'modulo':Path(t.filename).name,'linea':t.lineno} for t in trace]}
+                    if isinstance(exc,KeyError) and len(exc.args)==1 and str(exc.args[0]) in m.ALLOWED_FIELDS|{'pairs','body','status','type','rit','nombre','ingreso_id'}:
+                        diagnostic['campo']=str(exc.args[0])
+                    query.update(estado='FALLIDA',diagnostico=diagnostic,error=str(exc) if isinstance(exc,m.PocError) else
+                        'No se pudo comprobar esta consulta · '+phase+' · '+type(exc).__name__+'. Revisa el diagnóstico del lote.')
+                    self.emit('warning',query['error'])
                     checkpoint()
                     if self.cancel.is_set() or not self.bridge.connected:break
             complete=len(state['consultas'])==len(plan) and all(q['estado'] in ('ENUMERADA','SIN_REGISTROS') for q in state['consultas'])
@@ -187,6 +210,8 @@ class DiaryRunner:
                 except Exception:pass
         value={'folder':str(folder),'manifest':str(manifest),'sha256':hashlib.sha256(manifest.read_bytes()).hexdigest(),
                'estado':state['estado'],'leidas':sum(r['estado']=='LEIDA' for r in state['registros']),
-               'fallidas':sum(r['estado']!='LEIDA' for r in state['registros'])}
+               'fallidas':sum(r['estado']!='LEIDA' for r in state['registros']),
+               'consultas_fallidas':sum(q['estado']=='FALLIDA' for q in state['consultas']),
+               'detalle':next((q.get('error','') for q in state['consultas'] if q['estado']=='FALLIDA'),state.get('error',''))}
         self.emit('diary_done',value)
         return value

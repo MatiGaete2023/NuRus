@@ -109,3 +109,53 @@ def test_previous_reads_preserved_when_reenumeration_fails(tmp_path):
     data=json.loads(Path(result['manifest']).read_text(encoding='utf-8'))
     assert result['estado']=='INCOMPLETA' and len(data['anteriores_no_reenumeradas'])==2
     assert not data['registros']
+
+def test_listing_uses_the_encoding_accepted_by_normal_download():
+    from lectura_bitacoras import listing_rows
+    from lxml import etree
+    from perfiles import response_profile
+    profile=selection_profile(Selection('49','Cumplimiento','1'),CATALOG)
+    table=listing(court='49');table.set('id',profile.table_id)
+    source=document(Selection('49','Cumplimiento','1'),1,1).decode()
+    start=source.index('<table');end=source.index('</table>',start)+8
+    source=(source[:start]+etree.tostring(table,encoding='unicode')+source[end:])
+    source=source.replace('<html>','<html><meta charset="iso-8859-1">').replace('Persona ficticia','Persona de prueba áéñ')
+    body=source.encode('iso-8859-1')
+    pairs=[*profile.target.items(),('irAccion','Buscar medida')]
+    accepted,current=response_profile(body,pairs,Selection('49','Cumplimiento','1'),CATALOG)
+    rows=listing_rows(body,accepted)
+    assert current.records and len(rows)==1 and rows[0]['ingreso_id']=='200'
+    assert rows[0]['nombre']=='Persona de prueba áéñ'
+
+@pytest.mark.parametrize('failure_phase',('prepare','search'))
+def test_query_failure_counts_and_safe_diagnostic(tmp_path,failure_phase):
+    class Failed(Bridge):
+        def call(self,command,payload=None,timeout=75):
+            if command==failure_phase:raise ValueError('Dato privado que no debe ir al diagnóstico')
+            return super().call(command,payload,timeout)
+    result=run(tmp_path,Failed())
+    text=Path(result['manifest']).read_text(encoding='utf-8');data=json.loads(text)
+    assert result['leidas']==0 and result['fallidas']==0 and result['consultas_fallidas']==1
+    diagnostic=data['consultas'][0]['diagnostico']
+    assert diagnostic['fase']==('PREPARAR_FORMULARIO' if failure_phase=='prepare' else 'CONSULTAR_LISTADO')
+    assert diagnostic['tipo']=='ValueError' and diagnostic['ubicacion']
+    assert 'Dato privado' not in text and result['detalle']
+
+def test_zero_reads_ui_reports_failed_queries(tmp_path,monkeypatch):
+    import tkinter as tk
+    import preferencias
+    from descargador import Application
+    from test_lotes import dispose_interface
+    monkeypatch.setattr(preferencias,'data_directory',lambda:tmp_path)
+    root=tk.Tk();root.withdraw();app=Application(root,start_worker=False)
+    try:
+        app.process_event('diary_done',{'folder':str(tmp_path),'leidas':0,'fallidas':0,
+            'consultas_fallidas':3,'estado':'INCOMPLETA','detalle':'Falla en la consulta'})
+        assert '3 consultas fallidas' in app.count.get()
+        assert app.status.get().startswith('No se guardaron copias')
+        assert 'Falla en la consulta' in app.status.get()
+    finally:dispose_interface(app,root)
+
+def test_package_roundtrip_without_network(tmp_path):
+    from prueba_bitacoras_paquete import check
+    assert check(tmp_path)

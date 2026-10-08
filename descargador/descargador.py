@@ -125,7 +125,7 @@ class Application:
         self.status=tk.StringVar(value='Abre tu Chrome, entra a Seguimiento y conecta la extensión local.')
         self.preview=tk.StringVar(value='Carga las opciones de tu sesión para preparar el lote.')
         self.count=tk.StringVar(value='Sin descargas en este lote')
-        root.title('Descargador SITFA · Prototipo integral 2.5.0 · CSMP y bitácoras')
+        root.title('Descargador SITFA · Prototipo integral 2.5.1 · CSMP y bitácoras')
         menu=tk.Menu(root);root.configure(menu=menu)
         tools=tk.Menu(menu,tearoff=False);menu.add_cascade(label='Más opciones',menu=tools)
         for label,command in [('Guardar consulta favorita…',self.save_favorite),('Elegir favorita…',self.choose_favorite),
@@ -487,9 +487,10 @@ class Application:
 
     def process_event(self,name,value):
         if name=='diary_done':
-            self.last_folder=Path(value['folder']);self.count.set(f"{value['leidas']} lecturas verificadas · {value['fallidas']} fallidas o sin vínculo")
+            self.last_folder=Path(value['folder']);self.count.set(f"{value['leidas']} lecturas verificadas · {value['fallidas']} filas fallidas o sin vínculo · {value.get('consultas_fallidas',0)} consultas fallidas")
             self.context.set('Bitácoras · '+value['estado'])
-            self.status.set('Copias guardadas. CSMP genera el Excel al recibir el lote; también puedes abrir bitacoras.json desde Resultados.')
+            self.status.set(('Copias guardadas. ' if value['leidas'] else 'No se guardaron copias de bitácoras. ')+
+                (value.get('detalle') or 'CSMP recibe el control del lote. Revisa Lecturas y Consultas en el Excel.'))
             if self.bitacoras_reply:
                 from lectura_bitacoras import write
                 write(Path(self.bitacoras_reply),{**value,'id':self.bitacoras_id})
@@ -572,7 +573,16 @@ def main(argv=None):
     args=parser.parse_args(argv)
     if args.verificar_paquete:
         from verificar_paquete import check
-        check(args.verificar_paquete);return
+        try:check(args.verificar_paquete)
+        except Exception as exc:
+            import json,traceback
+            destination=args.verificar_paquete.resolve()
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            destination.write_text(json.dumps({'ok':False,'tipo':type(exc).__name__,
+                'ubicacion':[{'modulo':Path(t.filename).name,'linea':t.lineno}
+                             for t in traceback.extract_tb(exc.__traceback__)]},indent=2),encoding='utf-8')
+            raise SystemExit(1)
+        return
     root=tk.Tk();app=Application(root)
     app.csmp_reply=args.csmp_reply
     app.csmp_mode=args.modo

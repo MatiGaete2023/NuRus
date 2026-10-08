@@ -1,5 +1,10 @@
 # CSMP Assistant personal — Windows
 
+**Descargador compatible actualizado: 2.5.1.** CSMP dev21 conserva su ejecutable.
+Si abres la lectura desde Resultados, elige el nuevo descargador. La actualización
+cuenta consultas fallidas, evita anunciar copias inexistentes y agrega diagnóstico
+por fase. [Incidencia de cero lecturas y límites de la corrección](descargador/docs/BITACORAS_CERO_20261008.md).
+
 **Prototipo 0.4.0.dev21 · 8 de octubre de 2026.** **Resultados → Consultar bitácoras en RUS** abre el Descargador 2.5.0 y recibe su lectura por lotes para crear el Excel. Admite Ambulatorio, FAE, Residencia y DCE, selección de tribunales y pestañas, recorrido por páginas, cancelación y recuperación. Conserva la importación HAR, productos manuales y el trabajo de correos. El análisis abarca hasta cuatro meses calendario y «Copia íntegra» conserva toda la tabla capturada. La escritura queda para después. Véase [uso, controles y límites de los lotes](docs/BITACORAS_LOTES_DEV21.md). Las pruebas locales no acreditan aceptación de las cuatro modalidades en una sesión real de RUS.
 
 

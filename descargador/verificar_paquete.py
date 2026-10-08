@@ -18,7 +18,7 @@ def check(destination):
     destination=Path(destination).resolve();destination.parent.mkdir(parents=True,exist_ok=True)
     extension=Path(descargador.__file__).parent/'extension'
     manifest=json.loads((extension/'manifest.json').read_text(encoding='utf-8'))
-    assert manifest['version']=='2.5.0'
+    assert manifest['version']=='2.5.1'
     from csmp_shared import parser
     assert callable(parser())
     for name in ('background.js','conexion.js','conexion.html','conexion.css','pagina.js'):
@@ -55,6 +55,8 @@ def check(destination):
     previous=preferencias.data_directory
     folder=destination.parent/('.descargador-package-check-'+uuid4().hex);folder.mkdir()
     try:
+        from prueba_bitacoras_paquete import check as check_diary
+        assert check_diary(folder/'bitacoras')
         preferencias.data_directory=lambda:folder
         root=tk.Tk();root.withdraw();app=None
         try:
@@ -64,6 +66,7 @@ def check(destination):
                     'executable':executable.name,'executable_sha256':exe_hash,'resource_sha256':resources,
                     'extension_files':len(resources),'joint_button':bool(app.joint_button.winfo_exists()),
                     'bitacora_button_verified':bool(app.diary_button.winfo_exists()),'shared_bitacora_parser_verified':True,
+                    'frozen_bitacora_roundtrip_verified':True,
                     'calendar_dash_dates_verified':True,'measure_calendar_header_verified':True,
                     'dynamic_report_filter_verified':True,'joint_excludes_signatures_verified':True,'ok':True}
         finally:
