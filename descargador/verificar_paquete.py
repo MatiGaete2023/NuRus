@@ -18,7 +18,8 @@ def check(destination):
     destination=Path(destination).resolve();destination.parent.mkdir(parents=True,exist_ok=True)
     extension=Path(descargador.__file__).parent/'extension'
     manifest=json.loads((extension/'manifest.json').read_text(encoding='utf-8'))
-    assert manifest['version']=='2.7.0'
+    from contrato_integral import VERSION
+    assert manifest['version']==VERSION
     from csmp_shared import parser
     assert callable(parser())
     for name in ('background.js','conexion.js','conexion.html','conexion.css','pagina.js'):
