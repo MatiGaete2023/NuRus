@@ -114,3 +114,12 @@ descargador, la extensión y el intercambio de los binarios antes de publicar
 el artefacto integral. Los cambios de funciones deben actualizar capacidades,
 pruebas, guía y distribución en una misma revisión. No se publican HAR,
 copias HTML ni resultados con datos reales de causas.
+
+La publicación detectó dos supuestos obsoletos en las pruebas Windows: el
+fixture visual no declaraba su hoja y una prueba de preferencias exigía
+1050 píxeles de ancho incluso en pantallas de 1024. Se completó el fixture y
+se comprobó que el tamaño restaurado respete la pantalla. Pasaron el control
+visual local, las cinco pruebas de preferencias y el pipeline independiente
+del descargador en GitHub. El comando de CSMP declara explícitamente `tests/`,
+coherente con `testpaths`; las dependencias y pruebas del descargador quedan
+en su propia fase. Estos ajustes no modifican el código de los EXE verificados.

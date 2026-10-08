@@ -49,7 +49,8 @@ assert tuple(app.records.cget('displaycolumns'))==('Tribunal','RIT','Nombre')
 assert app.records.column('RIT','width')==230
 assert app.work_filter.get()=='Con aviso'
 assert controller.font_size==18
-assert app.geometry().split('+')[0]=='1050x620',app.geometry()
+expected=f'{min(1050,app.winfo_screenwidth())}x{min(620,app.winfo_screenheight())}'
+assert app.geometry().split('+')[0]==expected,app.geometry()
 controller.restore_previous()
 assert tuple(app.records.cget('displaycolumns'))==tuple(initial['tables']['records']['visible'])
 assert controller.font_size==initial['font_size']
