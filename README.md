@@ -1,8 +1,14 @@
 # CSMP Assistant · Windows
 
-**Versión 0.5.0.dev3 · 7 de octubre de 2026.**
+**Versión 0.5.0.dev4 · 8 de octubre de 2026 (integración en pruebas).**
 
 Programa de escritorio para revisar el trabajo actual y preparar archivos y borradores. Tiene cinco páginas: Trabajo, Correos, Resoluciones, Resultados y Configuración.
+
+La versión de esta rama conserva las funciones principales de la línea 0.5 y
+añade lectura de bitácoras RUS, sin escritura institucional, mediante el
+Descargador/extensión 2.7.2. Acceso: **Resultados → Más acciones → Bitácoras RUS**.
+Consulta el [informe de integración](docs/INTEGRACION_FINAL_20261008.md)
+antes de usar la distribución. La aceptación con RUS real sigue pendiente.
 
 ## Instalación
 
@@ -11,7 +17,7 @@ Requiere Windows, Python 3.12 y Microsoft Excel de escritorio para la exportaci�
 Ejecuta `Instalar_CSMP.bat` y después `Abrir_CSMP.bat`. Para instalar el wheel desde PowerShell:
 
 ```powershell
-py -3.12 -m pip install "./nurus-0.5.0.dev3-py3-none-any.whl[excel-legacy,excel-native,outlook]"
+py -3.12 -m pip install "./nurus-0.5.0.dev4-py3-none-any.whl[excel-legacy,excel-native,outlook]"
 py -3.12 -m nurus.personal.app
 ```
 
@@ -59,3 +65,7 @@ En la revisión de nóminas: F2 o doble clic para editar, Tab/Enter para avanzar
 Los Excel nuevos tienen anchos por tipo de columna y encabezados repetidos al imprimir. Los Word conservan sus matrices; pueden generarse como proyectos por completar, pero la entrega final impide campos pendientes. La vista PDF requiere Word instalado. ZIP incorpora INDICE.txt y MANIFIESTO.json. Las operaciones por lote permiten detenerse entre productos.
 
 El instalador Windows de Inno Setup instala por usuario, crea accesos directos y permite reinstalar conservando configuración. Consulte [implementación y comprobación](docs/MEJORAS_DISENO_20261007.md).
+
+Para incidencias de bitácoras, compartir `diagnostico_bitacoras.json`
+(generado junto al lote), no el `bitacoras.json` ni las copias HTML con
+datos de NNA.

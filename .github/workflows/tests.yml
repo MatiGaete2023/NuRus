@@ -13,6 +13,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Push y PR de la misma rama no deben lanzar dos compilaciones simultáneas.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:
@@ -24,6 +29,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Python ${{ matrix.python }}
         uses: actions/setup-python@v7
@@ -99,14 +106,14 @@ jobs:
       - name: Build Windows distribution
         if: matrix.python == '3.12'
         shell: pwsh
-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.5.0-dev3.zip HEAD
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.5.0-dev4.zip HEAD
 
       - name: Source distribution
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Windows-dev3
-          path: dist/CSMP_Assistant_personal_0.5.0-dev3.zip
+          name: CSMP-Windows-dev4
+          path: dist/CSMP_Assistant_personal_0.5.0-dev4.zip
 
       - name: Windows executable
         if: matrix.python == '3.12'
@@ -134,11 +141,32 @@ jobs:
           path: dist/RUS_Registro_Actual/
           if-no-files-found: error
 
+      - name: Verificar lector y empaquetado integral SITFA
+        if: matrix.python == '3.12'
+        shell: pwsh
+        run: |
+          python -m pip install -r descargador/requirements.txt playwright==1.63.0
+          if ($LASTEXITCODE -ne 0) { throw 'Dependencias descargador' }
+          python -m pytest descargador -q
+          if ($LASTEXITCODE -ne 0) { throw 'Pruebas descargador' }
+          node descargador/test_bitacoras_extension.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Pruebas extensión' }
+          ./tools/build_integral.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Falló paquete CSMP-Descargador' }
+
+      - name: Artefacto integral CSMP y Descargador
+        if: matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CSMP-Descargador-Integral-dev4-SITFA-272
+          path: dist/integral/
+          if-no-files-found: error
+
       - name: Executable artifact
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Integral-Windows-dev3
+          name: CSMP-Integral-Windows-dev4
           path: dist/CSMP_Integral/
           if-no-files-found: error
 
@@ -187,7 +215,7 @@ jobs:
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Instalador-Windows-dev3
+          name: CSMP-Instalador-Windows-dev4
           path: |
             dist/Instalar_CSMP_*_Windows.exe
             artifacts/performance.json

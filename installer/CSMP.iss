@@ -1,6 +1,6 @@
 ; Build after PyInstaller: ISCC.exe installer\CSMP.iss
 #ifndef AppVersion
-  #define AppVersion "0.5.0-dev3"
+  #define AppVersion "0.5.0-dev4"
 #endif
 [Setup]
 AppId={{AB37C9B2-69F7-47B3-9D78-3BA9D86A63A9}
