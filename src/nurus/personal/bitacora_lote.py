@@ -43,15 +43,18 @@ def import_lote(manifest):
                     raise ValueError('Hay copias distintas del mismo ingreso. Importa lotes separados para comparar.')
                 previous['captures']+=1
             elif previous is None or previous['coverage']=='FALLIDA':queries[identity]=query
-        ledger.append([record.get(k,'') for k in ('tribunal_nombre','modalidad_nombre','pestana','pagina','fila','rit','nombre','programa','causa_id','ingreso_id')]+[state,error,record.get('archivo',''),record.get('sha256',''),record.get('capturada','')])
+        ledger.append([record.get(k,'') for k in ('tribunal_nombre','modalidad_nombre','pestana','pagina','fila','rit','nombre','programa','causa_id','ingreso_id')]+[state,error,record.get('archivo',''),record.get('sha256',''),record.get('capturada',''),record.get('diagnostico',{}).get('codigo_extension','')])
     scope_rows=[[s.get(k,'') for k in ('tribunal_nombre','modalidad_nombre','tab','estado','paginas','registros','error')] for s in scopes]
     expected=data.get('seleccion',{})
     planned={(t,mod,tab) for t in expected.get('tribunals',[]) for mod in expected.get('modalities',[]) for tab in expected.get('tabs',[])}
     attempted={(s.get('tribunal'),s.get('modality'),s.get('tab')) for s in scopes}
     for tribunal,modality,tab in sorted(planned-attempted):scope_rows.append([tribunal,modality,tab,'NO_CONSULTADA',0,0,'La ejecución terminó antes de esta consulta.'])
-    extra=[('Lecturas',('Tribunal','Modalidad','Pestaña','Página','Fila','RIT','Persona','Centro','Causa RUS','Ingreso RUS','Estado lectura','Detalle','Archivo','SHA-256','Fecha captura'),ledger),
+    extra=[('Lecturas',('Tribunal','Modalidad','Pestaña','Página','Fila','RIT','Persona','Centro','Causa RUS','Ingreso RUS','Estado lectura','Detalle','Archivo','SHA-256','Fecha captura','Código extensión'),ledger),
            ('Consultas',('Tribunal','Modalidad','Pestaña','Estado','Páginas recorridas','Registros enumerados','Detalle'),scope_rows),
            ('Lote',('Dato','Valor'),[['Estado del recorrido',data.get('estado','INCOMPLETA')],['Fecha',data.get('fecha','')],
+                ['Error del recorrido',data.get('error','')],
+                ['Descargador',json.dumps(data.get('origen',{}),ensure_ascii=False)],
+                ['Extensión',json.dumps(data.get('extension',{}),ensure_ascii=False)],
                 ['Selección',json.dumps(expected,ensure_ascii=False)],['Historial','Copia de la tabla capturada; no acredita historial remoto completo.']])]
     if data.get('anteriores_no_reenumeradas'):
         rows=[[r.get(k,'') for k in ('tribunal_nombre','modalidad_nombre','pestana','rit','nombre','causa_id','ingreso_id','estado','archivo','sha256')]

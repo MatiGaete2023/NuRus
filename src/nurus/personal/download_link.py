@@ -98,19 +98,10 @@ def start(app):
     active = getattr(app, '_download_process', None)
     if active is not None and active.poll() is None:
         raise ValueError('El descargador ya está abierto. Continúa o cierra esa ventana antes de abrir otra.')
-    executable = app.cfg.data.get('descargador_integral', '')
-    try:
-        command = launch_command(executable)
-    except ValueError:
-        types = [('Descargador Windows', '*.exe')]
-        if not getattr(sys, 'frozen', False):
-            types.append(('Descargador Python', 'descargador.py'))
-        executable = filedialog.askopenfilename(parent=app, title='Elegir SITFA_Descargador.exe', filetypes=types)
-        if not executable:
-            return
-        command = launch_command(executable)
-        app.cfg.data['descargador_integral'] = executable
-        app.cfg.save(app.cfg.data)
+    from .integral_contract import choose
+    chosen=choose(app)
+    if not chosen:return
+    executable,command,capabilities=chosen
     transfer = Transfer.create(app.cfg.directory / 'intercambio', mode, app.folder.get())
     command += ['--csmp-reply', str(transfer.reply), '--modo', mode, '--destino', transfer.data['destination']]
     try:

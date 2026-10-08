@@ -63,7 +63,7 @@ def test_four_modalities_all_courts_and_two_tabs(tmp_path):
     assert result['estado']=='COMPLETA' and len(data['registros'])==32
     assert {p['TIP_Consulta'] for p in bridge.openings}=={'1','2','3','4'}
     assert all(q['paginas']==2 for q in data['consultas'])
-    assert set(cmd for cmd,_ in bridge.events)<={'lock','unlock','prepare','search','diary_open'}
+    assert set(cmd for cmd,_ in bridge.events)<={'capabilities','lock','unlock','prepare','search','diary_open'}
     assert bridge.events[-1][0]=='unlock'
 
 def test_same_rit_different_ingresos_and_failed_popup(tmp_path):
@@ -159,3 +159,13 @@ def test_zero_reads_ui_reports_failed_queries(tmp_path,monkeypatch):
 def test_package_roundtrip_without_network(tmp_path):
     from prueba_bitacoras_paquete import check
     assert check(tmp_path)
+
+def test_extension_260_without_diary_command_is_rejected_before_any_query(tmp_path):
+    class Extension260(Bridge):
+        def call(self,command,payload=None,timeout=75):
+            if command=='capabilities':return {'__sitfaError':'SITFA_TASK'}
+            return super().call(command,payload,timeout)
+    bridge=Extension260();result=run(tmp_path,bridge)
+    data=json.loads(Path(result['manifest']).read_text(encoding='utf-8'))
+    assert not bridge.openings and not data['registros'] and not data['consultas']
+    assert result['estado']=='INCOMPLETA' and 'Actualiza la extensión' in result['detalle']

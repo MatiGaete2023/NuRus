@@ -12,6 +12,14 @@ from nurus.personal.work import Work
 from test_rus_activity import source
 
 
+@pytest.fixture(autouse=True)
+def compatible_downloader(monkeypatch):
+    # These tests cover recovery/launch; the executable contract has its own tests.
+    from nurus.personal import integral_contract
+    monkeypatch.setattr(integral_contract,'validate',lambda *a:{'version':'2.7.0','commit':'fixture'})
+    monkeypatch.setattr(integral_contract,'bundled_downloader',lambda:None)
+
+
 class Variable:
     def __init__(self, value=''):
         self.value = value
@@ -77,7 +85,7 @@ def test_frozen_script_is_reselected_and_never_runs_csmp_as_python(tmp_path, mon
     monkeypatch.setattr(link.subprocess, 'Popen', lambda command, **kwargs:
                         (calls.append(command) or SimpleNamespace(poll=lambda: None)))
     link.start(app)
-    assert choices[0]['filetypes'] == [('Descargador Windows', '*.exe')]
+    assert choices[0]['filetypes'] == [('Descargador Windows','*.exe')]
     assert calls[0][0] == str(exe.resolve()) and str(script) not in calls[0]
     ticket = next((app.cfg.directory/'intercambio').glob('*.solicitud.json'))
     request = Transfer.load(ticket.parent, ticket)

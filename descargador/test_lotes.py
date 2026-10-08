@@ -43,6 +43,9 @@ class FakeBridge:
     def __init__(self,total=3,empty_first=False):self.selection=None;self.events=[];self.total=total;self.number=1;self.empty_first=empty_first;self.queries=0
     def call(self,command,payload=None,timeout=75):
         payload=payload or {};self.events.append((command,None if command not in ('search','download') else self.number))
+        if command=='capabilities':
+            from contrato_integral import capabilities
+            return capabilities()
         if command=='prepare':
             self.queries+=1;self.selection=Selection(**payload['selection']);self.number=1
             profile=selection_profile(self.selection,CATALOG)

@@ -2,6 +2,12 @@ const byId=id=>document.getElementById(id);
 let running=false,connecting=false,endpoint=null,key=null,frameId=null,busy=false;
 const tabId=Number(new URLSearchParams(location.search).get("tab"));
 const messages={
+  DIARY_CONTEXT:"No se conserva el listado actual para abrir bitácoras. Vuelve a consultar el lote sin navegar en RUS durante la lectura.",
+  DIARY_LINK:"El enlace de la bitácora está ausente o repetido en el listado actual. No se abrió una causa por suposición.",
+  DIARY_IDENTITY:"La identidad solicitada no coincide con el tribunal, modalidad e ingreso del listado actual.",
+  DIARY_NETWORK:"La consulta de bitácora falló al contactar con RUS o recibió una redirección. Comprueba la sesión y reintenta el lote.",
+  DIARY_TIMEOUT:"RUS no respondió a tiempo al abrir la bitácora. Reintenta las lecturas fallidas.",
+  DIARY_RESPONSE:"RUS no entregó una respuesta válida de bitácora. Revisa la sesión y reintenta las lecturas fallidas.",
   CONNECTION_CODE:"El descargador rechazó el código. Copia el código actual de la ventana que está abierta; cambia al reiniciar o desconectar.",
   EXTENSION_ORIGIN:"El descargador rechazó el origen de la extensión. Actualiza el descargador y recarga la extensión en chrome://extensions.",
   EXTENSION_CHANGED:"Este descargador está vinculado a otra copia de la extensión. Pulsa Desconectar en el descargador y usa el nuevo código.",

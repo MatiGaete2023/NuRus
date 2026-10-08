@@ -47,7 +47,8 @@ async def main():
     with tempfile.TemporaryDirectory(prefix='pdf_extension_',dir=root/'pruebas_locales') as tmp:
         async with async_playwright() as pw:
             executable=root/'pruebas_locales'/'chrome-pruebas'/'chrome-win64'/'chrome.exe'
-            if not executable.is_file():executable=Path(pw.chromium.executable_path)
+            if '--browser' in sys.argv:executable=Path(sys.argv[sys.argv.index('--browser')+1]).resolve()
+            elif not executable.is_file():executable=Path(pw.chromium.executable_path)
             context=await pw.chromium.launch_persistent_context(str(Path(tmp)/'perfil'),executable_path=str(executable),headless=True,viewport={'width':1600,'height':950},
                 args=['--enable-unsafe-extension-debugging','--disable-extensions-except='+str(app/'extension'),'--load-extension='+str(app/'extension')])
             try:

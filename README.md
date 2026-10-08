@@ -1,11 +1,12 @@
 # CSMP Assistant personal — Windows
 
-**Descargador compatible actualizado: 2.5.1.** CSMP dev21 conserva su ejecutable.
-Si abres la lectura desde Resultados, elige el nuevo descargador. La actualización
-cuenta consultas fallidas, evita anunciar copias inexistentes y agrega diagnóstico
-por fase. [Incidencia de cero lecturas y límites de la corrección](descargador/docs/BITACORAS_CERO_20261008.md).
+**Entrega conjunta: CSMP 0.4.0.dev22 + Descargador y extensión 2.7.0.**
+Se reúnen la lectura de bitácoras y las mejoras de PDF de las dos líneas anteriores.
+CSMP comprueba el descargador que abrirá; este comprueba la extensión conectada;
+el retorno acredita solicitud, carpeta, integridad y origen. Usar el paquete
+completo. [Instalación, diagnóstico y verificación integral](docs/INTEGRACION_COMPLETA_20261008.md).
 
-**Prototipo 0.4.0.dev21 · 8 de octubre de 2026.** **Resultados → Consultar bitácoras en RUS** abre el Descargador 2.5.0 y recibe su lectura por lotes para crear el Excel. Admite Ambulatorio, FAE, Residencia y DCE, selección de tribunales y pestañas, recorrido por páginas, cancelación y recuperación. Conserva la importación HAR, productos manuales y el trabajo de correos. El análisis abarca hasta cuatro meses calendario y «Copia íntegra» conserva toda la tabla capturada. La escritura queda para después. Véase [uso, controles y límites de los lotes](docs/BITACORAS_LOTES_DEV21.md). Las pruebas locales no acreditan aceptación de las cuatro modalidades en una sesión real de RUS.
+**Prototipo 0.4.0.dev22 · 8 de octubre de 2026.** **Resultados → Consultar bitácoras en RUS** abre el Descargador 2.7.0 y recibe su lectura por lotes para crear el Excel. Admite Ambulatorio, FAE, Residencia y DCE, selección de tribunales y pestañas, recorrido por páginas, cancelación y recuperación. Conserva la importación HAR, productos manuales y el trabajo de correos. El análisis abarca hasta cuatro meses calendario y «Copia íntegra» conserva toda la tabla capturada. La escritura queda para después. Véase [uso, controles y límites de los lotes](docs/BITACORAS_LOTES_DEV21.md). Las pruebas locales no acreditan aceptación de las cuatro modalidades en una sesión real de RUS.
 
 
 Base conservada: **0.4.0.dev14**, actualizada el 30 de septiembre de 2026 en `codex/auditoria-ux-20260925-final`. Aplicación de uso personal en Windows con Python 3.12–3.14. Prepara copias de Excel, proyectos Word y borradores editables de Outlook; el registro oficial se realiza en RUS. La [corrección de adjuntos](docs/CORRECCION_ADJUNTOS_20260930.md) documenta este parche sobre el [informe de revisión y ejecución dev13](docs/REVISION_Y_PLAN_20260929.md).

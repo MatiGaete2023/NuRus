@@ -60,3 +60,14 @@ def test_reply_id_and_scope_and_hash_checked(tmp_path):
 def test_date_window_never_extends_beyond_four_calendar_months(tmp_path):
     source=manifest(tmp_path)
     with pytest.raises(ValueError):export_lote(source,tmp_path/'bad.xlsx',date(2026,6,7),date(2026,10,8),today=date(2026,10,8))
+
+
+def test_incompatible_extension_error_remains_visible_in_excel(tmp_path):
+    source=manifest(tmp_path);data=json.loads(source.read_text())
+    data.update(registros=[],consultas=[],error='Actualizar extensión incompatible',origen={'version':'2.7.0','commit':'fixture'})
+    source.write_text(json.dumps(data))
+    out=tmp_path/'control.xlsx';export_lote(source,out,date(2026,6,8),date(2026,10,8),today=date(2026,10,8))
+    book=load_workbook(out)
+    assert book['Lote']['B4'].value=='Actualizar extensión incompatible'
+    assert book['Consultas'].max_row==5
+    book.close()

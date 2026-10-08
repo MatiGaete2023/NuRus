@@ -106,6 +106,8 @@ class DiaryRunner:
             return True
         checkpoint();self.emit('folder',str(folder));locked=False
         try:
+            from contrato_integral import verify_extension
+            state['extension']=verify_extension(self.bridge);checkpoint()
             self.bridge.call('lock');locked=True
             for index,selection in enumerate(plan,1):
                 stopped();profile=selection_profile(selection,self.catalog)
@@ -179,6 +181,7 @@ class DiaryRunner:
                                         record.update(estado='LEIDA',archivo=name,sha256=digest,capturada=result['startedAt'],entradas=len(snapshot['entries']))
                                 except (m.PocError,ValueError,KeyError,OSError,RuntimeError) as exc:
                                     record.update(estado='FALLIDA',error=str(exc) if isinstance(exc,(m.PocError,ValueError)) else 'No se pudo comprobar o guardar esta bitácora.')
+                                    if getattr(exc,'code',None):record['diagnostico']={'codigo_extension':exc.code}
                             checkpoint()
                             self.emit('diary_progress',{'pagina':number,'registros':1,'archivo':record.get('archivo',record['estado']),'rit':record['rit'],'estado':record['estado']})
                             if self.cancel.wait(.15):stopped()

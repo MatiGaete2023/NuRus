@@ -1,5 +1,7 @@
 # Lectura por lotes de RUS · CSMP dev21 y Descargador 2.5.0
 
+**Guía vigente:** [paquete conjunto dev22 / 2.7.0](INTEGRACION_COMPLETA_20261008.md). Los números anteriores se conservan como antecedentes.
+
 **Corrección compatible del mismo día: Descargador 2.5.1.** Selecciona su EXE
 cuando CSMP solicite el descargador; el ejecutable CSMP dev21 sigue siendo válido.
 La actualización informa consultas fallidas aunque no se hayan enumerado filas.

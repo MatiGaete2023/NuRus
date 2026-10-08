@@ -1,6 +1,8 @@
 # Índice y vigencia de documentación
 
-**Actualización vigente: CSMP 0.4.0.dev21 y Descargador 2.5.0, 8 de octubre de 2026.**
+**Guía vigente:** [paquete conjunto dev22 / 2.7.0](INTEGRACION_COMPLETA_20261008.md). Los números anteriores se conservan como antecedentes.
+
+**Actualización vigente: CSMP 0.4.0.dev22 y Descargador 2.7.0, 8 de octubre de 2026.**
 La [guía de bitácoras por lotes](BITACORAS_LOTES_DEV21.md) documenta la consulta
 desde Chrome para cuatro modalidades, el retorno a CSMP, las fallas y la
 recuperación. [Dev20](LECTURA_BITACORAS_DEV20.md) describe la importación HAR

@@ -120,7 +120,7 @@ class Bridge:
     def connected(self):return bool(self.origin and time.monotonic()-self.last_seen<20 and not self.closed)
 
     def call(self,command,payload=None,timeout=75):
-        if command not in ('catalog','lock','unlock','prepare','search','download','evidence_open','evidence_capture','evidence_close','diary_open'):
+        if command not in ('catalog','capabilities','lock','unlock','prepare','search','download','evidence_open','evidence_capture','evidence_close','diary_open'):
             raise PocError('Accion no permitida.')
         if self.closed or not self.connected:
             raise PocError('Conecta la extension desde la pestaña SITFA de tu Chrome. Mantén abierta su pestaña de conexión.')
@@ -133,6 +133,12 @@ class Bridge:
             result=entry['result']
             if not result or not result.get('ok'):
                 messages={
+                    'DIARY_CONTEXT':'No se conserva el listado actual de bitácoras en la extensión. Repite el lote sin navegar durante la lectura.',
+                    'DIARY_LINK':'El enlace de bitácora falta o está repetido en el listado actual. No se abrió una causa por suposición.',
+                    'DIARY_IDENTITY':'La identidad de bitácora no coincide con el tribunal, modalidad e ingreso del listado actual.',
+                    'DIARY_NETWORK':'Falló el contacto con RUS al abrir la bitácora o hubo una redirección. Comprueba la sesión y reintenta.',
+                    'DIARY_TIMEOUT':'RUS no respondió a tiempo al abrir la bitácora. Reintenta las lecturas fallidas.',
+                    'DIARY_RESPONSE':'RUS no entregó una respuesta válida de bitácora. Revisa la sesión y reintenta.',
                     'FOLLOWUP_REQUIRED':'El enlace con Chrome funciona, pero no se encuentra Seguimiento. Entra a Seguimiento en la pestaña original de SITFA y vuelve a Cargar opciones.',
                     'SITE_ACCESS':'Chrome no permite acceder a la pestaña SITFA. Revisa que siga abierta y que la extensión tenga acceso a familia.pjud.cl; abre de nuevo la conexión desde esa pestaña.',
                     'MULTIPLE_FORMS':'Hay más de un formulario de Seguimiento en esa pestaña. Abre la conexión desde una pestaña con un solo formulario.',
@@ -140,7 +146,9 @@ class Bridge:
                     'EVIDENCE_CAPTURE':'No se pudo capturar la consulta vacía. Mantén SITFA visible, pulsa el icono de la extensión desde SITFA y vuelve a conectar. Los archivos guardados se conservan.',
                     'EVIDENCE_OPEN':'No se pudo cargar la vista SITFA para generar el PDF de la consulta vacía. Revisa la sesión y actualiza la extensión y el descargador juntos. Los archivos guardados se conservan.',
                 }
-                raise PocError(messages.get(result.get('error'),'La extension no pudo completar la consulta. Revise su pestaña de conexión y la sesión SITFA.'))
+                error=PocError(messages.get(result.get('error'),'La extension no pudo completar la consulta. Revise su pestaña de conexión y la sesión SITFA.'))
+                error.code=result.get('error') if result.get('error') in messages else 'SITFA_TASK'
+                raise error
             return result.get('result')
         finally:
             with self.lock:self.pending.pop(job,None)

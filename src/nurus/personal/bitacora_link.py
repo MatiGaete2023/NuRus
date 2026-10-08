@@ -23,6 +23,11 @@ def verify_reply(request):
     if not manifest.is_relative_to(allowed) or manifest.name!='bitacoras.json' or manifest.stat().st_size>32*1024*1024:
         raise ValueError('El lote está fuera de la carpeta de esta solicitud.')
     if sha256(manifest.read_bytes()).hexdigest()!=data.get('sha256'):raise ValueError('El control del lote cambió después de la consulta.')
+    expected=request.get('descargador')
+    if expected:
+        origin=json.loads(manifest.read_text(encoding='utf-8')).get('origen',{})
+        if any(origin.get(k)!=expected.get(k) for k in ('version','commit')):
+            raise ValueError('El lote proviene de otro descargador; recupera la solicitud correspondiente.')
     return manifest
 
 def finish(app,request):
@@ -44,16 +49,14 @@ def start(app,start,end):
     validate_period(start,end)
     destination=filedialog.asksaveasfilename(parent=app,title='Excel de bitácoras RUS',defaultextension='.xlsx',initialfile='Bitacoras_RUS.xlsx')
     if not destination:return
-    # Elegir expresamente la versión que incluye este flujo; una 2.4.x no lo tiene.
-    types=[('Descargador Windows','*.exe')]
-    if not getattr(sys,'frozen',False):types.append(('Descargador Python','descargador.py'))
-    executable=filedialog.askopenfilename(parent=app,title='Elegir SITFA_Descargador 2.5.0 o posterior',
-        initialdir=str(Path(app.cfg.data.get('descargador_integral','.') or '.').parent),filetypes=types)
-    if not executable:return
-    command=launch_command(executable)
+    from .integral_contract import choose
+    chosen=choose(app)
+    if not chosen:return
+    executable,command,capabilities=chosen
     folder=app.cfg.directory/'intercambio_bitacoras'/uuid4().hex;folder.mkdir(parents=True)
     request={'version':1,'id':folder.name,'folder':str(folder.resolve()),'desde':start.isoformat(),'hasta':end.isoformat(),
              'corte':date.today().isoformat(),'destino':str(Path(destination).resolve()),'estado':'PENDIENTE'}
+    request['descargador']={'ruta':str(Path(executable).resolve()),'version':capabilities['version'],'commit':capabilities['commit']}
     write(folder/'solicitud.json',request)
     command+=['--bitacoras-reply',str(folder/'respuesta.json'),'--bitacoras-id',request['id'],'--destino',str(folder/'lotes')]
     process=subprocess.Popen(command,cwd=str(Path(executable).resolve().parent),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))

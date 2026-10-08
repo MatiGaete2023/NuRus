@@ -13,6 +13,7 @@ import motor as m
 from lotes import Batch,BatchRunner,Dates,MODALITIES
 from puente import Bridge
 from perfiles import SCREENS
+from pausa import PauseGate
 from preferencias import Preferences,date_preset,pending_plan
 
 ALL_TRIBUNALS='Todos los tribunales disponibles'
@@ -104,7 +105,7 @@ def pick_date(root,variable):
 
 class Application:
     def __init__(self,root,start_worker=True,bridge_factory=Bridge,preferences_path=None):
-        self.root=root;self.events=queue.Queue();self.commands=queue.Queue();self.cancel=threading.Event()
+        self.root=root;self.events=queue.Queue();self.commands=queue.Queue();self.cancel=PauseGate()
         self.bridge_factory=bridge_factory;self.bridge=bridge_factory(self.emit)
         self.catalog=None;self.connected=False;self.busy=False;self.quitting=False;self.last_folder=None
         self.prefs=Preferences(preferences_path,memory=not start_worker and preferences_path is None)
@@ -125,8 +126,11 @@ class Application:
         self.status=tk.StringVar(value='Abre tu Chrome, entra a Seguimiento y conecta la extensión local.')
         self.preview=tk.StringVar(value='Carga las opciones de tu sesión para preparar el lote.')
         self.count=tk.StringVar(value='Sin descargas en este lote')
-        root.title('Descargador SITFA · Prototipo integral 2.5.1 · CSMP y bitácoras')
+        root.title('Descargador SITFA · 2.7.0 integral · CSMP y bitácoras')
         menu=tk.Menu(root);root.configure(menu=menu)
+        self.theme=tk.StringVar(value=self.prefs.data.get('tema','Sistema'))
+        appearance=tk.Menu(menu,tearoff=False);menu.add_cascade(label='Apariencia',menu=appearance)
+        for choice in ('Claro','Oscuro','Sistema'):appearance.add_radiobutton(label=choice,variable=self.theme,value=choice,command=self.apply_theme)
         tools=tk.Menu(menu,tearoff=False);menu.add_cascade(label='Más opciones',menu=tools)
         for label,command in [('Guardar consulta favorita…',self.save_favorite),('Elegir favorita…',self.choose_favorite),
                               ('Resultados e historial',self.show_results),('Limpiar pendientes preparados',self.clear_pending),
@@ -210,6 +214,8 @@ class Application:
         self.diary_button.grid(row=2,column=0,sticky='w',pady=5)
         self.diary_retry_button=ttk.Button(actions,text='Reintentar lecturas fallidas…',command=self.resume_diary)
         self.diary_retry_button.grid(row=2,column=1,columnspan=2,sticky='w',padx=8)
+        self.pause_button=ttk.Button(actions,text='Pausar / continuar',command=self.toggle_pause)
+        self.pause_button.grid(row=3,column=0,sticky='w',pady=5)
         self.progress=ttk.Progressbar(results);self.progress.grid(row=1,column=0,sticky='ew',pady=10)
         table=ttk.Frame(results);table.grid(row=2,column=0,sticky='ew');table.columnconfigure(0,weight=1)
         self.tree=ttk.Treeview(table,columns=('page','rows','file'),show='headings',height=5)
@@ -220,9 +226,20 @@ class Application:
         ttk.Label(results,textvariable=self.context).grid(row=4,column=0,sticky='w')
         ttk.Label(body,textvariable=self.status,wraplength=910).grid(row=6,column=0,sticky='ew',pady=(12,0))
         for combo in (self.mod_combo,self.tab_combo,self.report_combo,self.state_combo,self.month_combo,self.year_combo):combo.bind('<<ComboboxSelected>>',lambda e:self.refresh())
-        self.refresh()
+        self.refresh();self.apply_theme(save=False)
         if start_worker:
             threading.Thread(target=self.worker,daemon=True).start();root.after(100,self.poll)
+
+    def apply_theme(self,save=True):
+        from apariencia import apply
+        choice=self.theme.get()
+        if choice not in ('Claro','Oscuro','Sistema'):choice='Sistema';self.theme.set(choice)
+        apply(self.root,choice)
+        if save:self.prefs.data['tema']=choice;self.prefs.save()
+
+    def toggle_pause(self):
+        if self.cancel.paused:self.cancel.resume();self.status.set('Descarga reanudada.');self.pause_button.configure(text='Pausar / continuar')
+        else:self.cancel.pause();self.status.set('Pausa solicitada: se completará la página en curso.');self.pause_button.configure(text='Continuar descarga')
 
     def emit(self,name,value):self.events.put((name,value))
 
@@ -252,8 +269,14 @@ class Application:
         if self.busy:return
         try:
             batch=self.batch();batch.plan(self.catalog)
-            name=simpledialog.askstring('Favorito','Nombre de la consulta (las fechas y filtros privados no se guardan):',parent=self.root)
-            if name:self.prefs.favorite(name,batch);self.status.set('Favorito guardado. Revisa fechas y alcance al reutilizarlo.')
+            name=simpledialog.askstring('Favorito','Nombre del perfil (fechas recalculadas al aplicarlo):',parent=self.root)
+            if name:
+                offset=0
+                if batch.screen.startswith('calendario_'):
+                    from datetime import date
+                    today=m.now().date();offset=int(batch.year)*12+int(batch.month)-today.year*12-today.month
+                    if offset not in (0,1):raise m.PocError('Los perfiles automáticos admiten el mes actual o siguiente.')
+                self.prefs.favorite(name,batch,calendar_offset=offset);self.status.set('Perfil guardado; recalcula el período al aplicarlo.')
         except (m.PocError,OSError):self.status.set('Carga las opciones y revisa el alcance; no se guardan filtros privados.')
     def apply_batch(self,batch):
         self.select_tribunals(batch.tribunals);self.modality.set(MODALITIES.get(batch.modalities[0],ALL_MODALITIES) if len(batch.modalities)==1 else ALL_MODALITIES)
@@ -273,7 +296,7 @@ class Application:
             try:
                 name=choice.get();value=self.prefs.data['favoritos'][name]
                 if value['screen']!=SCREENS[self.screen.get()]:raise m.PocError('Selecciona la pantalla del favorito y carga sus opciones antes de aplicarlo.')
-                batch,missing=self.prefs.restore(name,self.catalog);self.clear_pending();self.apply_batch(batch)
+                batch,missing=self.prefs.restore(name,self.catalog,today=m.now().date());self.clear_pending();self.apply_batch(batch)
                 self.status.set('Favorito aplicado; revisa el alcance y las fechas.'+(' Opciones retiradas: '+', '.join(missing) if missing else ''));popup.destroy()
             except (m.PocError,KeyError,ValueError) as exc:messagebox.showerror('Favorito',str(exc),parent=popup)
         ttk.Button(popup,text='Aplicar',command=apply).pack(pady=8)
@@ -354,6 +377,7 @@ class Application:
              (self.download_button,ready and bool(self.selected_tribunals)),(self.joint_button,ready and followup and bool(self.selected_tribunals)),
              (self.diary_button,ready and followup and bool(self.selected_tribunals)),(self.diary_retry_button,ready and followup),
              (self.trib_button,ready),(self.cancel_button,self.busy and getattr(self,'operation',None) in ('download','joint','resume_joint','diary') and not self.quitting),
+             (self.pause_button,self.busy and getattr(self,'operation',None) in ('download','joint','resume_joint','diary') and not self.quitting),
              (self.folder_button,self.last_folder is not None and not self.quitting),
              (self.date_check,ready and not calendar_screen),(self.filter_check,ready and not calendar_screen)]:button.configure(state='normal' if enabled else 'disabled')
         for combo in (self.mod_combo,self.tab_combo):combo.configure(state='readonly' if ready and followup else 'disabled')
@@ -460,6 +484,9 @@ class Application:
         while True:
             command,arg=self.commands.get()
             try:
+                if command in ('download','joint','resume_joint'):
+                    from contrato_integral import verify_extension
+                    verify_extension(self.bridge)
                 if command=='open':open_chrome(m.START);self.emit('status','SITFA abierto en tu Chrome. Entra a Seguimiento y conecta su extensión.')
                 elif command=='catalog':self.emit('catalog',self.bridge.call('catalog',{'screen':arg}))
                 elif command=='download':BatchRunner(self.bridge,self.catalog,self.emit,self.cancel).run(*arg)
@@ -570,7 +597,20 @@ def main(argv=None):
     parser.add_argument('--destino',type=Path)
     parser.add_argument('--bitacoras-reply',type=Path);parser.add_argument('--bitacoras-id')
     parser.add_argument('--verificar-paquete',type=Path,help=argparse.SUPPRESS)
+    parser.add_argument('--capacidades-integrales',type=Path,help=argparse.SUPPRESS)
+    parser.add_argument('--generar-lote-prueba',type=Path,help=argparse.SUPPRESS)
     args=parser.parse_args(argv)
+    if args.capacidades_integrales:
+        import json
+        from contrato_integral import capabilities
+        path=args.capacidades_integrales.resolve();path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_text(json.dumps(capabilities(),ensure_ascii=False),encoding='utf-8');return
+    if args.generar_lote_prueba:
+        import json
+        from prueba_bitacoras_paquete import produce
+        path=args.generar_lote_prueba.resolve();path.mkdir(parents=True,exist_ok=True)
+        result=produce(path)
+        (path/'prueba.json').write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8');return
     if args.verificar_paquete:
         from verificar_paquete import check
         try:check(args.verificar_paquete)

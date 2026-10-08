@@ -241,12 +241,14 @@ def publish(folder,label,suffix,writer):
     return target
 
 
-def append_text(sheet,values):
+def append_text(sheet,values,header=False):
     from openpyxl.cell import WriteOnlyCell
     cells=[]
     for value in values:
         cell=WriteOnlyCell(sheet,value=value)
         if isinstance(value,str):cell.data_type='s'
+        from excel_presentacion import format_cell
+        format_cell(cell,header)
         cells.append(cell)
     sheet.append(cells)
 
@@ -272,10 +274,11 @@ def export_book(lots,destination=None,csmp=False):
             dates={json.dumps(l.summary.get('filtro_fecha'),sort_keys=True) for l in lots}
             courts=[{s.get('tribunal') for s in l.summary.get('plan',[])} for l in lots]
             if len(dates)>1 or not courts[0] or any(c!=courts[0] for c in courts):raise m.PocError('Los lotes de cruce no comparten tribunales y filtros de fecha.')
+    from excel_presentacion import configure_sheet
     book=Workbook(write_only=True);summary=book.create_sheet('Resumen')
-    append_text(summary,['Resultado','Lote','Consulta','Hoja','Filas','Compatibilidad CSMP','Columnas faltantes'])
+    configure_sheet(summary,['Resultado','Lote','Consulta','Hoja','Filas','Compatibilidad CSMP','Columnas faltantes']);append_text(summary,['Resultado','Lote','Consulta','Hoja','Filas','Compatibilidad CSMP','Columnas faltantes'],header=True)
     origin=book.create_sheet('SITFA_ARCHIVOS')
-    append_text(origin,['Carpeta origen','Archivo origen','SHA256'])
+    configure_sheet(origin,['Carpeta origen','Archivo origen','SHA256']);append_text(origin,['Carpeta origen','Archivo origen','SHA256'],header=True)
     groups={};names=Counter();reports=[];source_list=[];source_rows=0
     used_names=set(book.sheetnames)
     for lot in lots:
@@ -296,8 +299,8 @@ def export_book(lots,destination=None,csmp=False):
                 while name in used_names:name=(name[:27]+'_'+str(len(used_names)))[:31]
                 used_names.add(name)
                 sheet=book.create_sheet(name);sheet.freeze_panes='A2'
-                for index in range(1,len(headers)+len(ORIGIN)+1):sheet.column_dimensions[get_column_letter(index)].width=24
-                append_text(sheet,(*headers,*ORIGIN));groups[key]=[sheet,1]
+                configure_sheet(sheet,(*headers,*ORIGIN))
+                append_text(sheet,(*headers,*ORIGIN),header=True);groups[key]=[sheet,1]
             sheet,total=groups[key]
             for rownum,row in rows:
                 append_text(sheet,(*row,lot.folder.name,query['consulta'],item['archivo'],item['pagina'],rownum,item['sha256'],
@@ -312,7 +315,7 @@ def export_book(lots,destination=None,csmp=False):
         for family in names:
             if names[family]>1:raise m.PocError('Hay varios esquemas para '+family+'. Exporta cada esquema por separado antes de CSMP.')
     due_sheet=book.create_sheet('Vencimientos')
-    append_text(due_sheet,['Vencimiento','Tribunal','Lote','Archivo','Fila','Estado de fecha'])
+    configure_sheet(due_sheet,['Vencimiento','Tribunal','Lote','Archivo','Fila','Estado de fecha']);append_text(due_sheet,['Vencimiento','Tribunal','Lote','Archivo','Fila','Estado de fecha'],header=True)
     # Tabla derivada ordenada; no recalcula plazos ni modifica las fuentes.
     due_rows=[]
     for lot in lots:
@@ -365,25 +368,39 @@ def export_csv(lot):
 def export_ics(lot):
     events=[];occurrences=Counter()
     def escape(value):return str(value).replace('\\','\\\\').replace('\n','\\n').replace(';','\\;').replace(',','\\,').replace('\r','')
-    for _,selection,item,headers,rows in tables(lot):
-        cols=mapping(headers);field='vencimiento' if 'vencimiento' in cols else 'egreso_proy' if 'egreso_proy' in cols else None
-        if not field:continue
-        title='Vencimiento de informe' if field=='vencimiento' else 'Egreso proyectado'
-        meaning=('Verificar vencimiento en el original; no acredita entrega del informe.' if field=='vencimiento' else
-                 'Fecha proyectada de la fuente; no acredita un egreso efectivo.')
-        if field=='vencimiento' and selection.get('screen')=='calendario_medidas':
-            title='Vencimiento de medida'
-            meaning='Fecha de vencimiento de la medida en la fuente; no acredita un egreso efectivo.'
-        for n,row in rows:
-            day=parse_day(row[cols[field]])
-            if day is None:continue
-            key=json.dumps([selection.get('tribunal'),field,[str(v) for v in row]],ensure_ascii=False)
-            occurrences[key]+=1;uid=hashlib.sha256((key+str(occurrences[key])).encode()).hexdigest()+'@sitfa-local'
-            events+=['BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
-                     'DTSTART;VALUE=DATE:'+day.strftime('%Y%m%d'),
-                     'SUMMARY:'+escape(title+' SITFA · '+selection.get('tribunal_nombre','')),
-                     'DESCRIPTION:'+escape(f'Fuente: {item["archivo"]}, fila {n}. Columna: {headers[cols[field]]}. '
-                         +meaning+' Cobertura del lote: '+('INCOMPLETO' if lot.partial else 'VALIDADO')+'.'),'END:VEVENT']
+    table_data=list(tables(lot));identities=Counter()
+    def identity(selection,headers,row,field):
+        cols=mapping(headers)
+        required=('rit','rut','programa')
+        if any(key not in cols or not str(row[cols[key]] or '').strip() for key in required):return None
+        return json.dumps([selection.get('tribunal'),selection.get('screen'),field,*[str(row[cols[key]]).strip() for key in required]],ensure_ascii=False)
+    for _,selection,item,headers,rows in table_data:
+        cols=mapping(headers)
+        for field in ('vencimiento','egreso_proy'):
+            if field in cols:
+                for n,row in rows:
+                    key=identity(selection,headers,row,field)
+                    if key and parse_day(row[cols[field]]):identities[key]+=1
+    for _,selection,item,headers,rows in table_data:
+        cols=mapping(headers)
+        for field in ('vencimiento','egreso_proy'):
+            if field not in cols:continue
+            for n,row in rows:
+                day=parse_day(row[cols[field]])
+                if day is None:continue
+                stable=identity(selection,headers,row,field)
+                key=stable if stable and identities[stable]==1 else json.dumps([selection.get('tribunal'),field,[str(v) for v in row]],ensure_ascii=False)
+                occurrences[key]+=1;uid=hashlib.sha256((key+':'+str(occurrences[key])).encode()).hexdigest()+'@sitfa-local'
+                rit=str(row[cols['rit']]).strip() if 'rit' in cols else ''
+                label='Vencimiento de informe' if field=='vencimiento' else 'Egreso proyectado'
+                meaning=('Verificar vencimiento en el original; no acredita entrega del informe.' if field=='vencimiento' else 'Fecha proyectada de la fuente; no acredita un egreso efectivo.')
+                if field=='vencimiento' and selection.get('screen')=='calendario_medidas':
+                    label='Vencimiento de medida';meaning='Fecha de vencimiento de la medida en la fuente; no acredita un egreso efectivo.'
+                events+=['BEGIN:VEVENT' ,'UID:'+uid,'DTSTAMP:'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
+                         'DTSTART;VALUE=DATE:'+day.strftime('%Y%m%d'),
+                         'SUMMARY:'+escape(label+' SITFA · '+rit+' · '+selection.get('tribunal_nombre','')),
+                         'DESCRIPTION:'+escape(f'Fuente: {item["archivo"]}, fila {n}. Columna: {headers[cols[field]]}. '
+                             +meaning+' Cobertura del lote: '+('INCOMPLETO' if lot.partial else 'VALIDADO')+'.'),'END:VEVENT']
     if not events:raise m.PocError('No hay fechas verificables para exportar al calendario.')
     lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//SITFA local//Vencimientos//ES','CALSCALE:GREGORIAN',*events,'END:VCALENDAR']
     def write(path):
@@ -395,7 +412,11 @@ def export_ics(lot):
                 if len((current+char).encode())>73:folded.append(current);current=' '+char
                 else:current+=char
             folded.append(current)
-        path.write_bytes(('\r\n'.join(folded)+'\r\n').encode())
+        content=('\r\n'.join(folded)+'\r\n').encode()
+        from icalendar import Calendar
+        parsed=Calendar.from_ical(content)
+        if len(parsed.walk('VEVENT'))!=events.count('BEGIN:VEVENT'):raise m.PocError('El calendario no superó la comprobación de eventos.')
+        path.write_bytes(content)
     return publish(lot.folder,'Vencimientos','.ics',write)
 
 
@@ -407,9 +428,17 @@ def export_zip(lot):
             if item.get('estado')=='OK':paths.add(check_file(lot.folder,item))
         if manifest.get('evidencia'):paths.add(check_file(lot.folder,manifest['evidencia']))
     def write(path):
+        entries=[{'archivo':p.name,'bytes':p.stat().st_size,'sha256':digest_file(p)} for p in sorted(paths)]
+        expected_hashes={item['archivo']:item['sha256'] for item in entries}
         with zipfile.ZipFile(path,'w',zipfile.ZIP_DEFLATED) as archive:
-            archive.writestr('INDICE.txt',('INCOMPLETO' if lot.partial else 'VERIFICADO')+'\n'+'\n'.join(sorted(p.name for p in paths)))
-            for source in sorted(paths):archive.write(source,source.name)
+            archive.writestr('INDICE.txt',('INCOMPLETO' if lot.partial else 'VERIFICADO')+'\nArchivos del lote actual. Consultar MANIFIESTO.json para comprobar integridad.\n'+'\n'.join(sorted(p.name for p in paths)))
+            archive.writestr('MANIFIESTO.json',json.dumps({'version':1,'estado':'INCOMPLETO' if lot.partial else 'VERIFICADO','archivos':entries},ensure_ascii=False,indent=2))
+            for source in sorted(paths):
+                expected=expected_hashes[source.name];archive.write(source,source.name)
+                h=hashlib.sha256()
+                with archive.open(source.name) as f:
+                    for block in iter(lambda:f.read(1024*1024),b''):h.update(block)
+                if h.hexdigest()!=expected:raise m.PocError('Un archivo cambió durante la entrega.')
     return publish(lot.folder,'Entrega'+(' INCOMPLETO' if lot.partial else ''),'.zip',write)
 
 

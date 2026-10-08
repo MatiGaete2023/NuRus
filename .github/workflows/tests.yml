@@ -83,35 +83,39 @@ jobs:
       - name: Build Windows distribution
         if: matrix.python == '3.12'
         shell: pwsh
-        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev21.zip HEAD
+        run: git archive --format=zip --prefix=CSMP_Assistant/ -o dist/CSMP_Assistant_personal_0.4.0-dev22.zip HEAD
 
       - name: Source distribution
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Windows-dev21
-          path: dist/CSMP_Assistant_personal_0.4.0-dev21.zip
+          name: CSMP-Windows-dev22
+          path: dist/CSMP_Assistant_personal_0.4.0-dev22.zip
 
-      - name: Windows executable
+      - name: Windows integral verification and build
         if: matrix.python == '3.12'
         run: |
-          python tools/write_build_meta.py
-          if ($LASTEXITCODE -ne 0) { throw 'Falló la identificación de versión y código fuente' }
-          python -m pip install pyinstaller
-          if ($LASTEXITCODE -ne 0) { throw 'Falló la instalación del empaquetador' }
-          python -m PyInstaller --noconfirm CSMP_Experimental.spec
-          if ($LASTEXITCODE -ne 0) { throw 'Falló la construcción del ejecutable CSMP' }
-          $check = Start-Process -FilePath (Resolve-Path dist/CSMP_Integral/CSMP_Integral.exe).Path -ArgumentList '--verificar-paquete','artifacts/package-check.json' -PassThru -Wait -WindowStyle Hidden
-          if ($check.ExitCode -ne 0) { throw 'Falló la comprobación del paquete CSMP' }
-          $proof = Get-Content artifacts/package-check.json -Raw | ConvertFrom-Json
-          if (-not $proof.ok -or -not $proof.frozen) { throw 'El paquete CSMP no confirmó su arranque' }
+          python -m pip install pyinstaller pytest playwright==1.63.0 -r descargador/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la instalación de dependencias integrales' }
+          python -m pytest descargador -q
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la suite del descargador' }
+          node descargador/test_bitacoras_extension.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Falló el contrato de lectura de la extensión' }
+          python -m playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la preparación de Chrome aislado' }
+          python descargador/verificar_bitacoras_extension.py
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la lectura de bitácoras con extensión real' }
+          python descargador/verificar_pdf_extension.py
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la captura PDF con extensión real' }
+          ./tools/build_integral.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Falló el paquete integral Windows' }
 
       - name: Executable artifact
         if: matrix.python == '3.12'
         uses: actions/upload-artifact@v4
         with:
-          name: CSMP-Integral-Windows-dev21
-          path: dist/CSMP_Integral/
+          name: CSMP-Integral-Windows-dev22
+          path: dist/integral/
           if-no-files-found: error
 
       - name: Wheel artifact

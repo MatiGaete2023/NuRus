@@ -6,7 +6,7 @@ from lotes import Batch
 from lectura_bitacoras import DiaryRunner
 from csmp_shared import parser
 
-def check(folder):
+def produce(folder):
     headers=parser().__globals__['HEADERS']
     params={'tipo_popUp':'12','CRR_IdCausa':'100','COD_Tribunal':'49','TIP_Consulta':'1','ID_Ingreso':'200','COD_Etapa':'3','FLG_MejorNinez':'0'}
     fields={**params,'tipo_popUp':'','RIT_Causa':'X-1-2026','GLS_Nombre':'Persona ficticia','GLS_Centro':'Centro ficticio'}
@@ -18,6 +18,9 @@ def check(folder):
     class Bridge:
         connected=True
         def call(self,command,payload=None,timeout=75):
+            if command=='capabilities':
+                from contrato_integral import capabilities
+                return capabilities()
             if command=='prepare':return {'pairs':[[k,v] for k,v in {'COD_Lengueta':'tdCumplimiento','COD_Tribunal_sel':'49','TIP_Consulta':'1','FLG_Consulta':'0','irAccion':'Buscar medida','NUM_PaginaCumplimiento':'','NUM_TotalCumplimiento':''}.items()]}
             if command=='search':
                 values={**dict(payload['pairs']),'NUM_PaginaCumplimiento':'1','NUM_TotalCumplimiento':'1'}
@@ -31,4 +34,8 @@ def check(folder):
     if result['estado']!='COMPLETA' or result['leidas']!=1:
         details=json.loads(Path(result['manifest']).read_text(encoding='utf-8'))
         raise ValueError('Falló el recorrido congelado ficticio: '+json.dumps(details['consultas'],ensure_ascii=False))
+    return result
+
+def check(folder):
+    produce(folder)
     return True

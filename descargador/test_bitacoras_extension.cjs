@@ -22,11 +22,11 @@ async function main(){
   assert.equal(new URL(calls[0].url).searchParams.get('TIP_Consulta'),'2');
   for(const change of [{ID_Ingreso:'999'},{COD_Tribunal:'113'},{TIP_Consulta:'1'},{tipo_popUp:'13'},{evil:'extra'}]){
     const out=await context.sitfaTask('diary_open',{params:{...params,...change}});
-    assert.equal(out.__sitfaError,'SITFA_TASK');assert.equal(calls.length,1);
+    assert.equal(out.__sitfaError,change.ID_Ingreso?'DIARY_LINK':'DIARY_IDENTITY');assert.equal(calls.length,1);
   }
-  elements.push(elements[0]);assert.equal((await context.sitfaTask('diary_open',{params})).__sitfaError,'SITFA_TASK');
+  elements.push(elements[0]);assert.equal((await context.sitfaTask('diary_open',{params})).__sitfaError,'DIARY_LINK');
   assert.equal(calls.length,1);elements=[elements[0]];
-  tableId='tablaEspera';assert.equal((await context.sitfaTask('diary_open',{params})).__sitfaError,'SITFA_TASK');
+  tableId='tablaEspera';assert.equal((await context.sitfaTask('diary_open',{params})).__sitfaError,'DIARY_IDENTITY');
   assert.equal(calls.length,1);
   console.log('OK: GET de lectura, identidad, modalidad, pestaña y duplicados; ningún guardado RUS.');
 }

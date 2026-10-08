@@ -8,8 +8,9 @@ if __name__=='__main__':
         from nurus.personal.app import main
         main()
     except Exception as exc:
-        if '--verificar-paquete' in sys.argv:
-            index=sys.argv.index('--verificar-paquete')+1
+        option=next((v for v in ('--verificar-paquete','--verificar-integracion') if v in sys.argv),None)
+        if option:
+            index=sys.argv.index(option)+1
             if index<len(sys.argv):
                 target=Path(sys.argv[index]).resolve()
                 target.parent.mkdir(parents=True,exist_ok=True)
