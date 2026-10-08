@@ -21,8 +21,7 @@ def check(destination):
     from contrato_integral import VERSION
     assert manifest['version']==VERSION
     capability_source=(extension/'pagina.js').read_text(encoding='utf-8')
-    advertised=re.findall(r"if\\(command==='capabilities'\\) return \\{[^\\n]*version:'([^']+)'",capability_source)
-    assert advertised==[VERSION], 'La extensión no anuncia la versión real del manifiesto.'
+    assert f"if(command==='capabilities') return {{tipo:'CSMP_RUS_CAPACIDADES',version:'{VERSION}'" in capability_source
     from csmp_shared import parser
     assert callable(parser())
     for name in ('background.js','conexion.js','conexion.html','conexion.css','pagina.js'):

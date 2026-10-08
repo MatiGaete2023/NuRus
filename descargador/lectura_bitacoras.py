@@ -84,7 +84,7 @@ def anonymous_diagnostic(data):
     def safe_version(value):
         import re
         text=str(value or '')
-        return text if re.fullmatch(r'[0-9]{1,3}(?:\\.[0-9]{1,3}){2}(?:\\.dev[0-9]{1,5})?',text) else 'NO_VERIFICADA'
+        return text if re.fullmatch(r'[0-9]{1,3}(?:\.[0-9]{1,3}){2}(?:\.dev[0-9]{1,5})?',text) else 'NO_VERIFICADA'
     def state_code(value):
         return value if value in allowed_states else 'OTRO'
     records=data.get('registros',[])

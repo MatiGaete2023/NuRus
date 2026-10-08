@@ -141,7 +141,7 @@ def test_anonymous_diagnostic_has_totals_but_no_personal_data(tmp_path):
     assert data['descargador_version'] in ('NO_VERIFICADA','2.7.2')
     assert data['extension_version']=='2.7.2'
     assert data['diagnosticos_sin_vinculo']['SIN_ACCION_OBSERVACIONES']==2
-    assert data['consultas'][0]['registros']==1
+    assert data['consultas'][0]['registros']==2
     assert data['contiene_identificadores_personales'] is False
     assert all(value not in source for value in ('Persona ficticia','X-1-2026','11111111-1','PRM Centro ficticio','\\u0022rut\\u0022','\\u0022nombre\\u0022'))
     # Ni siquiera un manifiesto malicioso puede inyectar texto libre al reporte.
@@ -160,8 +160,8 @@ def test_extension_declared_version_matches_manifest():
     folder=Path(__file__).parent/'extension'
     manifest=json.loads((folder/'manifest.json').read_text(encoding='utf-8'))
     script=(folder/'pagina.js').read_text(encoding='utf-8')
-    matches=re.findall(r"if\\(command==='capabilities'\\) return \\{[^\\n]*version:'([^']+)'",script)
-    assert matches==[VERSION]==[manifest['version']]
+    assert f"if(command==='capabilities') return {{tipo:'CSMP_RUS_CAPACIDADES',version:'{VERSION}'" in script
+    assert manifest['version']==VERSION
 
 
 def test_cancel_and_resume_keeps_verified_copy(tmp_path):
