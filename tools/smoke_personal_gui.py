@@ -88,7 +88,7 @@ with TemporaryDirectory() as directory:
         app.tabs.select(app.pages['Configuración']);app.update_idletasks();app.update()
         capture_window(app,'configuracion-1024x650')
         # Trabajo y Resoluciones: contexto persistente, búsqueda, revisión por excepción y tipos legibles.
-        work=Work(app.cfg.data);work.mode='ESPERA';work.path='prueba.xlsx'
+        work=Work(app.cfg.data);work.mode='ESPERA';work.path='prueba.xlsx';work.sheet='Registros'
         work.mapping={'rit':'RIT','tribunal':'TRIBUNAL','nombre':'NOMBRE','rut':'RUT','programa':'DERIVACION'}
         work.rows=[
             Row('a',2,{'RIT':'X-1','TRIBUNAL':'Jgdo. L. y G. de Laja','NOMBRE':'NNA UNO','RUT':'11111111-1','DERIVACION':'AFT PRUEBA'},'Ingreso efectivo',[],['PC_IE'],[],review={'RES':'PC_IE'}),
